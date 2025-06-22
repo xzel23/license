@@ -37,11 +37,13 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.prefs.Preferences;
 
 public class LicenseManager {
 
     private static final String APP_NAME = LicenseManager.class.getSimpleName();
     private static final String APP_DESCRIPTION = "License Manager";
+    private static final String PREF_KEYSTORE_PATH = "keystorePath";
 
     private JFrame mainFrame;
     private JTabbedPane tabbedPane;
@@ -108,7 +110,7 @@ public class LicenseManager {
 
         // Keystore path
         keyManagementPanel.add(new JLabel("Keystore Path:"));
-        Path defaultPath = Paths.get(".");
+        Path defaultPath = getStoredKeystorePath();
         keyStorePathInput = new FileInput(FileInput.SelectionMode.SELECT_FILE, defaultPath, 20);
         keyManagementPanel.add(keyStorePathInput, "growx, wrap");
 
@@ -241,6 +243,7 @@ public class LicenseManager {
 
             try {
                 keyStore = KeyStoreUtil.loadKeyStoreFromFile(keystorePath, password);
+                setKeystorePath(keystorePath);
                 updateKeyAliasComboBox();
                 JOptionPane.showMessageDialog(mainFrame, "Keystore loaded successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
             } catch (GeneralSecurityException | IOException e) {
@@ -249,6 +252,11 @@ public class LicenseManager {
         },
         () -> JOptionPane.showMessageDialog(mainFrame, "Please specify a keystore path.", "Error", JOptionPane.ERROR_MESSAGE)
         );
+    }
+
+    private void setKeystorePath(Path keystorePath) {
+        this.keystorePath = keystorePath;
+        saveKeystorePath(keystorePath);
     }
 
     private void createKeystore() {
@@ -265,6 +273,7 @@ public class LicenseManager {
                         keyStore = KeyStore.getInstance("PKCS12");
                         keyStore.load(null, password);
                         KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, password);
+                        setKeystorePath(keystorePath);
                         JOptionPane.showMessageDialog(mainFrame, "Keystore created successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
                     } catch (GeneralSecurityException | IOException e) {
                         JOptionPane.showMessageDialog(mainFrame, "Error creating keystore: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
@@ -409,6 +418,27 @@ public class LicenseManager {
 
         } catch (Exception e) {
             JOptionPane.showMessageDialog(mainFrame, "Error generating license: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    /**
+     * Gets the stored keystore path from preferences or returns a default path if none is stored.
+     * @return the stored keystore path or a default path
+     */
+    private Path getStoredKeystorePath() {
+        Preferences prefs = Preferences.userNodeForPackage(LicenseManager.class);
+        String storedPath = prefs.get(PREF_KEYSTORE_PATH, null);
+        return storedPath != null ? Paths.get(storedPath) : Paths.get(".");
+    }
+
+    /**
+     * Saves the keystore path to preferences.
+     * @param path the path to save
+     */
+    private void saveKeystorePath(Path path) {
+        if (path != null) {
+            Preferences prefs = Preferences.userNodeForPackage(LicenseManager.class);
+            prefs.put(PREF_KEYSTORE_PATH, path.toString());
         }
     }
 
