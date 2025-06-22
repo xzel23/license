@@ -8,7 +8,7 @@ rootProject.name = "dua3-license"
 val projectVersion = "0.0.1-SNAPSHOT"
 
 // define subprojects
-//include("license-app")
+include("license-app")
 
 plugins {
     id("org.gradle.toolchains.foojay-resolver") version "1.0.0"
@@ -62,6 +62,7 @@ dependencyResolutionManagement {
             library("dua3-utility", "com.dua3.utility", "utility").versionRef("dua3-utility")
             library("dua3-utility-db", "com.dua3.utility", "utility-db").versionRef("dua3-utility")
             library("dua3-utility-logging", "com.dua3.utility", "utility-logging").versionRef("dua3-utility")
+            library("dua3-utility-swing", "com.dua3.utility", "utility-swing").versionRef("dua3-utility")
 
             library("slf4j-api", "org.slf4j", "slf4j-api").versionRef("slf4j")
             library("slf4j-simple", "org.slf4j", "slf4j-simple").versionRef("slf4j")
