@@ -41,7 +41,7 @@ object Meta {
 }
 /////////////////////////////////////////////////////////////////////////////
 
-subprojects {
+allprojects {
 
     project.version = rootProject.libs.versions.projectVersion.get()
 
@@ -121,6 +121,9 @@ subprojects {
         // LOG4J
         implementation(platform(rootProject.libs.log4j.bom))
         implementation(rootProject.libs.log4j.api)
+
+        // other
+        implementation(rootProject.libs.dua3.utility)
     }
 
     idea {

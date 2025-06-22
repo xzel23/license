@@ -1,2 +1,8 @@
 <FindBugsFilter>
+    <Match>
+        <!-- Bugs reported by SpotBugs for automatic injected null checks -->
+        <Or>
+            <Bug pattern="RCN_REDUNDANT_NULLCHECK_WOULD_HAVE_BEEN_A_NPE"/>
+        </Or>
+    </Match>
 </FindBugsFilter>
