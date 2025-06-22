@@ -4,12 +4,12 @@ import com.dua3.license.DynamicEnum;
 import com.dua3.license.License;
 import com.dua3.utility.crypt.AsymmetricAlgorithm;
 import com.dua3.utility.crypt.KeyStoreUtil;
+import com.dua3.utility.swing.FileInput;
 import com.dua3.utility.swing.SwingUtil;
 import net.miginfocom.swing.MigLayout;
 
 import javax.swing.JButton;
 import javax.swing.JComboBox;
-import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -20,14 +20,13 @@ import javax.swing.JTabbedPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
-import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.PrivateKey;
@@ -50,7 +49,7 @@ public class LicenseManager {
     private JPanel licenseGenerationPanel;
     private JPanel licenseVerificationPanel;
 
-    private JTextField keystorePathField;
+    private FileInput keyStorePathInput;
     private JPasswordField keystorePasswordField;
     private JTextField keyAliasField;
     private JTextField keySubjectField;
@@ -109,11 +108,9 @@ public class LicenseManager {
 
         // Keystore path
         keyManagementPanel.add(new JLabel("Keystore Path:"));
-        keystorePathField = new JTextField(20);
-        keyManagementPanel.add(keystorePathField, "split 2, growx");
-        JButton browseButton = new JButton("Browse...");
-        browseButton.addActionListener(e -> browseForKeystore());
-        keyManagementPanel.add(browseButton, "wrap");
+        Path defaultPath = Paths.get(".");
+        keyStorePathInput = new FileInput(FileInput.SelectionMode.SELECT_FILE, defaultPath, 20);
+        keyManagementPanel.add(keyStorePathInput, "growx, wrap");
 
         // Keystore password
         keyManagementPanel.add(new JLabel("Keystore Password:"));
@@ -233,63 +230,48 @@ public class LicenseManager {
         licenseFieldsPanel.repaint();
     }
 
-    private void browseForKeystore() {
-        JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setDialogTitle("Select Keystore File");
-        fileChooser.setFileFilter(new FileNameExtensionFilter("Keystore Files (*.jks, *.keystore)", "jks", "keystore"));
-
-        if (fileChooser.showOpenDialog(mainFrame) == JFileChooser.APPROVE_OPTION) {
-            File selectedFile = fileChooser.getSelectedFile();
-            keystorePathField.setText(selectedFile.getAbsolutePath());
-        }
-    }
-
     private void loadKeystore() {
-        String path = keystorePathField.getText().trim();
-        if (path.isEmpty()) {
-            JOptionPane.showMessageDialog(mainFrame, "Please specify a keystore path.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
+        keyStorePathInput.getPath().ifPresentOrElse(
+    keystorePath -> {
+            char[] password = keystorePasswordField.getPassword();
+            if (password.length == 0) {
+                JOptionPane.showMessageDialog(mainFrame, "Please enter the keystore password.", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
 
-        char[] password = keystorePasswordField.getPassword();
-        if (password.length == 0) {
-            JOptionPane.showMessageDialog(mainFrame, "Please enter the keystore password.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        try {
-            keystorePath = Path.of(path);
-            keyStore = KeyStoreUtil.loadKeyStoreFromFile(keystorePath, password);
-            updateKeyAliasComboBox();
-            JOptionPane.showMessageDialog(mainFrame, "Keystore loaded successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
-        } catch (GeneralSecurityException | IOException e) {
-            JOptionPane.showMessageDialog(mainFrame, "Error loading keystore: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-        }
+            try {
+                keyStore = KeyStoreUtil.loadKeyStoreFromFile(keystorePath, password);
+                updateKeyAliasComboBox();
+                JOptionPane.showMessageDialog(mainFrame, "Keystore loaded successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } catch (GeneralSecurityException | IOException e) {
+                JOptionPane.showMessageDialog(mainFrame, "Error loading keystore: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        },
+        () -> JOptionPane.showMessageDialog(mainFrame, "Please specify a keystore path.", "Error", JOptionPane.ERROR_MESSAGE)
+        );
     }
 
     private void createKeystore() {
-        String path = keystorePathField.getText().trim();
-        if (path.isEmpty()) {
-            JOptionPane.showMessageDialog(mainFrame, "Please specify a keystore path.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
+        keyStorePathInput.getPath().ifPresentOrElse(
+                keystorePath -> {
+                    char[] password = keystorePasswordField.getPassword();
+                    if (password.length == 0) {
+                        JOptionPane.showMessageDialog(mainFrame, "Please enter the keystore password.", "Error", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
 
-        char[] password = keystorePasswordField.getPassword();
-        if (password.length == 0) {
-            JOptionPane.showMessageDialog(mainFrame, "Please enter the keystore password.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        try {
-            keystorePath = Path.of(path);
-            // Create a new KeyStore instance directly
-            keyStore = KeyStore.getInstance("PKCS12");
-            keyStore.load(null, password);
-            KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, password);
-            JOptionPane.showMessageDialog(mainFrame, "Keystore created successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
-        } catch (GeneralSecurityException | IOException e) {
-            JOptionPane.showMessageDialog(mainFrame, "Error creating keystore: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-        }
+                    try {
+                        // Create a new KeyStore instance directly
+                        keyStore = KeyStore.getInstance("PKCS12");
+                        keyStore.load(null, password);
+                        KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, password);
+                        JOptionPane.showMessageDialog(mainFrame, "Keystore created successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                    } catch (GeneralSecurityException | IOException e) {
+                        JOptionPane.showMessageDialog(mainFrame, "Error creating keystore: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                },
+                () -> JOptionPane.showMessageDialog(mainFrame, "Please specify a keystore path.", "Error", JOptionPane.ERROR_MESSAGE)
+        );
     }
 
     private void generateKeyPair() {
