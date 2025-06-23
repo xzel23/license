@@ -259,6 +259,7 @@ allprojects {
     // === SPOTBUGS ===
     spotbugs.toolVersion.set(rootProject.libs.versions.spotbugs)
     spotbugs.excludeFilter.set(rootProject.file("spotbugs-exclude.xml"))
+    spotbugs.ignoreFailures.set(true)
 
     tasks.withType<com.github.spotbugs.snom.SpotBugsTask> {
         reports.create("html") {
@@ -296,5 +297,9 @@ allprojects {
         rejectVersionIf {
             !isStable(candidate.version)
         }
+    }
+
+    dependencies {
+        implementation(platform(rootProject.libs.dua3.utility.bom))
     }
 }

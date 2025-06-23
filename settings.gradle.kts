@@ -59,10 +59,11 @@ dependencyResolutionManagement {
 
             library("jspecify", "org.jspecify", "jspecify").versionRef("jspecify")
 
-            library("dua3-utility", "com.dua3.utility", "utility").versionRef("dua3-utility")
-            library("dua3-utility-db", "com.dua3.utility", "utility-db").versionRef("dua3-utility")
-            library("dua3-utility-logging", "com.dua3.utility", "utility-logging").versionRef("dua3-utility")
-            library("dua3-utility-swing", "com.dua3.utility", "utility-swing").versionRef("dua3-utility")
+            library("dua3-utility-bom", "com.dua3.utility", "utility-bom").versionRef("dua3-utility")
+            library("dua3-utility", "com.dua3.utility", "utility").withoutVersion()
+            library("dua3-utility-db", "com.dua3.utility", "utility-db").withoutVersion()
+            library("dua3-utility-logging", "com.dua3.utility", "utility-logging").withoutVersion()
+            library("dua3-utility-swing", "com.dua3.utility", "utility-swing").withoutVersion()
 
             library("slf4j-api", "org.slf4j", "slf4j-api").versionRef("slf4j")
             library("slf4j-simple", "org.slf4j", "slf4j-simple").versionRef("slf4j")
