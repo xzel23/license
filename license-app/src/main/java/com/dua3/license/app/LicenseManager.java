@@ -7,6 +7,8 @@ import com.dua3.utility.crypt.KeyStoreUtil;
 import com.dua3.utility.swing.FileInput;
 import com.dua3.utility.swing.SwingUtil;
 import net.miginfocom.swing.MigLayout;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import javax.swing.JButton;
 import javax.swing.JComboBox;
@@ -41,6 +43,7 @@ import java.util.prefs.Preferences;
 
 public class LicenseManager {
 
+    private static final Logger logger = LogManager.getLogger(LicenseManager.class);
     private static final String APP_NAME = LicenseManager.class.getSimpleName();
     private static final String APP_DESCRIPTION = "License Manager";
     private static final String PREF_KEYSTORE_PATH = "keystorePath";
@@ -74,6 +77,7 @@ public class LicenseManager {
     private Path keystorePath;
 
     public static void main(String[] args) {
+        logger.debug("Starting License Manager application");
         SwingUtil.setNativeLookAndFeel(APP_NAME);
         SwingUtilities.invokeLater(() -> {
             LicenseManager app = new LicenseManager();
@@ -82,13 +86,16 @@ public class LicenseManager {
     }
 
     private void createAndShowGUI() {
+        logger.debug("Creating and showing GUI");
         // Show startup dialog to load or create keystore
         if (!showKeystoreStartupDialog()) {
             // User canceled, exit application
+            logger.info("User canceled keystore selection, exiting application");
             System.exit(0);
             return;
         }
 
+        logger.debug("Keystore loaded successfully, initializing main window");
         mainFrame = new JFrame(APP_NAME);
         mainFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         mainFrame.setSize(800, 600);
@@ -404,10 +411,11 @@ public class LicenseManager {
                     }
                 } catch (Exception e) {
                     // Skip this alias if there's an error
-                    e.printStackTrace();
+                    logger.warn("Error processing key alias: {}", alias, e);
                 }
             });
         } catch (Exception e) {
+            logger.warn("Error loading key information", e);
             JOptionPane.showMessageDialog(mainFrame, "Error loading key information: " + e.getMessage(), 
                     "Error", JOptionPane.ERROR_MESSAGE);
         }
@@ -418,7 +426,9 @@ public class LicenseManager {
      * @param alias the key alias
      */
     private void showPrivateKey(String alias) {
+        logger.debug("Attempting to show private key for alias: {}", alias);
         if (keyStore == null) {
+            logger.warn("Attempted to show private key but no keystore is loaded");
             JOptionPane.showMessageDialog(mainFrame, "No keystore loaded.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
@@ -453,6 +463,7 @@ public class LicenseManager {
                         "Private Key for " + alias, JOptionPane.INFORMATION_MESSAGE);
 
             } catch (GeneralSecurityException e) {
+                logger.warn("Error retrieving private key for alias: {}", alias, e);
                 JOptionPane.showMessageDialog(mainFrame, "Error retrieving private key: " + e.getMessage(), 
                         "Error", JOptionPane.ERROR_MESSAGE);
             }
@@ -517,9 +528,12 @@ public class LicenseManager {
      * @return true if successful, false otherwise
      */
     private boolean loadKeystoreFromDialog() {
+        logger.debug("Attempting to load keystore from dialog");
         return keyStorePathInput.getPath().map(path -> {
+            logger.debug("Loading keystore from path: {}", path);
             char[] password = keystorePasswordField.getPassword();
             if (password.length == 0) {
+                logger.warn("Attempted to load keystore with empty password");
                 JOptionPane.showMessageDialog(null, "Please enter the keystore password.", "Error", JOptionPane.ERROR_MESSAGE);
                 return false;
             }
@@ -527,12 +541,15 @@ public class LicenseManager {
             try {
                 keyStore = KeyStoreUtil.loadKeyStoreFromFile(path, password);
                 setKeystorePath(path);
+                logger.debug("Keystore loaded successfully from: {}", path);
                 return true;
             } catch (GeneralSecurityException | IOException e) {
+                logger.warn("Error loading keystore from path: {}", path, e);
                 JOptionPane.showMessageDialog(null, "Error loading keystore: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
                 return false;
             }
         }).orElseGet(() -> {
+            logger.warn("No keystore path specified for loading");
             JOptionPane.showMessageDialog(null, "Please specify a keystore path.", "Error", JOptionPane.ERROR_MESSAGE);
             return false;
         });
@@ -543,9 +560,12 @@ public class LicenseManager {
      * @return true if successful, false otherwise
      */
     private boolean createKeystoreFromDialog() {
+        logger.debug("Attempting to create keystore from dialog");
         return keyStorePathInput.getPath().map(path -> {
+            logger.debug("Creating keystore at path: {}", path);
             char[] password = keystorePasswordField.getPassword();
             if (password.length == 0) {
+                logger.warn("Attempted to create keystore with empty password");
                 JOptionPane.showMessageDialog(null, "Please enter the keystore password.", "Error", JOptionPane.ERROR_MESSAGE);
                 return false;
             }
@@ -556,12 +576,15 @@ public class LicenseManager {
                 keyStore.load(null, password);
                 KeyStoreUtil.saveKeyStoreToFile(keyStore, path, password);
                 setKeystorePath(path);
+                logger.debug("Keystore created successfully at: {}", path);
                 return true;
             } catch (GeneralSecurityException | IOException e) {
+                logger.warn("Error creating keystore at path: {}", path, e);
                 JOptionPane.showMessageDialog(null, "Error creating keystore: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
                 return false;
             }
         }).orElseGet(() -> {
+            logger.warn("No keystore path specified for creation");
             JOptionPane.showMessageDialog(null, "Please specify a keystore path.", "Error", JOptionPane.ERROR_MESSAGE);
             return false;
         });
@@ -695,10 +718,13 @@ public class LicenseManager {
     }
 
     private void loadKeystore() {
+        logger.debug("Loading keystore from UI input");
         keyStorePathInput.getPath().ifPresentOrElse(
     keystorePath -> {
+            logger.debug("Loading keystore from path: {}", keystorePath);
             char[] password = keystorePasswordField.getPassword();
             if (password.length == 0) {
+                logger.warn("Attempted to load keystore with empty password");
                 JOptionPane.showMessageDialog(mainFrame, "Please enter the keystore password.", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
@@ -707,12 +733,17 @@ public class LicenseManager {
                 keyStore = KeyStoreUtil.loadKeyStoreFromFile(keystorePath, password);
                 setKeystorePath(keystorePath);
                 updateKeyAliasComboBox();
+                logger.debug("Keystore loaded successfully from: {}", keystorePath);
                 JOptionPane.showMessageDialog(mainFrame, "Keystore loaded successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
             } catch (GeneralSecurityException | IOException e) {
+                logger.warn("Error loading keystore from path: {}", keystorePath, e);
                 JOptionPane.showMessageDialog(mainFrame, "Error loading keystore: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             }
         },
-        () -> JOptionPane.showMessageDialog(mainFrame, "Please specify a keystore path.", "Error", JOptionPane.ERROR_MESSAGE)
+        () -> {
+            logger.warn("No keystore path specified for loading");
+            JOptionPane.showMessageDialog(mainFrame, "Please specify a keystore path.", "Error", JOptionPane.ERROR_MESSAGE);
+        }
         );
     }
 
@@ -722,10 +753,13 @@ public class LicenseManager {
     }
 
     private void createKeystore() {
+        logger.debug("Creating keystore from UI input");
         keyStorePathInput.getPath().ifPresentOrElse(
                 keystorePath -> {
+                    logger.debug("Creating keystore at path: {}", keystorePath);
                     char[] password = keystorePasswordField.getPassword();
                     if (password.length == 0) {
+                        logger.warn("Attempted to create keystore with empty password");
                         JOptionPane.showMessageDialog(mainFrame, "Please enter the keystore password.", "Error", JOptionPane.ERROR_MESSAGE);
                         return;
                     }
@@ -736,29 +770,38 @@ public class LicenseManager {
                         keyStore.load(null, password);
                         KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, password);
                         setKeystorePath(keystorePath);
+                        logger.debug("Keystore created successfully at: {}", keystorePath);
                         JOptionPane.showMessageDialog(mainFrame, "Keystore created successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
                     } catch (GeneralSecurityException | IOException e) {
+                        logger.warn("Error creating keystore at path: {}", keystorePath, e);
                         JOptionPane.showMessageDialog(mainFrame, "Error creating keystore: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
                     }
                 },
-                () -> JOptionPane.showMessageDialog(mainFrame, "Please specify a keystore path.", "Error", JOptionPane.ERROR_MESSAGE)
+                () -> {
+                    logger.warn("No keystore path specified for creation");
+                    JOptionPane.showMessageDialog(mainFrame, "Please specify a keystore path.", "Error", JOptionPane.ERROR_MESSAGE);
+                }
         );
     }
 
     private void generateKeyPair() {
+        logger.debug("Attempting to generate key pair");
         if (keyStore == null) {
+            logger.warn("Attempted to generate key pair but no keystore is loaded");
             JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
         String alias = keyAliasField.getText().trim();
         if (alias.isEmpty()) {
+            logger.warn("Attempted to generate key pair with empty alias");
             JOptionPane.showMessageDialog(mainFrame, "Please specify a key alias.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
         String subject = keySubjectField.getText().trim();
         if (subject.isEmpty()) {
+            logger.warn("Attempted to generate key pair with empty subject");
             JOptionPane.showMessageDialog(mainFrame, "Please specify a key subject.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
@@ -770,17 +813,20 @@ public class LicenseManager {
                 throw new NumberFormatException("Valid days must be positive");
             }
         } catch (NumberFormatException e) {
+            logger.warn("Invalid valid days value: {}", keyValidDaysField.getText().trim(), e);
             JOptionPane.showMessageDialog(mainFrame, "Please enter a valid number of days.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
         char[] password = keystorePasswordField.getPassword();
         if (password.length == 0) {
+            logger.warn("Attempted to generate key pair with empty password");
             JOptionPane.showMessageDialog(mainFrame, "Please enter the keystore password.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
         try {
+            logger.debug("Generating key pair with alias: {}, subject: {}, valid days: {}", alias, subject, validDays);
             KeyStoreUtil.generateAndStoreKeyPairWithX509Certificate(
                     keyStore,
                     alias,
@@ -794,14 +840,18 @@ public class LicenseManager {
             KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, password);
             updateKeyAliasComboBox();
 
+            logger.debug("Key pair generated and stored successfully for alias: {}", alias);
             JOptionPane.showMessageDialog(mainFrame, "Key pair generated and stored successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
         } catch (GeneralSecurityException | IOException e) {
+            logger.warn("Error generating key pair for alias: {}", alias, e);
             JOptionPane.showMessageDialog(mainFrame, "Error generating key pair: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
     private void updateKeyAliasComboBox() {
+        logger.debug("Updating key alias combo box");
         if (keyStore == null) {
+            logger.debug("No keystore loaded, skipping key alias update");
             return;
         }
 
@@ -815,9 +865,11 @@ public class LicenseManager {
                     }
                 } catch (Exception e) {
                     // Skip this alias if there's an error
+                    logger.warn("Error processing key alias for combo box: {}", alias, e);
                 }
             });
         } catch (Exception e) {
+            logger.warn("Error loading key aliases", e);
             JOptionPane.showMessageDialog(mainFrame, "Error loading key aliases: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
 
@@ -826,19 +878,23 @@ public class LicenseManager {
     }
 
     private void generateLicense() {
+        logger.debug("Attempting to generate license");
         if (keyStore == null) {
+            logger.warn("Attempted to generate license but no keystore is loaded");
             JOptionPane.showMessageDialog(mainFrame, "Please load a keystore first.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
         String alias = (String) licenseKeyAliasComboBox.getSelectedItem();
         if (alias == null || alias.isEmpty()) {
+            logger.warn("Attempted to generate license with no key alias selected");
             JOptionPane.showMessageDialog(mainFrame, "Please select a key alias.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
         char[] password = keystorePasswordField.getPassword();
         if (password.length == 0) {
+            logger.warn("Attempted to generate license with empty password");
             JOptionPane.showMessageDialog(mainFrame, "Please enter the keystore password.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
@@ -858,6 +914,7 @@ public class LicenseManager {
         }
 
         if (licenseData.isEmpty()) {
+            logger.warn("Attempted to generate license with no license fields");
             JOptionPane.showMessageDialog(mainFrame, "Please add at least one license field.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
