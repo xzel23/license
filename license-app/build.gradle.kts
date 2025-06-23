@@ -7,4 +7,5 @@ dependencies {
     implementation(rootProject.libs.miglayout.swing)
     implementation(rootProject.libs.bouncycastle.provider)
     implementation(rootProject.libs.bouncycastle.pkix)
+    implementation(rootProject.libs.log4j.core)
 }
