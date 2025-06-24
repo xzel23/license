@@ -38,7 +38,6 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
@@ -282,38 +281,13 @@ public class LicenseManager {
                     return;
                 }
 
-                // Try to get the stored password first
-                char[] password = retrieveAndDecryptPassword();
-                boolean usingStoredPassword = false;
-
-                // If no stored password, ask the user
-                if (password == null) {
-                    JPasswordField passwordField = new JPasswordField(20);
-                    int pwdResult = JOptionPane.showConfirmDialog(mainFrame, 
-                            new Object[]{"Enter password for keystore:", passwordField}, 
-                            "Password Required", JOptionPane.OK_CANCEL_OPTION);
-
-                    if (pwdResult == JOptionPane.OK_OPTION) {
-                        password = passwordField.getPassword();
-                        if (password.length == 0) {
-                            JOptionPane.showMessageDialog(mainFrame, "Please enter the keystore password.", "Error", JOptionPane.ERROR_MESSAGE);
-                            return;
-                        }
-                    } else {
-                        return; // User canceled
-                    }
-                } else {
-                    usingStoredPassword = true;
-                    LOG.debug("Using stored password for adding new key");
-                }
-
                 try {
                     KeyStoreUtil.generateAndStoreKeyPairWithX509Certificate(
                             keyStore,
                             alias,
                             AsymmetricAlgorithm.RSA,
                             2048,
-                            password,
+                            getPassword(),
                             subject,
                             validDays
                     );
@@ -321,10 +295,7 @@ public class LicenseManager {
                     // Backup the keystore file before saving
                     backupKeystoreFile(keystorePath);
 
-                    KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, password);
-
-                    // Store an encrypted version of the password for future use
-                    encryptAndStorePassword(password);
+                    KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, getPassword());
 
                     updateKeyAliasComboBox();
 
@@ -332,11 +303,6 @@ public class LicenseManager {
                 } catch (GeneralSecurityException | IOException ex) {
                     LOG.warn("Error generating key pair", ex);
                     JOptionPane.showMessageDialog(mainFrame, "Error generating key pair: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-                } finally {
-                    // Clear the password if it was retrieved from storage
-                    if (usingStoredPassword && password != null) {
-                        Arrays.fill(password, '\0');
-                    }
                 }
             }
         });
@@ -364,7 +330,7 @@ public class LicenseManager {
             if (input != null && input.equals(alias)) {
                 try {
                     // Use the stored password if available, otherwise prompt the user
-                    deleteKeyWithStoredPassword(alias);
+                    deleteKey(alias);
                     JOptionPane.showMessageDialog(mainFrame, "Key deleted successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
                 } catch (Exception ex) {
                     LOG.warn("Error deleting key", ex);
@@ -467,30 +433,9 @@ public class LicenseManager {
             return;
         }
 
-        // Try to get the stored password first
-        char[] password = retrieveAndDecryptPassword();
-        boolean usingStoredPassword = false;
-
-        // If no stored password, ask the user
-        if (password == null) {
-            JPasswordField passwordField = new JPasswordField(20);
-            int option = JOptionPane.showConfirmDialog(mainFrame, 
-                    new Object[]{"Enter password for key '" + alias + "':", passwordField}, 
-                    "Password Required", JOptionPane.OK_CANCEL_OPTION);
-
-            if (option == JOptionPane.OK_OPTION) {
-                password = passwordField.getPassword();
-            } else {
-                return; // User canceled
-            }
-        } else {
-            usingStoredPassword = true;
-            LOG.debug("Using stored password for key access");
-        }
-
         try {
             // Get the private key
-            PrivateKey privateKey = (PrivateKey) keyStore.getKey(alias, password);
+            PrivateKey privateKey = (PrivateKey) keyStore.getKey(alias, getPassword());
             if (privateKey == null) {
                 JOptionPane.showMessageDialog(mainFrame, "No private key found for alias: " + alias, 
                         "Error", JOptionPane.ERROR_MESSAGE);
@@ -513,18 +458,6 @@ public class LicenseManager {
             LOG.warn("Error retrieving private key for alias: {}", alias, e);
             JOptionPane.showMessageDialog(mainFrame, "Error retrieving private key: " + e.getMessage(), 
                     "Error", JOptionPane.ERROR_MESSAGE);
-
-            // If we used a stored password and it failed, it might be wrong - clear it and try again with user input
-            if (usingStoredPassword) {
-                LOG.debug("Stored password failed, prompting user for password");
-                clearStoredPassword();
-                showPrivateKey(alias); // Recursive call, but will prompt for password this time
-            }
-        } finally {
-            // Clear the password if it was retrieved from storage
-            if (usingStoredPassword && password != null) {
-                Arrays.fill(password, '\0');
-            }
         }
     }
 
@@ -589,19 +522,11 @@ public class LicenseManager {
         LOG.debug("Attempting to load keystore from dialog");
         return keyStorePathInput.getPath().map(path -> {
             LOG.debug("Loading keystore from path: {}", path);
-            char[] password = keystorePasswordField.getPassword();
-            if (password.length == 0) {
-                LOG.warn("Attempted to load keystore with empty password");
-                JOptionPane.showMessageDialog(null, "Please enter the keystore password.", "Error", JOptionPane.ERROR_MESSAGE);
-                return false;
-            }
+            readAndStorePassword();
 
             try {
-                keyStore = KeyStoreUtil.loadKeyStoreFromFile(path, password);
+                keyStore = KeyStoreUtil.loadKeyStoreFromFile(path, getPassword());
                 setKeystorePath(path);
-
-                // Store an encrypted version of the password
-                encryptAndStorePassword(password);
 
                 LOG.debug("Keystore loaded successfully from: {}", path);
                 return true;
@@ -617,6 +542,35 @@ public class LicenseManager {
         });
     }
 
+    private void readAndStorePassword() {
+        char[] password = keystorePasswordField.getPassword();
+        try {
+            // Generate a random symmetric key
+            KeyGenerator keyGen = KeyGenerator.getInstance(ENCRYPTION_ALGORITHM);
+            keyGen.init(KEY_SIZE, new SecureRandom());
+            SecretKey secretKey = keyGen.generateKey();
+
+            // Convert password to bytes
+            byte[] passwordBytes = new byte[password.length * 2];
+            for (int i = 0; i < password.length; i++) {
+                passwordBytes[i * 2] = (byte) (password[i] >> 8);
+                passwordBytes[i * 2 + 1] = (byte) password[i];
+            }
+
+            // Encrypt the password
+            Cipher cipher = Cipher.getInstance(ENCRYPTION_ALGORITHM);
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey);
+
+            // Store the encrypted password and key in memory
+            this.encryptedPassword = cipher.doFinal(passwordBytes);
+            this.encryptionKey = secretKey.getEncoded();
+
+            LOG.debug("Password encrypted and stored in memory successfully");
+        } catch (Exception e) {
+            LOG.error("Error encrypting and storing password", e);
+        }
+    }
+
     /**
      * Creates a new keystore from the dialog input.
      * @return true if successful, false otherwise
@@ -625,12 +579,7 @@ public class LicenseManager {
         LOG.debug("Attempting to create keystore from dialog");
         return keyStorePathInput.getPath().map(path -> {
             LOG.debug("Creating keystore at path: {}", path);
-            char[] password = keystorePasswordField.getPassword();
-            if (password.length == 0) {
-                LOG.warn("Attempted to create keystore with empty password");
-                JOptionPane.showMessageDialog(null, "Please enter the keystore password.", "Error", JOptionPane.ERROR_MESSAGE);
-                return false;
-            }
+            readAndStorePassword();
 
             // Check if file exists
             if (Files.exists(path)) {
@@ -668,14 +617,11 @@ public class LicenseManager {
             try {
                 // Create a new KeyStore instance directly
                 keyStore = KeyStore.getInstance("PKCS12");
-                keyStore.load(null, password);
+                keyStore.load(null, getPassword());
 
                 // No need to backup here as this is a new keystore
-                KeyStoreUtil.saveKeyStoreToFile(keyStore, path, password);
+                KeyStoreUtil.saveKeyStoreToFile(keyStore, path, getPassword());
                 setKeystorePath(path);
-
-                // Store an encrypted version of the password for future use
-                encryptAndStorePassword(password);
 
                 LOG.debug("Keystore created successfully at: {}", path);
                 return true;
@@ -822,28 +768,11 @@ public class LicenseManager {
         keyStorePathInput.getPath().ifPresentOrElse(
     keystorePath -> {
             LOG.debug("Loading keystore from path: {}", keystorePath);
-            char[] password = keystorePasswordField.getPassword();
-            if (password.length == 0) {
-                // Try to retrieve stored password
-                char[] storedPassword = retrieveAndDecryptPassword();
-                if (storedPassword != null) {
-                    LOG.debug("Using stored password for keystore");
-                    password = storedPassword;
-                } else {
-                    LOG.warn("Attempted to load keystore with empty password and no stored password");
-                    JOptionPane.showMessageDialog(mainFrame, "Please enter the keystore password.", "Error", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-            }
+        readAndStorePassword();
 
-            try {
-                keyStore = KeyStoreUtil.loadKeyStoreFromFile(keystorePath, password);
+        try {
+                keyStore = KeyStoreUtil.loadKeyStoreFromFile(keystorePath, getPassword());
                 setKeystorePath(keystorePath);
-
-                // Store an encrypted version of the password if it came from the UI
-                if (keystorePasswordField.getPassword().length > 0) {
-                    encryptAndStorePassword(password);
-                }
 
                 updateKeyAliasComboBox();
                 LOG.debug("Keystore loaded successfully from: {}", keystorePath);
@@ -851,11 +780,6 @@ public class LicenseManager {
             } catch (GeneralSecurityException | IOException e) {
                 LOG.warn("Error loading keystore from path: {}", keystorePath, e);
                 JOptionPane.showMessageDialog(mainFrame, "Error loading keystore: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            } finally {
-                // Clear the password if it was retrieved from storage
-                if (keystorePasswordField.getPassword().length == 0 && password != null) {
-                    Arrays.fill(password, '\0');
-                }
             }
         },
         () -> {
@@ -875,12 +799,7 @@ public class LicenseManager {
         keyStorePathInput.getPath().ifPresentOrElse(
                 keystorePath -> {
                     LOG.debug("Creating keystore at path: {}", keystorePath);
-                    char[] password = keystorePasswordField.getPassword();
-                    if (password.length == 0) {
-                        LOG.warn("Attempted to create keystore with empty password");
-                        JOptionPane.showMessageDialog(mainFrame, "Please enter the keystore password.", "Error", JOptionPane.ERROR_MESSAGE);
-                        return;
-                    }
+                    readAndStorePassword();
 
                     // Check if file exists
                     if (Files.exists(keystorePath)) {
@@ -918,14 +837,11 @@ public class LicenseManager {
                     try {
                         // Create a new KeyStore instance directly
                         keyStore = KeyStore.getInstance("PKCS12");
-                        keyStore.load(null, password);
+                        keyStore.load(null, getPassword());
 
                         // No need to backup here as this is a new keystore
-                        KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, password);
+                        KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, getPassword());
                         setKeystorePath(keystorePath);
-
-                        // Store an encrypted version of the password
-                        encryptAndStorePassword(password);
 
                         LOG.debug("Keystore created successfully at: {}", keystorePath);
                         JOptionPane.showMessageDialog(mainFrame, "Keystore created successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
@@ -975,23 +891,6 @@ public class LicenseManager {
             return;
         }
 
-        char[] password = keystorePasswordField.getPassword();
-        boolean usingStoredPassword = false;
-
-        if (password.length == 0) {
-            // Try to retrieve stored password
-            char[] storedPassword = retrieveAndDecryptPassword();
-            if (storedPassword != null) {
-                LOG.debug("Using stored password for key pair generation");
-                password = storedPassword;
-                usingStoredPassword = true;
-            } else {
-                LOG.warn("Attempted to generate key pair with empty password and no stored password");
-                JOptionPane.showMessageDialog(mainFrame, "Please enter the keystore password.", "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-        }
-
         try {
             LOG.debug("Generating key pair with alias: {}, subject: {}, valid days: {}", alias, subject, validDays);
             KeyStoreUtil.generateAndStoreKeyPairWithX509Certificate(
@@ -999,15 +898,14 @@ public class LicenseManager {
                     alias,
                     AsymmetricAlgorithm.RSA,
                     2048,
-                    password,
+                    getPassword(),
                     subject,
                     validDays
             );
 
             // Backup the keystore file before saving
             backupKeystoreFile(keystorePath);
-
-            KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, password);
+            KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, getPassword());
             updateKeyAliasComboBox();
 
             LOG.debug("Key pair generated and stored successfully for alias: {}", alias);
@@ -1015,11 +913,6 @@ public class LicenseManager {
         } catch (GeneralSecurityException | IOException e) {
             LOG.warn("Error generating key pair for alias: {}", alias, e);
             JOptionPane.showMessageDialog(mainFrame, "Error generating key pair: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-        } finally {
-            // Clear the password if it was retrieved from storage
-            if (usingStoredPassword && password != null) {
-                Arrays.fill(password, '\0');
-            }
         }
     }
 
@@ -1067,23 +960,6 @@ public class LicenseManager {
             return;
         }
 
-        char[] password = keystorePasswordField.getPassword();
-        boolean usingStoredPassword = false;
-
-        if (password.length == 0) {
-            // Try to retrieve stored password
-            char[] storedPassword = retrieveAndDecryptPassword();
-            if (storedPassword != null) {
-                LOG.debug("Using stored password for license generation");
-                password = storedPassword;
-                usingStoredPassword = true;
-            } else {
-                LOG.warn("Attempted to generate license with empty password and no stored password");
-                JOptionPane.showMessageDialog(mainFrame, "Please enter the keystore password.", "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-        }
-
         // Collect license fields
         Map<String, Object> licenseData = new HashMap<>();
         List<String> fieldNames = new ArrayList<>();
@@ -1106,7 +982,7 @@ public class LicenseManager {
 
         try {
             // Get the private key
-            PrivateKey privateKey = (PrivateKey) keyStore.getKey(alias, password);
+            PrivateKey privateKey = (PrivateKey) keyStore.getKey(alias, getPassword());
 
             // Create a dynamic enum for the license fields
             DynamicEnum keyEnum = DynamicEnum.of(fieldNames.toArray(new String[0]));
@@ -1125,11 +1001,6 @@ public class LicenseManager {
 
         } catch (Exception e) {
             JOptionPane.showMessageDialog(mainFrame, "Error generating license: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-        } finally {
-            // Clear the password if it was retrieved from storage
-            if (usingStoredPassword && password != null) {
-                Arrays.fill(password, '\0');
-            }
         }
     }
 
@@ -1192,7 +1063,7 @@ public class LicenseManager {
      * 
      * @return the decrypted password as a char array, or null if no password is stored or decryption fails
      */
-    private char[] retrieveAndDecryptPassword() {
+    private char[] getPassword() {
         try {
             if (this.encryptedPassword == null || this.encryptionKey == null) {
                 LOG.debug("No stored password or encryption key found in memory");
@@ -1302,66 +1173,15 @@ public class LicenseManager {
         LOG.debug("Created keystore backup at: {}", backupPath);
     }
 
-    private void deleteKey(String alias, char[] password) throws GeneralSecurityException, IOException {
+    private void deleteKey(String alias) throws GeneralSecurityException, IOException {
         if (keyStore == null) {
             throw new IllegalStateException("No keystore loaded");
         }
 
-        // Delete the key entry
         keyStore.deleteEntry(alias);
-
-        // Backup the keystore file before saving
         backupKeystoreFile(keystorePath);
-
-        // Save the keystore
-        KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, password);
-
-        // Update UI components
+        KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, getPassword());
         updateKeyAliasComboBox();
     }
 
-    /**
-     * Deletes a key from the keystore using the stored password if available.
-     * 
-     * @param alias the alias of the key to delete
-     * @throws GeneralSecurityException if there's a security-related error
-     * @throws IOException if there's an I/O error
-     */
-    private void deleteKeyWithStoredPassword(String alias) throws GeneralSecurityException, IOException {
-        // Try to get the stored password first
-        char[] password = retrieveAndDecryptPassword();
-        boolean usingStoredPassword = false;
-
-        // If no stored password, ask the user
-        if (password == null) {
-            JPasswordField passwordField = new JPasswordField(20);
-            int option = JOptionPane.showConfirmDialog(mainFrame, 
-                    new Object[]{"Enter password for keystore:", passwordField}, 
-                    "Password Required", JOptionPane.OK_CANCEL_OPTION);
-
-            if (option == JOptionPane.OK_OPTION) {
-                password = passwordField.getPassword();
-                if (password.length > 0) {
-                    // Store the password for future use
-                    encryptAndStorePassword(password);
-                } else {
-                    throw new IllegalArgumentException("Password cannot be empty");
-                }
-            } else {
-                throw new IllegalArgumentException("Password required to delete key");
-            }
-        } else {
-            usingStoredPassword = true;
-            LOG.debug("Using stored password for key deletion");
-        }
-
-        try {
-            deleteKey(alias, password);
-        } finally {
-            // Clear the password if it was retrieved from storage
-            if (usingStoredPassword && password != null) {
-                Arrays.fill(password, '\0');
-            }
-        }
-    }
 }
