@@ -33,6 +33,7 @@ import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.Security;
 import java.security.Signature;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -47,6 +48,14 @@ public class LicenseManager {
     private static final String APP_NAME = LicenseManager.class.getSimpleName();
     private static final String APP_DESCRIPTION = "License Manager";
     private static final String PREF_KEYSTORE_PATH = "keystorePath";
+
+    static {
+        try {
+            Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
+        } catch (Exception e) {
+            System.err.println("Failed to register Bouncy Castle provider: " + e.getMessage());
+        }
+    }
 
     private JFrame mainFrame;
     private JTabbedPane tabbedPane;
