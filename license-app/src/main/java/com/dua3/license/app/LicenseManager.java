@@ -27,6 +27,7 @@ import java.awt.FlowLayout;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
@@ -581,6 +582,39 @@ public class LicenseManager {
                 return false;
             }
 
+            // Check if file exists
+            if (Files.exists(path)) {
+                LOG.debug("Keystore file already exists at path: {}", path);
+                int choice = JOptionPane.showConfirmDialog(
+                        null,
+                        "The keystore file already exists. Do you want to overwrite it?",
+                        "File Exists",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.WARNING_MESSAGE
+                );
+
+                if (choice != JOptionPane.YES_OPTION) {
+                    LOG.debug("User chose not to overwrite existing keystore file");
+                    // Ask for a new filename
+                    FileInput newPathInput = new FileInput(FileInput.SelectionMode.SELECT_FILE, path, 20);
+                    int result = JOptionPane.showConfirmDialog(
+                            null,
+                            newPathInput,
+                            "Enter a new keystore path",
+                            JOptionPane.OK_CANCEL_OPTION,
+                            JOptionPane.QUESTION_MESSAGE
+                    );
+
+                    if (result == JOptionPane.OK_OPTION && newPathInput.getPath().isPresent()) {
+                        path = newPathInput.getPath().get();
+                        LOG.debug("User provided new keystore path: {}", path);
+                    } else {
+                        LOG.debug("User cancelled keystore creation");
+                        return false;
+                    }
+                }
+            }
+
             try {
                 // Create a new KeyStore instance directly
                 keyStore = KeyStore.getInstance("PKCS12");
@@ -772,6 +806,39 @@ public class LicenseManager {
                         LOG.warn("Attempted to create keystore with empty password");
                         JOptionPane.showMessageDialog(mainFrame, "Please enter the keystore password.", "Error", JOptionPane.ERROR_MESSAGE);
                         return;
+                    }
+
+                    // Check if file exists
+                    if (Files.exists(keystorePath)) {
+                        LOG.debug("Keystore file already exists at path: {}", keystorePath);
+                        int choice = JOptionPane.showConfirmDialog(
+                                mainFrame,
+                                "The keystore file already exists. Do you want to overwrite it?",
+                                "File Exists",
+                                JOptionPane.YES_NO_OPTION,
+                                JOptionPane.WARNING_MESSAGE
+                        );
+
+                        if (choice != JOptionPane.YES_OPTION) {
+                            LOG.debug("User chose not to overwrite existing keystore file");
+                            // Ask for a new filename
+                            FileInput newPathInput = new FileInput(FileInput.SelectionMode.SELECT_FILE, keystorePath, 20);
+                            int result = JOptionPane.showConfirmDialog(
+                                    mainFrame,
+                                    newPathInput,
+                                    "Enter a new keystore path",
+                                    JOptionPane.OK_CANCEL_OPTION,
+                                    JOptionPane.QUESTION_MESSAGE
+                            );
+
+                            if (result == JOptionPane.OK_OPTION && newPathInput.getPath().isPresent()) {
+                                keystorePath = newPathInput.getPath().get();
+                                LOG.debug("User provided new keystore path: {}", keystorePath);
+                            } else {
+                                LOG.debug("User cancelled keystore creation");
+                                return;
+                            }
+                        }
                     }
 
                     try {
