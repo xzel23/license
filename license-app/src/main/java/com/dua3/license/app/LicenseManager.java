@@ -71,7 +71,7 @@ public class LicenseManager {
     private JTextField keySubjectField;
     private JTextField keyValidDaysField;
 
-    private JComboBox<String> licenseKeyAliasComboBox;
+    private JComboBox<String> licenseKeyAliasComboBox = new JComboBox<>();
     private JPanel licenseFieldsPanel;
     private List<JTextField[]> licenseFieldRows = new ArrayList<>();
 
@@ -652,7 +652,6 @@ public class LicenseManager {
 
         // Key selection
         licenseGenerationPanel.add(new JLabel("Select Key:"));
-        licenseKeyAliasComboBox = new JComboBox<>();
         licenseGenerationPanel.add(licenseKeyAliasComboBox, "growx, wrap");
 
         // License fields
