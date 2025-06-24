@@ -10,6 +10,10 @@ import net.miginfocom.swing.MigLayout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
@@ -21,12 +25,15 @@ import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.WindowConstants;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -37,17 +44,13 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.prefs.Preferences;
-import java.time.LocalDateTime;
-import javax.crypto.Cipher;
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
 
 public class LicenseManager {
 
@@ -83,9 +86,9 @@ public class LicenseManager {
     private JTextField keySubjectField;
     private JTextField keyValidDaysField;
 
-    private JComboBox<String> licenseKeyAliasComboBox = new JComboBox<>();
+    private final JComboBox<String> licenseKeyAliasComboBox = new JComboBox<>();
     private JPanel licenseFieldsPanel;
-    private List<JTextField[]> licenseFieldRows = new ArrayList<>();
+    private final List<JTextField[]> licenseFieldRows = new ArrayList<>();
 
     private JTextArea licenseOutputArea;
     private JTextArea verificationOutputArea;
@@ -118,7 +121,7 @@ public class LicenseManager {
 
         LOG.debug("Keystore loaded successfully, initializing main window");
         mainFrame = new JFrame(APP_NAME);
-        mainFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        mainFrame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         mainFrame.setSize(800, 600);
 
         tabbedPane = new JTabbedPane();
@@ -195,15 +198,14 @@ public class LicenseManager {
         // Add button renderer and editor for the last column
         keysTable.getColumnModel().getColumn(5).setCellRenderer(new javax.swing.table.TableCellRenderer() {
             @Override
-            public java.awt.Component getTableCellRendererComponent(javax.swing.JTable table, Object value, 
-                    boolean isSelected, boolean hasFocus, int row, int column) {
+            public java.awt.Component getTableCellRendererComponent(javax.swing.JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
                 JButton button = new JButton("Show Private Key");
                 return button;
             }
         });
 
         keysTable.getColumnModel().getColumn(5).setCellEditor(new javax.swing.DefaultCellEditor(new JTextField()) {
-            private JButton button = new JButton("Show Private Key");
+            private final JButton button = new JButton("Show Private Key");
 
             {
                 button.addActionListener(e -> {
@@ -217,8 +219,7 @@ public class LicenseManager {
             }
 
             @Override
-            public java.awt.Component getTableCellEditorComponent(javax.swing.JTable table, Object value, 
-                    boolean isSelected, int row, int column) {
+            public java.awt.Component getTableCellEditorComponent(javax.swing.JTable table, Object value, boolean isSelected, int row, int column) {
                 return button;
             }
         });
@@ -252,8 +253,7 @@ public class LicenseManager {
             panel.add(new JLabel("Valid Days:"));
             panel.add(validDaysField, "growx");
 
-            int result = JOptionPane.showConfirmDialog(mainFrame, panel, "Add New Key", 
-                    JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+            int result = JOptionPane.showConfirmDialog(mainFrame, panel, "Add New Key", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 
             if (result == JOptionPane.OK_OPTION) {
                 String alias = aliasField.getText().trim();
@@ -282,15 +282,7 @@ public class LicenseManager {
                 }
 
                 try {
-                    KeyStoreUtil.generateAndStoreKeyPairWithX509Certificate(
-                            keyStore,
-                            alias,
-                            AsymmetricAlgorithm.RSA,
-                            2048,
-                            getPassword(),
-                            subject,
-                            validDays
-                    );
+                    KeyStoreUtil.generateAndStoreKeyPairWithX509Certificate(keyStore, alias, AsymmetricAlgorithm.RSA, 2048, getPassword(), subject, validDays);
 
                     // Backup the keystore file before saving
                     backupKeystoreFile(keystorePath);
@@ -323,9 +315,7 @@ public class LicenseManager {
             String alias = (String) keysTable.getValueAt(row, 0);
 
             // Ask user to type the exact alias for confirmation
-            String input = JOptionPane.showInputDialog(mainFrame, 
-                    "To confirm deletion, please type the exact alias of the key: " + alias, 
-                    "Confirm Deletion", JOptionPane.WARNING_MESSAGE);
+            String input = JOptionPane.showInputDialog(mainFrame, "To confirm deletion, please type the exact alias of the key: " + alias, "Confirm Deletion", JOptionPane.WARNING_MESSAGE);
 
             if (input != null && input.equals(alias)) {
                 try {
@@ -337,8 +327,7 @@ public class LicenseManager {
                     JOptionPane.showMessageDialog(mainFrame, "Error deleting key: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
                 }
             } else if (input != null) {
-                JOptionPane.showMessageDialog(mainFrame, "The alias you entered does not match. Deletion cancelled.", 
-                        "Deletion Cancelled", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(mainFrame, "The alias you entered does not match. Deletion cancelled.", "Deletion Cancelled", JOptionPane.INFORMATION_MESSAGE);
             }
         });
 
@@ -400,13 +389,7 @@ public class LicenseManager {
                         }
 
                         // Add row to table
-                        keysTableModel.addRow(new Object[]{
-                            alias,
-                            algorithm,
-                            keySize > 0 ? String.valueOf(keySize) : "N/A",
-                            subject,
-                            publicKeyString,
-                            ""  // Button placeholder
+                        keysTableModel.addRow(new Object[]{alias, algorithm, keySize > 0 ? String.valueOf(keySize) : "N/A", subject, publicKeyString, ""  // Button placeholder
                         });
                     }
                 } catch (Exception e) {
@@ -416,13 +399,13 @@ public class LicenseManager {
             });
         } catch (Exception e) {
             LOG.warn("Error loading key information", e);
-            JOptionPane.showMessageDialog(mainFrame, "Error loading key information: " + e.getMessage(), 
-                    "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(mainFrame, "Error loading key information: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
     /**
      * Shows the private key for the given alias after password verification.
+     *
      * @param alias the key alias
      */
     private void showPrivateKey(String alias) {
@@ -437,8 +420,7 @@ public class LicenseManager {
             // Get the private key
             PrivateKey privateKey = (PrivateKey) keyStore.getKey(alias, getPassword());
             if (privateKey == null) {
-                JOptionPane.showMessageDialog(mainFrame, "No private key found for alias: " + alias, 
-                        "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(mainFrame, "No private key found for alias: " + alias, "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
@@ -451,13 +433,11 @@ public class LicenseManager {
             textArea.setWrapStyleWord(true);
 
             JScrollPane scrollPane = new JScrollPane(textArea);
-            JOptionPane.showMessageDialog(mainFrame, scrollPane, 
-                    "Private Key for " + alias, JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(mainFrame, scrollPane, "Private Key for " + alias, JOptionPane.INFORMATION_MESSAGE);
 
         } catch (GeneralSecurityException e) {
             LOG.warn("Error retrieving private key for alias: {}", alias, e);
-            JOptionPane.showMessageDialog(mainFrame, "Error retrieving private key: " + e.getMessage(), 
-                    "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(mainFrame, "Error retrieving private key: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -468,13 +448,14 @@ public class LicenseManager {
         licensesPanel = new JPanel(new BorderLayout());
         licensesPanel.setBorder(javax.swing.BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        JLabel placeholderLabel = new JLabel("Licenses tab content will be filled in later.", JLabel.CENTER);
+        JLabel placeholderLabel = new JLabel("Licenses tab content will be filled in later.", SwingConstants.CENTER);
         placeholderLabel.setFont(new java.awt.Font("Dialog", java.awt.Font.PLAIN, 16));
         licensesPanel.add(placeholderLabel, BorderLayout.CENTER);
     }
 
     /**
      * Shows a dialog at startup that asks the user to either load an existing keystore or create a new one.
+     *
      * @return true if a keystore was successfully loaded or created, false otherwise
      */
     private boolean showKeystoreStartupDialog() {
@@ -491,16 +472,7 @@ public class LicenseManager {
         keystorePasswordField = new JPasswordField(20);
         panel.add(keystorePasswordField, "growx, wrap");
 
-        int option = JOptionPane.showOptionDialog(
-            null, 
-            panel, 
-            "Keystore Selection", 
-            JOptionPane.DEFAULT_OPTION, 
-            JOptionPane.QUESTION_MESSAGE, 
-            null, 
-            new String[]{"Load Existing Keystore", "Create New Keystore", "Cancel"}, 
-            "Load Existing Keystore"
-        );
+        int option = JOptionPane.showOptionDialog(null, panel, "Keystore Selection", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, new String[]{"Load Existing Keystore", "Create New Keystore", "Cancel"}, "Load Existing Keystore");
 
         if (option == 0) {
             // Load existing keystore
@@ -516,6 +488,7 @@ public class LicenseManager {
 
     /**
      * Loads a keystore from the dialog input.
+     *
      * @return true if successful, false otherwise
      */
     private boolean loadKeystoreFromDialog() {
@@ -573,6 +546,7 @@ public class LicenseManager {
 
     /**
      * Creates a new keystore from the dialog input.
+     *
      * @return true if successful, false otherwise
      */
     private boolean createKeystoreFromDialog() {
@@ -584,25 +558,13 @@ public class LicenseManager {
             // Check if file exists
             if (Files.exists(path)) {
                 LOG.debug("Keystore file already exists at path: {}", path);
-                int choice = JOptionPane.showConfirmDialog(
-                        null,
-                        "The keystore file already exists. Do you want to overwrite it?",
-                        "File Exists",
-                        JOptionPane.YES_NO_OPTION,
-                        JOptionPane.WARNING_MESSAGE
-                );
+                int choice = JOptionPane.showConfirmDialog(null, "The keystore file already exists. Do you want to overwrite it?", "File Exists", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
 
                 if (choice != JOptionPane.YES_OPTION) {
                     LOG.debug("User chose not to overwrite existing keystore file");
                     // Ask for a new filename
                     FileInput newPathInput = new FileInput(FileInput.SelectionMode.SELECT_FILE, path, 20);
-                    int result = JOptionPane.showConfirmDialog(
-                            null,
-                            newPathInput,
-                            "Enter a new keystore path",
-                            JOptionPane.OK_CANCEL_OPTION,
-                            JOptionPane.QUESTION_MESSAGE
-                    );
+                    int result = JOptionPane.showConfirmDialog(null, newPathInput, "Enter a new keystore path", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
 
                     if (result == JOptionPane.OK_OPTION && newPathInput.getPath().isPresent()) {
                         path = newPathInput.getPath().get();
@@ -765,12 +727,11 @@ public class LicenseManager {
 
     private void loadKeystore() {
         LOG.debug("Loading keystore from UI input");
-        keyStorePathInput.getPath().ifPresentOrElse(
-    keystorePath -> {
+        keyStorePathInput.getPath().ifPresentOrElse(keystorePath -> {
             LOG.debug("Loading keystore from path: {}", keystorePath);
-        readAndStorePassword();
+            readAndStorePassword();
 
-        try {
+            try {
                 keyStore = KeyStoreUtil.loadKeyStoreFromFile(keystorePath, getPassword());
                 setKeystorePath(keystorePath);
 
@@ -781,12 +742,10 @@ public class LicenseManager {
                 LOG.warn("Error loading keystore from path: {}", keystorePath, e);
                 JOptionPane.showMessageDialog(mainFrame, "Error loading keystore: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             }
-        },
-        () -> {
+        }, () -> {
             LOG.warn("No keystore path specified for loading");
             JOptionPane.showMessageDialog(mainFrame, "Please specify a keystore path.", "Error", JOptionPane.ERROR_MESSAGE);
-        }
-        );
+        });
     }
 
     private void setKeystorePath(Path keystorePath) {
@@ -796,65 +755,50 @@ public class LicenseManager {
 
     private void createKeystore() {
         LOG.debug("Creating keystore from UI input");
-        keyStorePathInput.getPath().ifPresentOrElse(
-                keystorePath -> {
-                    LOG.debug("Creating keystore at path: {}", keystorePath);
-                    readAndStorePassword();
+        keyStorePathInput.getPath().ifPresentOrElse(keystorePath -> {
+            LOG.debug("Creating keystore at path: {}", keystorePath);
+            readAndStorePassword();
 
-                    // Check if file exists
-                    if (Files.exists(keystorePath)) {
-                        LOG.debug("Keystore file already exists at path: {}", keystorePath);
-                        int choice = JOptionPane.showConfirmDialog(
-                                mainFrame,
-                                "The keystore file already exists. Do you want to overwrite it?",
-                                "File Exists",
-                                JOptionPane.YES_NO_OPTION,
-                                JOptionPane.WARNING_MESSAGE
-                        );
+            // Check if file exists
+            if (Files.exists(keystorePath)) {
+                LOG.debug("Keystore file already exists at path: {}", keystorePath);
+                int choice = JOptionPane.showConfirmDialog(mainFrame, "The keystore file already exists. Do you want to overwrite it?", "File Exists", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
 
-                        if (choice != JOptionPane.YES_OPTION) {
-                            LOG.debug("User chose not to overwrite existing keystore file");
-                            // Ask for a new filename
-                            FileInput newPathInput = new FileInput(FileInput.SelectionMode.SELECT_FILE, keystorePath, 20);
-                            int result = JOptionPane.showConfirmDialog(
-                                    mainFrame,
-                                    newPathInput,
-                                    "Enter a new keystore path",
-                                    JOptionPane.OK_CANCEL_OPTION,
-                                    JOptionPane.QUESTION_MESSAGE
-                            );
+                if (choice != JOptionPane.YES_OPTION) {
+                    LOG.debug("User chose not to overwrite existing keystore file");
+                    // Ask for a new filename
+                    FileInput newPathInput = new FileInput(FileInput.SelectionMode.SELECT_FILE, keystorePath, 20);
+                    int result = JOptionPane.showConfirmDialog(mainFrame, newPathInput, "Enter a new keystore path", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
 
-                            if (result == JOptionPane.OK_OPTION && newPathInput.getPath().isPresent()) {
-                                keystorePath = newPathInput.getPath().get();
-                                LOG.debug("User provided new keystore path: {}", keystorePath);
-                            } else {
-                                LOG.debug("User cancelled keystore creation");
-                                return;
-                            }
-                        }
+                    if (result == JOptionPane.OK_OPTION && newPathInput.getPath().isPresent()) {
+                        keystorePath = newPathInput.getPath().get();
+                        LOG.debug("User provided new keystore path: {}", keystorePath);
+                    } else {
+                        LOG.debug("User cancelled keystore creation");
+                        return;
                     }
-
-                    try {
-                        // Create a new KeyStore instance directly
-                        keyStore = KeyStore.getInstance("PKCS12");
-                        keyStore.load(null, getPassword());
-
-                        // No need to backup here as this is a new keystore
-                        KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, getPassword());
-                        setKeystorePath(keystorePath);
-
-                        LOG.debug("Keystore created successfully at: {}", keystorePath);
-                        JOptionPane.showMessageDialog(mainFrame, "Keystore created successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
-                    } catch (GeneralSecurityException | IOException e) {
-                        LOG.warn("Error creating keystore at path: {}", keystorePath, e);
-                        JOptionPane.showMessageDialog(mainFrame, "Error creating keystore: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-                    }
-                },
-                () -> {
-                    LOG.warn("No keystore path specified for creation");
-                    JOptionPane.showMessageDialog(mainFrame, "Please specify a keystore path.", "Error", JOptionPane.ERROR_MESSAGE);
                 }
-        );
+            }
+
+            try {
+                // Create a new KeyStore instance directly
+                keyStore = KeyStore.getInstance("PKCS12");
+                keyStore.load(null, getPassword());
+
+                // No need to backup here as this is a new keystore
+                KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, getPassword());
+                setKeystorePath(keystorePath);
+
+                LOG.debug("Keystore created successfully at: {}", keystorePath);
+                JOptionPane.showMessageDialog(mainFrame, "Keystore created successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } catch (GeneralSecurityException | IOException e) {
+                LOG.warn("Error creating keystore at path: {}", keystorePath, e);
+                JOptionPane.showMessageDialog(mainFrame, "Error creating keystore: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }, () -> {
+            LOG.warn("No keystore path specified for creation");
+            JOptionPane.showMessageDialog(mainFrame, "Please specify a keystore path.", "Error", JOptionPane.ERROR_MESSAGE);
+        });
     }
 
     private void generateKeyPair() {
@@ -893,15 +837,7 @@ public class LicenseManager {
 
         try {
             LOG.debug("Generating key pair with alias: {}, subject: {}, valid days: {}", alias, subject, validDays);
-            KeyStoreUtil.generateAndStoreKeyPairWithX509Certificate(
-                    keyStore,
-                    alias,
-                    AsymmetricAlgorithm.RSA,
-                    2048,
-                    getPassword(),
-                    subject,
-                    validDays
-            );
+            KeyStoreUtil.generateAndStoreKeyPairWithX509Certificate(keyStore, alias, AsymmetricAlgorithm.RSA, 2048, getPassword(), subject, validDays);
 
             // Backup the keystore file before saving
             backupKeystoreFile(keystorePath);
@@ -990,7 +926,7 @@ public class LicenseManager {
             // Generate signature
             Signature signature = Signature.getInstance("SHA256withRSA");
             signature.initSign(privateKey);
-            signature.update(licenseData.toString().getBytes());
+            signature.update(licenseData.toString().getBytes(StandardCharsets.UTF_8));
             byte[] signatureBytes = signature.sign();
 
             // Add signature to license data
@@ -1006,6 +942,7 @@ public class LicenseManager {
 
     /**
      * Gets the stored keystore path from preferences or returns a default path if none is stored.
+     *
      * @return the stored keystore path or a default path
      */
     private Path getStoredKeystorePath() {
@@ -1016,6 +953,7 @@ public class LicenseManager {
 
     /**
      * Saves the keystore path to preferences.
+     *
      * @param path the path to save
      */
     private void saveKeystorePath(Path path) {
@@ -1027,7 +965,7 @@ public class LicenseManager {
 
     /**
      * Encrypts the keystore password and stores it in memory.
-     * 
+     *
      * @param password the password to encrypt and store
      */
     private void encryptAndStorePassword(char[] password) {
@@ -1060,23 +998,23 @@ public class LicenseManager {
 
     /**
      * Retrieves and decrypts the stored password.
-     * 
+     *
      * @return the decrypted password as a char array, or null if no password is stored or decryption fails
      */
     private char[] getPassword() {
         try {
-            if (this.encryptedPassword == null || this.encryptionKey == null) {
+            if (encryptedPassword == null || encryptionKey == null) {
                 LOG.debug("No stored password or encryption key found in memory");
                 return null;
             }
 
             // Recreate the secret key
-            SecretKey secretKey = new SecretKeySpec(this.encryptionKey, ENCRYPTION_ALGORITHM);
+            SecretKey secretKey = new SecretKeySpec(encryptionKey, ENCRYPTION_ALGORITHM);
 
             // Decrypt the password
             Cipher cipher = Cipher.getInstance(ENCRYPTION_ALGORITHM);
             cipher.init(Cipher.DECRYPT_MODE, secretKey);
-            byte[] passwordBytes = cipher.doFinal(this.encryptedPassword);
+            byte[] passwordBytes = cipher.doFinal(encryptedPassword);
 
             // Convert bytes back to char array
             char[] password = new char[passwordBytes.length / 2];
@@ -1136,7 +1074,7 @@ public class LicenseManager {
 
     /**
      * Deletes a key from the keystore.
-     * 
+     *
      * @param alias the alias of the key to delete
      * @param password the keystore password
      * @throws GeneralSecurityException if there's a security-related error
@@ -1145,7 +1083,7 @@ public class LicenseManager {
     /**
      * Backs up the keystore file before it is updated.
      * The backup file is named with a timestamp in the format yyyymmddhhmmssss.
-     * 
+     *
      * @param keystorePath the path to the keystore file
      * @throws IOException if there's an I/O error
      */
@@ -1156,10 +1094,7 @@ public class LicenseManager {
 
         // Create timestamp in format yyyymmddhhmmssss where ssss is seconds with decimal precision
         LocalDateTime now = LocalDateTime.now();
-        String timestamp = String.format("%04d%02d%02d%02d%02d%04d", 
-                now.getYear(), now.getMonthValue(), now.getDayOfMonth(),
-                now.getHour(), now.getMinute(), 
-                now.getSecond() * 100 + now.getNano() / 10_000_000); // Convert to seconds.hundredths
+        String timestamp = String.format("%04d%02d%02d%02d%02d%04d", now.getYear(), now.getMonthValue(), now.getDayOfMonth(), now.getHour(), now.getMinute(), now.getSecond() * 100 + now.getNano() / 10_000_000); // Convert to seconds.hundredths
 
         // Create backup file path
         String fileName = keystorePath.getFileName().toString();
