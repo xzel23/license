@@ -42,6 +42,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.prefs.Preferences;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 public class LicenseManager {
 
@@ -293,6 +295,9 @@ public class LicenseManager {
                                 subject,
                                 validDays
                         );
+
+                        // Backup the keystore file before saving
+                        backupKeystoreFile(keystorePath);
 
                         KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, password);
                         updateKeyAliasComboBox();
@@ -619,6 +624,8 @@ public class LicenseManager {
                 // Create a new KeyStore instance directly
                 keyStore = KeyStore.getInstance("PKCS12");
                 keyStore.load(null, password);
+
+                // No need to backup here as this is a new keystore
                 KeyStoreUtil.saveKeyStoreToFile(keyStore, path, password);
                 setKeystorePath(path);
                 LOG.debug("Keystore created successfully at: {}", path);
@@ -845,6 +852,8 @@ public class LicenseManager {
                         // Create a new KeyStore instance directly
                         keyStore = KeyStore.getInstance("PKCS12");
                         keyStore.load(null, password);
+
+                        // No need to backup here as this is a new keystore
                         KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, password);
                         setKeystorePath(keystorePath);
                         LOG.debug("Keystore created successfully at: {}", keystorePath);
@@ -913,6 +922,9 @@ public class LicenseManager {
                     subject,
                     validDays
             );
+
+            // Backup the keystore file before saving
+            backupKeystoreFile(keystorePath);
 
             KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, password);
             updateKeyAliasComboBox();
@@ -1082,6 +1094,37 @@ public class LicenseManager {
      * @throws GeneralSecurityException if there's a security-related error
      * @throws IOException if there's an I/O error
      */
+    /**
+     * Backs up the keystore file before it is updated.
+     * The backup file is named with a timestamp in the format yyyymmddhhmmssss.
+     * 
+     * @param keystorePath the path to the keystore file
+     * @throws IOException if there's an I/O error
+     */
+    private void backupKeystoreFile(Path keystorePath) throws IOException {
+        if (keystorePath == null || !Files.exists(keystorePath)) {
+            return; // Nothing to backup
+        }
+
+        // Create timestamp in format yyyymmddhhmmssss where ssss is seconds with decimal precision
+        LocalDateTime now = LocalDateTime.now();
+        String timestamp = String.format("%04d%02d%02d%02d%02d%04d", 
+                now.getYear(), now.getMonthValue(), now.getDayOfMonth(),
+                now.getHour(), now.getMinute(), 
+                now.getSecond() * 100 + now.getNano() / 10_000_000); // Convert to seconds.hundredths
+
+        // Create backup file path
+        String fileName = keystorePath.getFileName().toString();
+        int dotIndex = fileName.lastIndexOf('.');
+        String baseName = (dotIndex > 0) ? fileName.substring(0, dotIndex) : fileName;
+        String extension = (dotIndex > 0) ? fileName.substring(dotIndex) : "";
+        Path backupPath = keystorePath.resolveSibling(baseName + "-" + timestamp + extension);
+
+        // Copy the file
+        Files.copy(keystorePath, backupPath);
+        LOG.debug("Created keystore backup at: {}", backupPath);
+    }
+
     private void deleteKey(String alias, char[] password) throws GeneralSecurityException, IOException {
         if (keyStore == null) {
             throw new IllegalStateException("No keystore loaded");
@@ -1089,6 +1132,9 @@ public class LicenseManager {
 
         // Delete the key entry
         keyStore.deleteEntry(alias);
+
+        // Backup the keystore file before saving
+        backupKeystoreFile(keystorePath);
 
         // Save the keystore
         KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, password);
