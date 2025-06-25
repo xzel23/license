@@ -1,7 +1,5 @@
 package com.dua3.license.app;
 
-import com.dua3.license.DynamicEnum;
-import com.dua3.license.License;
 import com.dua3.utility.crypt.AsymmetricAlgorithm;
 import com.dua3.utility.crypt.KeyStoreUtil;
 import com.dua3.utility.swing.FileInput;
@@ -33,7 +31,6 @@ import java.awt.FlowLayout;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -43,13 +40,10 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
-import java.security.Signature;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.prefs.Preferences;
 
 public class LicenseManager {
@@ -76,9 +70,6 @@ public class LicenseManager {
     private JTabbedPane tabbedPane;
     private JPanel keysPanel;
     private JPanel licensesPanel;
-    private JPanel keyManagementPanel;
-    private JPanel licenseGenerationPanel;
-    private JPanel licenseVerificationPanel;
 
     private FileInput keyStorePathInput;
     private JPasswordField keystorePasswordField;
@@ -512,7 +503,26 @@ public class LicenseManager {
             // Process the user's choice
             if (option == 0) {
                 // Load existing keystore
-                boolean success = loadKeystoreFromDialog();
+                LOG.debug("Attempting to load keystore from dialog");
+                boolean success = keyStorePathInput.getPath().map(path -> {
+                    LOG.debug("Loading keystore from path: {}", path);
+                    readAndStorePassword();
+
+                    try {
+                        keyStore = KeyStoreUtil.loadKeyStoreFromFile(path, getPassword());
+                        setKeystorePath(path);
+
+                        LOG.debug("Keystore loaded successfully from: {}", path);
+                        return true;
+                    } catch (GeneralSecurityException | IOException e) {
+                        LOG.warn("Error loading keystore from path: {}", path, e);
+                        return false;
+                    }
+                }).orElseGet(() -> {
+                    LOG.warn("No keystore path specified for loading");
+                    JOptionPane.showMessageDialog(null, "Please specify a keystore path.", "Error", JOptionPane.ERROR_MESSAGE);
+                    return false;
+                });
                 if (success) {
                     return true; // Successfully loaded
                 } else {
@@ -538,35 +548,6 @@ public class LicenseManager {
         } while (retry);
 
         return false;
-    }
-
-    /**
-     * Loads a keystore from the dialog input.
-     *
-     * @return true if successful, false otherwise
-     */
-    private boolean loadKeystoreFromDialog() {
-        LOG.debug("Attempting to load keystore from dialog");
-        return keyStorePathInput.getPath().map(path -> {
-            LOG.debug("Loading keystore from path: {}", path);
-            readAndStorePassword();
-
-            try {
-                keyStore = KeyStoreUtil.loadKeyStoreFromFile(path, getPassword());
-                setKeystorePath(path);
-
-                LOG.debug("Keystore loaded successfully from: {}", path);
-                return true;
-            } catch (GeneralSecurityException | IOException e) {
-                LOG.warn("Error loading keystore from path: {}", path, e);
-                JOptionPane.showMessageDialog(null, "Error loading keystore: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-                return false;
-            }
-        }).orElseGet(() -> {
-            LOG.warn("No keystore path specified for loading");
-            JOptionPane.showMessageDialog(null, "Please specify a keystore path.", "Error", JOptionPane.ERROR_MESSAGE);
-            return false;
-        });
     }
 
     private void readAndStorePassword() {
@@ -653,257 +634,9 @@ public class LicenseManager {
         });
     }
 
-    private void createKeyManagementPanel() {
-        keyManagementPanel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]10[]10[]10[]10[]10[]"));
-
-        // Keystore path
-        keyManagementPanel.add(new JLabel("Keystore Path:"));
-        Path defaultPath = getStoredKeystorePath();
-        keyStorePathInput = new FileInput(FileInput.SelectionMode.SELECT_FILE, defaultPath, 20);
-        keyManagementPanel.add(keyStorePathInput, "growx, wrap");
-
-        // Keystore password
-        keyManagementPanel.add(new JLabel("Keystore Password:"));
-        keystorePasswordField = new JPasswordField(20);
-        keyManagementPanel.add(keystorePasswordField, "growx, wrap");
-
-        // Key alias
-        keyManagementPanel.add(new JLabel("Key Alias:"));
-        keyAliasField = new JTextField(20);
-        keyManagementPanel.add(keyAliasField, "growx, wrap");
-
-        // Key subject
-        keyManagementPanel.add(new JLabel("Key Subject:"));
-        keySubjectField = new JTextField("CN=License Key, O=Your Organization, L=Your City, ST=Your State, C=Your Country");
-        keyManagementPanel.add(keySubjectField, "growx, wrap");
-
-        // Valid days
-        keyManagementPanel.add(new JLabel("Valid Days:"));
-        keyValidDaysField = new JTextField("3650");
-        keyManagementPanel.add(keyValidDaysField, "growx, wrap");
-
-        // Buttons
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton loadKeystoreButton = new JButton("Load Keystore");
-        loadKeystoreButton.addActionListener(e -> loadKeystore());
-        buttonPanel.add(loadKeystoreButton);
-
-        JButton createKeystoreButton = new JButton("Create Keystore");
-        createKeystoreButton.addActionListener(e -> createKeystore());
-        buttonPanel.add(createKeystoreButton);
-
-        JButton generateKeyButton = new JButton("Generate Key Pair");
-        generateKeyButton.addActionListener(e -> generateKeyPair());
-        buttonPanel.add(generateKeyButton);
-
-        keyManagementPanel.add(buttonPanel, "span, growx");
-    }
-
-    private void createLicenseGenerationPanel() {
-        licenseGenerationPanel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]10[]10[]10[]"));
-
-        // Key selection
-        licenseGenerationPanel.add(new JLabel("Select Key:"));
-        licenseGenerationPanel.add(licenseKeyAliasComboBox, "growx, wrap");
-
-        // License fields
-        licenseGenerationPanel.add(new JLabel("License Fields:"), "top");
-        licenseFieldsPanel = new JPanel(new MigLayout("fillx", "[right][grow][]", "[]"));
-        licenseGenerationPanel.add(licenseFieldsPanel, "growx, wrap");
-
-        // Add initial field row
-        addLicenseFieldRow();
-
-        // Add field button
-        JButton addFieldButton = new JButton("Add Field");
-        addFieldButton.addActionListener(e -> addLicenseFieldRow());
-        licenseGenerationPanel.add(addFieldButton, "skip 1, wrap");
-
-        // License output
-        licenseGenerationPanel.add(new JLabel("License:"), "top");
-        licenseOutputArea = new JTextArea(10, 40);
-        licenseOutputArea.setEditable(false);
-        JScrollPane scrollPane = new JScrollPane(licenseOutputArea);
-        licenseGenerationPanel.add(scrollPane, "grow, wrap");
-
-        // Generate button
-        JButton generateButton = new JButton("Generate License");
-        generateButton.addActionListener(e -> generateLicense());
-        licenseGenerationPanel.add(generateButton, "skip 1, align right");
-    }
-
-    private void createLicenseVerificationPanel() {
-        licenseVerificationPanel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]10[]10[]"));
-
-        // License input
-        licenseVerificationPanel.add(new JLabel("License:"), "top");
-        JTextArea licenseInputArea = new JTextArea(10, 40);
-        JScrollPane inputScrollPane = new JScrollPane(licenseInputArea);
-        licenseVerificationPanel.add(inputScrollPane, "grow, wrap");
-
-        // Verification output
-        licenseVerificationPanel.add(new JLabel("Verification Result:"), "top");
-        verificationOutputArea = new JTextArea(10, 40);
-        verificationOutputArea.setEditable(false);
-        JScrollPane outputScrollPane = new JScrollPane(verificationOutputArea);
-        licenseVerificationPanel.add(outputScrollPane, "grow, wrap");
-
-        // Verify button
-        JButton verifyButton = new JButton("Verify License");
-        verifyButton.addActionListener(e -> verifyLicense(licenseInputArea.getText()));
-        licenseVerificationPanel.add(verifyButton, "skip 1, align right");
-    }
-
-    private void addLicenseFieldRow() {
-        JTextField nameField = new JTextField(15);
-        JTextField valueField = new JTextField(20);
-        JButton removeButton = new JButton("Remove");
-
-        licenseFieldsPanel.add(nameField, "");
-        licenseFieldsPanel.add(valueField, "growx");
-        licenseFieldsPanel.add(removeButton, "wrap");
-
-        JTextField[] fieldRow = {nameField, valueField};
-        licenseFieldRows.add(fieldRow);
-
-        removeButton.addActionListener(e -> {
-            licenseFieldRows.remove(fieldRow);
-            licenseFieldsPanel.remove(nameField);
-            licenseFieldsPanel.remove(valueField);
-            licenseFieldsPanel.remove(removeButton);
-            licenseFieldsPanel.revalidate();
-            licenseFieldsPanel.repaint();
-        });
-
-        licenseFieldsPanel.revalidate();
-        licenseFieldsPanel.repaint();
-    }
-
-    private void loadKeystore() {
-        LOG.debug("Loading keystore from UI input");
-        keyStorePathInput.getPath().ifPresentOrElse(keystorePath -> {
-            LOG.debug("Loading keystore from path: {}", keystorePath);
-            readAndStorePassword();
-
-            try {
-                keyStore = KeyStoreUtil.loadKeyStoreFromFile(keystorePath, getPassword());
-                setKeystorePath(keystorePath);
-
-                updateKeyAliasComboBox();
-                LOG.debug("Keystore loaded successfully from: {}", keystorePath);
-                JOptionPane.showMessageDialog(mainFrame, "Keystore loaded successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
-            } catch (GeneralSecurityException | IOException e) {
-                LOG.warn("Error loading keystore from path: {}", keystorePath, e);
-                JOptionPane.showMessageDialog(mainFrame, "Error loading keystore: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            }
-        }, () -> {
-            LOG.warn("No keystore path specified for loading");
-            JOptionPane.showMessageDialog(mainFrame, "Please specify a keystore path.", "Error", JOptionPane.ERROR_MESSAGE);
-        });
-    }
-
     private void setKeystorePath(Path keystorePath) {
         this.keystorePath = keystorePath;
         saveKeystorePath(keystorePath);
-    }
-
-    private void createKeystore() {
-        LOG.debug("Creating keystore from UI input");
-        keyStorePathInput.getPath().ifPresentOrElse(keystorePath -> {
-            LOG.debug("Creating keystore at path: {}", keystorePath);
-            readAndStorePassword();
-
-            // Check if file exists
-            if (Files.exists(keystorePath)) {
-                LOG.debug("Keystore file already exists at path: {}", keystorePath);
-                int choice = JOptionPane.showConfirmDialog(mainFrame, "The keystore file already exists. Do you want to overwrite it?", "File Exists", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-
-                if (choice != JOptionPane.YES_OPTION) {
-                    LOG.debug("User chose not to overwrite existing keystore file");
-                    // Ask for a new filename
-                    FileInput newPathInput = new FileInput(FileInput.SelectionMode.SELECT_FILE, keystorePath, 20);
-                    int result = JOptionPane.showConfirmDialog(mainFrame, newPathInput, "Enter a new keystore path", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
-
-                    if (result == JOptionPane.OK_OPTION && newPathInput.getPath().isPresent()) {
-                        keystorePath = newPathInput.getPath().get();
-                        LOG.debug("User provided new keystore path: {}", keystorePath);
-                    } else {
-                        LOG.debug("User cancelled keystore creation");
-                        return;
-                    }
-                }
-            }
-
-            try {
-                // Create a new KeyStore instance directly
-                keyStore = KeyStore.getInstance("PKCS12");
-                keyStore.load(null, getPassword());
-
-                // No need to backup here as this is a new keystore
-                KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, getPassword());
-                setKeystorePath(keystorePath);
-
-                LOG.debug("Keystore created successfully at: {}", keystorePath);
-                JOptionPane.showMessageDialog(mainFrame, "Keystore created successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
-            } catch (GeneralSecurityException | IOException e) {
-                LOG.warn("Error creating keystore at path: {}", keystorePath, e);
-                JOptionPane.showMessageDialog(mainFrame, "Error creating keystore: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            }
-        }, () -> {
-            LOG.warn("No keystore path specified for creation");
-            JOptionPane.showMessageDialog(mainFrame, "Please specify a keystore path.", "Error", JOptionPane.ERROR_MESSAGE);
-        });
-    }
-
-    private void generateKeyPair() {
-        LOG.debug("Attempting to generate key pair");
-        if (keyStore == null) {
-            LOG.warn("Attempted to generate key pair but no keystore is loaded");
-            JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        String alias = keyAliasField.getText().trim();
-        if (alias.isEmpty()) {
-            LOG.warn("Attempted to generate key pair with empty alias");
-            JOptionPane.showMessageDialog(mainFrame, "Please specify a key alias.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        String subject = keySubjectField.getText().trim();
-        if (subject.isEmpty()) {
-            LOG.warn("Attempted to generate key pair with empty subject");
-            JOptionPane.showMessageDialog(mainFrame, "Please specify a key subject.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        int validDays;
-        try {
-            validDays = Integer.parseInt(keyValidDaysField.getText().trim());
-            if (validDays <= 0) {
-                throw new NumberFormatException("Valid days must be positive");
-            }
-        } catch (NumberFormatException e) {
-            LOG.warn("Invalid valid days value: {}", keyValidDaysField.getText().trim(), e);
-            JOptionPane.showMessageDialog(mainFrame, "Please enter a valid number of days.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        try {
-            LOG.debug("Generating key pair with alias: {}, subject: {}, valid days: {}", alias, subject, validDays);
-            KeyStoreUtil.generateAndStoreKeyPairWithX509Certificate(keyStore, alias, AsymmetricAlgorithm.RSA, 2048, getPassword(), subject, validDays);
-
-            // Backup the keystore file before saving
-            backupKeystoreFile(keystorePath);
-            KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, getPassword());
-            updateKeyAliasComboBox();
-
-            LOG.debug("Key pair generated and stored successfully for alias: {}", alias);
-            JOptionPane.showMessageDialog(mainFrame, "Key pair generated and stored successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
-        } catch (GeneralSecurityException | IOException e) {
-            LOG.warn("Error generating key pair for alias: {}", alias, e);
-            JOptionPane.showMessageDialog(mainFrame, "Error generating key pair: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-        }
     }
 
     private void updateKeyAliasComboBox() {
@@ -933,65 +666,6 @@ public class LicenseManager {
 
         // Update the keys table as well
         updateKeysTable();
-    }
-
-    private void generateLicense() {
-        LOG.debug("Attempting to generate license");
-        if (keyStore == null) {
-            LOG.warn("Attempted to generate license but no keystore is loaded");
-            JOptionPane.showMessageDialog(mainFrame, "Please load a keystore first.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        String alias = (String) licenseKeyAliasComboBox.getSelectedItem();
-        if (alias == null || alias.isEmpty()) {
-            LOG.warn("Attempted to generate license with no key alias selected");
-            JOptionPane.showMessageDialog(mainFrame, "Please select a key alias.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        // Collect license fields
-        Map<String, Object> licenseData = new HashMap<>();
-        List<String> fieldNames = new ArrayList<>();
-
-        for (JTextField[] row : licenseFieldRows) {
-            String name = row[0].getText().trim();
-            String value = row[1].getText().trim();
-
-            if (!name.isEmpty() && !value.isEmpty()) {
-                licenseData.put(name, value);
-                fieldNames.add(name);
-            }
-        }
-
-        if (licenseData.isEmpty()) {
-            LOG.warn("Attempted to generate license with no license fields");
-            JOptionPane.showMessageDialog(mainFrame, "Please add at least one license field.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        try {
-            // Get the private key
-            PrivateKey privateKey = (PrivateKey) keyStore.getKey(alias, getPassword());
-
-            // Create a dynamic enum for the license fields
-            DynamicEnum keyEnum = DynamicEnum.of(fieldNames.toArray(new String[0]));
-
-            // Generate signature
-            Signature signature = Signature.getInstance("SHA256withRSA");
-            signature.initSign(privateKey);
-            signature.update(licenseData.toString().getBytes(StandardCharsets.UTF_8));
-            byte[] signatureBytes = signature.sign();
-
-            // Add signature to license data
-            licenseData.put(License.SIGNATURE, Base64.getEncoder().encodeToString(signatureBytes));
-
-            // Display the license
-            licenseOutputArea.setText(licenseData.toString());
-
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(mainFrame, "Error generating license: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-        }
     }
 
     /**
@@ -1091,39 +765,6 @@ public class LicenseManager {
         this.encryptedPassword = null;
         this.encryptionKey = null;
         LOG.debug("Stored password and encryption key cleared from memory");
-    }
-
-    private void verifyLicense(String licenseText) {
-        if (keyStore == null) {
-            JOptionPane.showMessageDialog(mainFrame, "Please load a keystore first.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        String alias = (String) licenseKeyAliasComboBox.getSelectedItem();
-        if (alias == null || alias.isEmpty()) {
-            JOptionPane.showMessageDialog(mainFrame, "Please select a key alias.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        try {
-            // Parse the license text into a map
-            // This is a simplified approach - in a real app, you'd need proper parsing
-            licenseText = licenseText.trim();
-            if (!licenseText.startsWith("{") || !licenseText.endsWith("}")) {
-                throw new IllegalArgumentException("Invalid license format");
-            }
-
-            // Get the public key
-            PublicKey publicKey = keyStore.getCertificate(alias).getPublicKey();
-
-            // For demonstration purposes, we'll just show the verification attempt
-            verificationOutputArea.setText("Verification attempted with key: " + alias + "\n");
-            verificationOutputArea.append("Public key: " + Base64.getEncoder().encodeToString(publicKey.getEncoded()) + "\n");
-            verificationOutputArea.append("Note: Full verification requires proper license parsing which is beyond the scope of this demo.");
-
-        } catch (Exception e) {
-            verificationOutputArea.setText("Error verifying license: " + e.getMessage());
-        }
     }
 
     /**
