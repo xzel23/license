@@ -2,6 +2,8 @@ package com.dua3.license;
 
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Objects;
+import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -44,6 +46,52 @@ public final class DynamicEnum {
     }
 
     /**
+     * Creates a new instance of {@code DynamicEnum} from a Java Properties instance.
+     * The property names will be used as the enum names and values.
+     *
+     * @param properties the Properties instance containing the enum names
+     * @return a new {@code DynamicEnum} instance containing the property names as enum names and values
+     * @throws IllegalArgumentException if the Properties instance is empty, contains duplicate names,
+     *                                 or contains names that map to invalid enum names
+     */
+    public static DynamicEnum fromProperties(Properties properties) {
+        if (properties.isEmpty()) {
+            throw new IllegalArgumentException("properties cannot be empty");
+        }
+
+        String[] names = properties.stringPropertyNames().toArray(new String[0]);
+        return new DynamicEnum(names);
+    }
+
+    /**
+     * Creates a new instance of {@code DynamicEnum} from a Java Properties instance.
+     * The property names will be used as the enum names and the property values will be used as the enum values.
+     *
+     * @param properties the Properties instance containing the enum names and values
+     * @return a new {@code DynamicEnum} instance containing the property names as enum names and property values as enum values
+     * @throws IllegalArgumentException if the Properties instance is empty, contains duplicate names,
+     *                                 or contains names that map to invalid enum names
+     */
+    public static DynamicEnum fromPropertiesWithValues(Properties properties) {
+        if (properties.isEmpty()) {
+            throw new IllegalArgumentException("properties cannot be empty");
+        }
+
+        int size = properties.size();
+        String[] names = new String[size];
+        String[] values = new String[size];
+
+        int i = 0;
+        for (String name : properties.stringPropertyNames()) {
+            names[i] = name;
+            values[i] = properties.getProperty(name);
+            i++;
+        }
+
+        return new DynamicEnum(names, values);
+    }
+
+    /**
      * Constructs a new instance of the DynamicEnum class encapsulating a set of dynamic EnumValue objects.
      * For each String, an {@code EnumValue} instance will be created that uses the uppercase name as {@code name()}
      * and the original name as {@code toString()} value.
@@ -51,25 +99,41 @@ public final class DynamicEnum {
      * @param names an array of Strings representing the enum values {}@code toString()} values
      */
     private DynamicEnum(String[] names) {
+        this(names, names);
+    }
+
+    /**
+     * Constructs a new instance of the DynamicEnum class encapsulating a set of dynamic EnumValue objects.
+     * For each pair of name and value, an {@code EnumValue} instance will be created that uses the uppercase name as {@code name()}
+     * and the provided value as {@code toString()} value.
+     *
+     * @param names an array of Strings representing the enum names
+     * @param values an array of Strings representing the enum values {}@code toString()} values
+     */
+    private DynamicEnum(String[] names, String[] values) {
         if (names.length == 0) {
             throw new IllegalArgumentException("no enum values provided");
         }
 
-        EnumValue[] values = new EnumValue[names.length];
+        if (names.length != values.length) {
+            throw new IllegalArgumentException("names and values arrays must have the same length");
+        }
+
+        EnumValue[] enumValues = new EnumValue[names.length];
         for (int i = 0; i < names.length; i++) {
             String enumName = names[i].toUpperCase(Locale.ROOT).replace('-', '_');
             if (!PATTERN_ENUM_NAME.matcher(enumName).matches()) {
                 throw new IllegalArgumentException("invalid enum name: " + enumName);
             }
-            values[i] = new EnumValue(i, enumName, names[i], this);
+            enumValues[i] = new EnumValue(i, enumName, values[i], this);
         }
 
-        Set<String> allNames = Arrays.stream(values).map(EnumValue::name).collect(Collectors.toSet());
+        Set<String> allNames = Arrays.stream(enumValues).map(EnumValue::name).collect(Collectors.toSet());
         if (allNames.size() != names.length) {
             throw new IllegalArgumentException("duplicate enum value names");
         }
 
-        this.values = values;
+        this.values = enumValues;
     }
 
     /**
