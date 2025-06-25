@@ -667,15 +667,51 @@ public class LicenseManager {
     }
 
     /**
-     * Creates the Licenses panel (placeholder for now).
+     * Creates the Licenses panel with buttons for creating and validating licenses.
      */
     private void createLicensesPanel() {
-        licensesPanel = new JPanel(new BorderLayout());
+        licensesPanel = new JPanel(new BorderLayout(10, 10));
         licensesPanel.setBorder(javax.swing.BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        JLabel placeholderLabel = new JLabel("Licenses tab content will be filled in later.", SwingConstants.CENTER);
-        placeholderLabel.setFont(new java.awt.Font("Dialog", java.awt.Font.PLAIN, 16));
-        licensesPanel.add(placeholderLabel, BorderLayout.CENTER);
+        // Create a panel for the content
+        JPanel contentPanel = new JPanel(new BorderLayout(10, 10));
+
+        // Create a panel for the description
+        JPanel descriptionPanel = new JPanel(new BorderLayout());
+        JLabel descriptionLabel = new JLabel("Use this tab to create and validate licenses.", SwingConstants.CENTER);
+        descriptionLabel.setFont(new java.awt.Font("Dialog", java.awt.Font.PLAIN, 16));
+        descriptionPanel.add(descriptionLabel, BorderLayout.CENTER);
+        contentPanel.add(descriptionPanel, BorderLayout.NORTH);
+
+        // Create a panel for the buttons
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 10));
+
+        // Create License button
+        JButton createLicenseButton = new JButton("Create License");
+        createLicenseButton.addActionListener(e -> {
+            // Show dialog to create a license
+            JOptionPane.showMessageDialog(mainFrame, 
+                "Create License functionality will be implemented here.", 
+                "Create License", 
+                JOptionPane.INFORMATION_MESSAGE);
+        });
+        buttonPanel.add(createLicenseButton);
+
+        // Validate License button
+        JButton validateLicenseButton = new JButton("Validate License");
+        validateLicenseButton.addActionListener(e -> {
+            // Show dialog to validate a license
+            JOptionPane.showMessageDialog(mainFrame, 
+                "Validate License functionality will be implemented here.", 
+                "Validate License", 
+                JOptionPane.INFORMATION_MESSAGE);
+        });
+        buttonPanel.add(validateLicenseButton);
+
+        contentPanel.add(buttonPanel, BorderLayout.CENTER);
+
+        // Add the content panel to the licenses panel
+        licensesPanel.add(contentPanel, BorderLayout.CENTER);
     }
 
     /**
