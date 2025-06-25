@@ -43,8 +43,12 @@ import java.security.Security;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.prefs.Preferences;
+
+import com.dua3.license.DynamicEnum;
 
 public class LicenseManager {
 
@@ -690,10 +694,7 @@ public class LicenseManager {
         JButton createLicenseButton = new JButton("Create License");
         createLicenseButton.addActionListener(e -> {
             // Show dialog to create a license
-            JOptionPane.showMessageDialog(mainFrame, 
-                "Create License functionality will be implemented here.", 
-                "Create License", 
-                JOptionPane.INFORMATION_MESSAGE);
+            showCreateLicenseDialog();
         });
         buttonPanel.add(createLicenseButton);
 
@@ -708,10 +709,119 @@ public class LicenseManager {
         });
         buttonPanel.add(validateLicenseButton);
 
+        // Manage Templates button
+        JButton manageTemplatesButton = new JButton("Manage Templates");
+        manageTemplatesButton.addActionListener(e -> {
+            // Show the template editor dialog
+            LicenseTemplateEditor editor = new LicenseTemplateEditor(mainFrame);
+            editor.setVisible(true);
+        });
+        buttonPanel.add(manageTemplatesButton);
+
         contentPanel.add(buttonPanel, BorderLayout.CENTER);
 
         // Add the content panel to the licenses panel
         licensesPanel.add(contentPanel, BorderLayout.CENTER);
+    }
+
+    /**
+     * Shows a dialog to create a license using a template.
+     */
+    private void showCreateLicenseDialog() {
+        // Get available templates
+        String[] templates = LicenseTemplateEditor.getAvailableTemplates();
+
+        if (templates.length == 0) {
+            JOptionPane.showMessageDialog(mainFrame,
+                "No license templates available. Please create a template first.",
+                "No Templates",
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // Create the dialog panel
+        JPanel panel = new JPanel(new MigLayout("fillx", "[][grow]", "[]10[]"));
+
+        // Template selection
+        panel.add(new JLabel("License Template:"));
+        JComboBox<String> templateComboBox = new JComboBox<>(templates);
+        panel.add(templateComboBox, "growx, wrap");
+
+        // Show the dialog
+        int result = JOptionPane.showConfirmDialog(
+            mainFrame,
+            panel,
+            "Create License",
+            JOptionPane.OK_CANCEL_OPTION,
+            JOptionPane.PLAIN_MESSAGE
+        );
+
+        if (result == JOptionPane.OK_OPTION) {
+            String selectedTemplate = (String) templateComboBox.getSelectedItem();
+            if (selectedTemplate != null) {
+                // Load the template
+                DynamicEnum template = LicenseTemplateEditor.loadDynamicEnum(selectedTemplate);
+                if (template != null) {
+                    // Show license creation form with the template
+                    showLicenseCreationForm(selectedTemplate, template);
+                } else {
+                    JOptionPane.showMessageDialog(mainFrame,
+                        "Failed to load the selected template.",
+                        "Error",
+                        JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }
+    }
+
+    /**
+     * Shows a form to create a license using the selected template.
+     * 
+     * @param templateName the name of the template
+     * @param template the DynamicEnum template
+     */
+    private void showLicenseCreationForm(String templateName, DynamicEnum template) {
+        // Create the dialog panel
+        JPanel panel = new JPanel(new MigLayout("fillx", "[][grow]", "[]10[]"));
+
+        // Add a label for the template
+        panel.add(new JLabel("Template:"));
+        panel.add(new JLabel(templateName), "growx, wrap");
+
+        // Get the template values
+        DynamicEnum.EnumValue[] values = template.values();
+
+        // Create input fields for each template value
+        JTextField[] valueFields = new JTextField[values.length];
+        for (int i = 0; i < values.length; i++) {
+            DynamicEnum.EnumValue value = values[i];
+            panel.add(new JLabel(value.name() + ":"));
+            valueFields[i] = new JTextField(value.value(), 20);
+            panel.add(valueFields[i], "growx, wrap");
+        }
+
+        // Show the dialog
+        int result = JOptionPane.showConfirmDialog(
+            mainFrame,
+            panel,
+            "Create License with Template: " + templateName,
+            JOptionPane.OK_CANCEL_OPTION,
+            JOptionPane.PLAIN_MESSAGE
+        );
+
+        if (result == JOptionPane.OK_OPTION) {
+            // Create a map of properties for the license
+            Map<String, Object> properties = new HashMap<>();
+            for (int i = 0; i < values.length; i++) {
+                properties.put(values[i].name(), valueFields[i].getText());
+            }
+
+            // TODO: Generate the license using the properties and a selected key
+            JOptionPane.showMessageDialog(mainFrame,
+                "License would be created with the following properties:\n" + properties,
+                "License Creation",
+                JOptionPane.INFORMATION_MESSAGE);
+        }
     }
 
     /**
