@@ -233,14 +233,35 @@ public class LicenseManager {
 
             // Show a dialog to get key information
             JTextField aliasField = new JTextField(20);
-            JTextField subjectField = new JTextField("CN=License Key, O=Your Organization, L=Your City, ST=Your State, C=Your Country", 20);
+            JTextField cnField = new JTextField("License Key", 20);
+            JTextField oField = new JTextField("Your Organization", 20);
+            JTextField ouField = new JTextField("", 20);
+            JTextField cField = new JTextField("US", 2);
+            JTextField stField = new JTextField("", 20);
+            JTextField lField = new JTextField("", 20);
+            JTextField emailField = new JTextField("", 20);
             JTextField validDaysField = new JTextField("3650", 5);
 
-            JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]10[]10[]"));
+            JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]5[]5[]5[]5[]5[]5[]5[]5[]"));
             panel.add(new JLabel("Key Alias:"));
             panel.add(aliasField, "growx, wrap");
-            panel.add(new JLabel("Key Subject:"));
-            panel.add(subjectField, "growx, wrap");
+
+            // Add subject fields with required fields marked
+            panel.add(new JLabel("CN - Common Name: *"));
+            panel.add(cnField, "growx, wrap");
+            panel.add(new JLabel("O - Organization:"));
+            panel.add(oField, "growx, wrap");
+            panel.add(new JLabel("OU - Organizational Unit:"));
+            panel.add(ouField, "growx, wrap");
+            panel.add(new JLabel("C - Country: *"));
+            panel.add(cField, "growx, wrap");
+            panel.add(new JLabel("ST - State/Province:"));
+            panel.add(stField, "growx, wrap");
+            panel.add(new JLabel("L - Locality (City):"));
+            panel.add(lField, "growx, wrap");
+            panel.add(new JLabel("Email Address:"));
+            panel.add(emailField, "growx, wrap");
+
             panel.add(new JLabel("Valid Days:"));
             panel.add(validDaysField, "growx");
 
@@ -248,7 +269,13 @@ public class LicenseManager {
 
             if (result == JOptionPane.OK_OPTION) {
                 String alias = aliasField.getText().trim();
-                String subject = subjectField.getText().trim();
+                String cn = cnField.getText().trim();
+                String o = oField.getText().trim();
+                String ou = ouField.getText().trim();
+                String c = cField.getText().trim();
+                String st = stField.getText().trim();
+                String l = lField.getText().trim();
+                String email = emailField.getText().trim();
                 String validDaysStr = validDaysField.getText().trim();
 
                 if (alias.isEmpty()) {
@@ -256,10 +283,44 @@ public class LicenseManager {
                     return;
                 }
 
-                if (subject.isEmpty()) {
-                    JOptionPane.showMessageDialog(mainFrame, "Please specify a key subject.", "Error", JOptionPane.ERROR_MESSAGE);
+                // Validate required fields
+                if (cn.isEmpty()) {
+                    JOptionPane.showMessageDialog(mainFrame, "Common Name (CN) is required.", "Error", JOptionPane.ERROR_MESSAGE);
                     return;
                 }
+
+                if (c.isEmpty()) {
+                    JOptionPane.showMessageDialog(mainFrame, "Country (C) is required.", "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+
+                // Build the subject string in X.500 Distinguished Name format
+                StringBuilder subjectBuilder = new StringBuilder();
+                subjectBuilder.append("CN=").append(cn);
+
+                if (!o.isEmpty()) {
+                    subjectBuilder.append(", O=").append(o);
+                }
+
+                if (!ou.isEmpty()) {
+                    subjectBuilder.append(", OU=").append(ou);
+                }
+
+                subjectBuilder.append(", C=").append(c);
+
+                if (!st.isEmpty()) {
+                    subjectBuilder.append(", ST=").append(st);
+                }
+
+                if (!l.isEmpty()) {
+                    subjectBuilder.append(", L=").append(l);
+                }
+
+                if (!email.isEmpty()) {
+                    subjectBuilder.append(", EMAILADDRESS=").append(email);
+                }
+
+                String subject = subjectBuilder.toString();
 
                 int validDays;
                 try {
