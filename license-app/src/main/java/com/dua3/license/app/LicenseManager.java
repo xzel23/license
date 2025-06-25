@@ -113,8 +113,8 @@ public class LicenseManager {
         LOG.debug("Creating and showing GUI");
         // Show startup dialog to load or create keystore
         if (!showKeystoreStartupDialog()) {
-            // User canceled, exit application
-            LOG.info("User canceled keystore selection, exiting application");
+            // User chose to exit
+            LOG.info("User chose to exit after keystore loading failure");
             System.exit(0);
             return;
         }
@@ -455,35 +455,89 @@ public class LicenseManager {
 
     /**
      * Shows a dialog at startup that asks the user to either load an existing keystore or create a new one.
+     * If there's an error, it shows the error message and asks if the user wants to try again.
      *
      * @return true if a keystore was successfully loaded or created, false otherwise
      */
     private boolean showKeystoreStartupDialog() {
-        JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]10[]10[]"));
+        String errorMessage = null;
+        boolean retry = false;
 
-        // Keystore path
-        panel.add(new JLabel("Keystore Path:"));
-        Path defaultPath = getStoredKeystorePath();
-        keyStorePathInput = new FileInput(FileInput.SelectionMode.SELECT_FILE, defaultPath, 20);
-        panel.add(keyStorePathInput, "growx, wrap");
+        do {
+            // Create the panel for keystore input
+            JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]10[]10[]"));
 
-        // Keystore password
-        panel.add(new JLabel("Keystore Password:"));
-        keystorePasswordField = new JPasswordField(20);
-        panel.add(keystorePasswordField, "growx, wrap");
+            // Keystore path
+            panel.add(new JLabel("Keystore Path:"));
+            Path defaultPath = getStoredKeystorePath();
+            keyStorePathInput = new FileInput(FileInput.SelectionMode.SELECT_FILE, defaultPath, 20);
+            panel.add(keyStorePathInput, "growx, wrap");
 
-        int option = JOptionPane.showOptionDialog(null, panel, "Keystore Selection", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, new String[]{"Load Existing Keystore", "Create New Keystore", "Cancel"}, "Load Existing Keystore");
+            // Keystore password
+            panel.add(new JLabel("Keystore Password:"));
+            keystorePasswordField = new JPasswordField(20);
+            panel.add(keystorePasswordField, "growx, wrap");
 
-        if (option == 0) {
-            // Load existing keystore
-            return loadKeystoreFromDialog();
-        } else if (option == 1) {
-            // Create new keystore
-            return createKeystoreFromDialog();
-        } else {
-            // Cancel
-            return false;
-        }
+            // Add error message if there was an error
+            if (errorMessage != null) {
+                JLabel errorLabel = new JLabel("<html><font color='red'>Error: " + errorMessage + "</font></html>");
+                panel.add(errorLabel, "span 2, wrap");
+            }
+
+            // Determine dialog options based on whether there was an error
+            String[] options;
+            String defaultOption;
+
+            if (errorMessage != null) {
+                // If there was an error, show options with error message displayed
+                options = new String[]{"Load Existing Keystore", "Create New Keystore", "Cancel"};
+                defaultOption = "Load Existing Keystore";
+            } else {
+                // Initial dialog with standard options
+                options = new String[]{"Load Existing Keystore", "Create New Keystore", "Cancel"};
+                defaultOption = "Load Existing Keystore";
+            }
+
+            int option = JOptionPane.showOptionDialog(
+                null, 
+                panel, 
+                "Keystore Selection", 
+                JOptionPane.DEFAULT_OPTION, 
+                errorMessage != null ? JOptionPane.WARNING_MESSAGE : JOptionPane.QUESTION_MESSAGE, 
+                null, 
+                options, 
+                defaultOption
+            );
+
+            // Process the user's choice
+            if (option == 0) {
+                // Load existing keystore
+                boolean success = loadKeystoreFromDialog();
+                if (success) {
+                    return true; // Successfully loaded
+                } else {
+                    // Get the error message from the dialog
+                    errorMessage = "Failed to load keystore. Please check the path and password.";
+                    retry = true; // Try again
+                }
+            } else if (option == 1) {
+                // Create new keystore
+                boolean success = createKeystoreFromDialog();
+                if (success) {
+                    return true; // Successfully created
+                } else {
+                    // Get the error message from the dialog
+                    errorMessage = "Failed to create keystore. Please check the path and password.";
+                    retry = true; // Try again
+                }
+            } else {
+                // User chose to cancel or quit
+                return false;
+            }
+
+        } while (retry);
+
+        return false;
     }
 
     /**
