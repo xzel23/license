@@ -1,6 +1,8 @@
 package com.dua3.license.app;
 
 import com.dua3.license.DynamicEnum;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import net.miginfocom.swing.MigLayout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -10,8 +12,58 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.io.*;
 import java.nio.file.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 import java.util.Vector;
+
+/**
+ * A dialog for editing license templates.
+ * This allows creating, editing, and saving license templates as DynamicEnum objects.
+ */
+
+/**
+ * A model class for license template fields.
+ */
+class LicenseField {
+    private String name;
+    private String description;
+    private String defaultValue;
+
+    // Default constructor for Jackson
+    public LicenseField() {
+    }
+
+    public LicenseField(String name, String description, String defaultValue) {
+        this.name = name;
+        this.description = description;
+        this.defaultValue = defaultValue;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String getDefaultValue() {
+        return defaultValue;
+    }
+
+    public void setDefaultValue(String defaultValue) {
+        this.defaultValue = defaultValue;
+    }
+}
 
 /**
  * A dialog for editing license templates.
@@ -57,7 +109,7 @@ public class LicenseTemplateEditor extends JDialog {
         mainPanel.add(namePanel, BorderLayout.NORTH);
 
         // Create the properties table
-        String[] columnNames = {"Property Name", "Property Value"};
+        String[] columnNames = {"Property Name", "Property Value", "Default Value"};
         tableModel = new DefaultTableModel(columnNames, 0);
         propertiesTable = new JTable(tableModel);
         propertiesTable.setFillsViewportHeight(true);
@@ -98,7 +150,7 @@ public class LicenseTemplateEditor extends JDialog {
      * Adds a new empty property to the table.
      */
     private void addProperty() {
-        tableModel.addRow(new Object[]{"", ""});
+        tableModel.addRow(new Object[]{"", "", ""});
     }
 
     /**
@@ -122,35 +174,53 @@ public class LicenseTemplateEditor extends JDialog {
     private void loadTemplate() {
         JFileChooser fileChooser = new JFileChooser(TEMPLATES_DIRECTORY);
         fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
-                "Properties Files", "properties"));
+                "JSON Template Files", "json"));
 
         int result = fileChooser.showOpenDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
             File selectedFile = fileChooser.getSelectedFile();
-            try (InputStream input = new FileInputStream(selectedFile)) {
-                Properties properties = new Properties();
-                properties.load(input);
+            String fileName = selectedFile.getName();
 
-                // Set the template name from the file name (without extension)
-                String fileName = selectedFile.getName();
-                if (fileName.endsWith(".properties")) {
-                    fileName = fileName.substring(0, fileName.length() - 11);
-                }
-                templateNameField.setText(fileName);
-
-                // Clear the table and add the properties
-                tableModel.setRowCount(0);
-                for (String key : properties.stringPropertyNames()) {
-                    tableModel.addRow(new Object[]{key, properties.getProperty(key)});
-                }
-
-            } catch (IOException e) {
-                LOG.error("Failed to load template", e);
+            // Set the template name from the file name (without extension)
+            String templateName = fileName;
+            if (fileName.endsWith(".json")) {
+                templateName = fileName.substring(0, fileName.length() - 5);
+                loadJsonTemplate(selectedFile, templateName);
+            } else {
                 JOptionPane.showMessageDialog(this,
-                        "Failed to load template: " + e.getMessage(),
+                        "Unsupported file format. Please select a .json file.",
                         "Error",
                         JOptionPane.ERROR_MESSAGE);
             }
+        }
+    }
+
+
+    /**
+     * Loads a template from a JSON file.
+     * 
+     * @param file the JSON file
+     * @param templateName the name of the template
+     */
+    private void loadJsonTemplate(File file, String templateName) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            List<LicenseField> fields = mapper.readValue(file, new TypeReference<List<LicenseField>>() {});
+
+            templateNameField.setText(templateName);
+
+            // Clear the table and add the fields
+            tableModel.setRowCount(0);
+            for (LicenseField field : fields) {
+                tableModel.addRow(new Object[]{field.getName(), field.getDescription(), field.getDefaultValue()});
+            }
+
+        } catch (IOException e) {
+            LOG.error("Failed to load JSON template", e);
+            JOptionPane.showMessageDialog(this,
+                    "Failed to load template: " + e.getMessage(),
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -167,18 +237,8 @@ public class LicenseTemplateEditor extends JDialog {
             return;
         }
 
-        // Create a Properties object from the table data
-        Properties properties = new Properties();
-        for (int i = 0; i < tableModel.getRowCount(); i++) {
-            String key = (String) tableModel.getValueAt(i, 0);
-            String value = (String) tableModel.getValueAt(i, 1);
-
-            if (key != null && !key.trim().isEmpty()) {
-                properties.setProperty(key, value != null ? value : "");
-            }
-        }
-
-        if (properties.isEmpty()) {
+        // Check if there are any properties
+        if (tableModel.getRowCount() == 0) {
             JOptionPane.showMessageDialog(this,
                     "Please add at least one property.",
                     "No Properties",
@@ -186,22 +246,57 @@ public class LicenseTemplateEditor extends JDialog {
             return;
         }
 
-        // Save the properties to a file
-        File file = new File(TEMPLATES_DIRECTORY, templateName + ".properties");
-        try (OutputStream output = new FileOutputStream(file)) {
-            properties.store(output, "License Template: " + templateName);
+        // Always save as JSON
+        saveAsJson(templateName);
+    }
+
+    /**
+     * Saves the current template as a JSON file.
+     * 
+     * @param templateName the name of the template
+     */
+    private void saveAsJson(String templateName) {
+        // Create a list of LicenseField objects from the table data
+        List<LicenseField> fields = new ArrayList<>();
+        for (int i = 0; i < tableModel.getRowCount(); i++) {
+            String name = (String) tableModel.getValueAt(i, 0);
+            String description = (String) tableModel.getValueAt(i, 1);
+            String defaultValue = (String) tableModel.getValueAt(i, 2);
+
+            if (name != null && !name.trim().isEmpty()) {
+                fields.add(new LicenseField(
+                        name,
+                        description != null ? description : "",
+                        defaultValue != null ? defaultValue : ""));
+            }
+        }
+
+        if (fields.isEmpty()) {
             JOptionPane.showMessageDialog(this,
-                    "Template saved successfully.",
+                    "Please add at least one property.",
+                    "No Properties",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // Save the fields to a JSON file
+        File file = new File(TEMPLATES_DIRECTORY, templateName + ".json");
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.writerWithDefaultPrettyPrinter().writeValue(file, fields);
+            JOptionPane.showMessageDialog(this,
+                    "Template saved successfully as JSON.",
                     "Success",
                     JOptionPane.INFORMATION_MESSAGE);
         } catch (IOException e) {
-            LOG.error("Failed to save template", e);
+            LOG.error("Failed to save template as JSON", e);
             JOptionPane.showMessageDialog(this,
                     "Failed to save template: " + e.getMessage(),
                     "Error",
                     JOptionPane.ERROR_MESSAGE);
         }
     }
+
 
     /**
      * Creates a DynamicEnum from the current template.
@@ -214,9 +309,15 @@ public class LicenseTemplateEditor extends JDialog {
         for (int i = 0; i < tableModel.getRowCount(); i++) {
             String key = (String) tableModel.getValueAt(i, 0);
             String value = (String) tableModel.getValueAt(i, 1);
+            String defaultValue = (String) tableModel.getValueAt(i, 2);
 
             if (key != null && !key.trim().isEmpty()) {
-                properties.setProperty(key, value != null ? value : "");
+                // Use default value if value is empty
+                if ((value == null || value.trim().isEmpty()) && defaultValue != null && !defaultValue.trim().isEmpty()) {
+                    properties.setProperty(key, defaultValue);
+                } else {
+                    properties.setProperty(key, value != null ? value : "");
+                }
             }
         }
 
@@ -240,11 +341,12 @@ public class LicenseTemplateEditor extends JDialog {
                 return new String[0];
             }
 
+            // Get all template names from .json files only
             return Files.list(templatesDir)
-                    .filter(path -> path.toString().endsWith(".properties"))
+                    .filter(path -> path.toString().endsWith(".json"))
                     .map(path -> {
                         String fileName = path.getFileName().toString();
-                        return fileName.substring(0, fileName.length() - 11);
+                        return fileName.substring(0, fileName.length() - 5);
                     })
                     .toArray(String[]::new);
         } catch (IOException e) {
@@ -260,23 +362,48 @@ public class LicenseTemplateEditor extends JDialog {
      * @return a DynamicEnum representing the template, or null if the template could not be loaded
      */
     public static DynamicEnum loadDynamicEnum(String templateName) {
-        File file = new File(TEMPLATES_DIRECTORY, templateName + ".properties");
-        if (!file.exists()) {
-            return null;
+        // Only load from JSON
+        File jsonFile = new File(TEMPLATES_DIRECTORY, templateName + ".json");
+        if (jsonFile.exists()) {
+            return loadDynamicEnumFromJson(jsonFile);
         }
 
-        try (InputStream input = new FileInputStream(file)) {
-            Properties properties = new Properties();
-            properties.load(input);
+        return null;
+    }
 
-            if (properties.isEmpty()) {
+    /**
+     * Loads a DynamicEnum from a JSON file.
+     *
+     * @param file the JSON file
+     * @return a DynamicEnum representing the template, or null if the template could not be loaded
+     */
+    private static DynamicEnum loadDynamicEnumFromJson(File file) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            List<LicenseField> fields = mapper.readValue(file, new TypeReference<List<LicenseField>>() {});
+
+            if (fields.isEmpty()) {
                 return null;
+            }
+
+            Properties properties = new Properties();
+            for (LicenseField field : fields) {
+                String value = field.getDescription();
+                String defaultValue = field.getDefaultValue();
+
+                // Use default value if value is empty
+                if ((value == null || value.trim().isEmpty()) && defaultValue != null && !defaultValue.trim().isEmpty()) {
+                    properties.setProperty(field.getName(), defaultValue);
+                } else {
+                    properties.setProperty(field.getName(), value != null ? value : "");
+                }
             }
 
             return DynamicEnum.fromPropertiesWithValues(properties);
         } catch (IOException e) {
-            LOG.error("Failed to load template", e);
+            LOG.error("Failed to load template from JSON", e);
             return null;
         }
     }
+
 }
