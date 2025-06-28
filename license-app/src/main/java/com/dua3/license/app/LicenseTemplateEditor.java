@@ -19,7 +19,10 @@ import java.awt.datatransfer.UnsupportedFlavorException;
 import java.io.*;
 import java.nio.file.*;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Vector;
 
@@ -388,6 +391,9 @@ public class LicenseTemplateEditor extends JDialog {
         return null;
     }
 
+    // Store field descriptions for templates
+    private static final Map<String, Map<String, String>> templateDescriptions = new HashMap<>();
+
     /**
      * Loads a DynamicEnum from a JSON file.
      *
@@ -404,23 +410,45 @@ public class LicenseTemplateEditor extends JDialog {
             }
 
             Properties properties = new Properties();
-            for (LicenseField field : fields) {
-                String value = field.getDescription();
-                String defaultValue = field.getDefaultValue();
 
-                // Use default value if value is empty
-                if ((value == null || value.trim().isEmpty()) && defaultValue != null && !defaultValue.trim().isEmpty()) {
-                    properties.setProperty(field.getName(), defaultValue);
-                } else {
-                    properties.setProperty(field.getName(), value != null ? value : "");
-                }
+            // Create a map to store descriptions for this template
+            String templateName = file.getName();
+            if (templateName.endsWith(".json")) {
+                templateName = templateName.substring(0, templateName.length() - 5);
             }
+
+            Map<String, String> descriptions = new HashMap<>();
+
+            for (LicenseField field : fields) {
+                // Use defaultValue as the primary value for the DynamicEnum
+                String defaultValue = field.getDefaultValue();
+                String description = field.getDescription();
+
+                // Store the description for later use
+                descriptions.put(field.getName(), description);
+
+                // Use description only if defaultValue is empty
+                properties.setProperty(field.getName(), defaultValue);
+            }
+
+            // Store the descriptions map for this template
+            templateDescriptions.put(templateName, descriptions);
 
             return DynamicEnum.fromPropertiesWithValues(properties);
         } catch (IOException e) {
             LOG.error("Failed to load template from JSON", e);
             return null;
         }
+    }
+
+    /**
+     * Gets the descriptions for a template.
+     *
+     * @param templateName the name of the template
+     * @return a map of field names to descriptions, or an empty map if the template is not found
+     */
+    public static Map<String, String> getTemplateDescriptions(String templateName) {
+        return templateDescriptions.getOrDefault(templateName, Collections.emptyMap());
     }
 
     /**

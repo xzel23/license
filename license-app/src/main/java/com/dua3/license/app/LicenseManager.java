@@ -27,6 +27,7 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.WindowConstants;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.FlowLayout;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -782,7 +783,7 @@ public class LicenseManager {
      */
     private void showLicenseCreationForm(String templateName, DynamicEnum template) {
         // Create the dialog panel
-        JPanel panel = new JPanel(new MigLayout("fillx", "[][grow]", "[]10[]"));
+        JPanel panel = new JPanel(new MigLayout("fillx", "[][grow][]", "[]10[]"));
 
         // Add a label for the template
         panel.add(new JLabel("Template:"));
@@ -791,13 +792,23 @@ public class LicenseManager {
         // Get the template values
         DynamicEnum.EnumValue[] values = template.values();
 
+        // Get descriptions for this template
+        Map<String, String> descriptions = LicenseTemplateEditor.getTemplateDescriptions(templateName);
+
         // Create input fields for each template value
         JTextField[] valueFields = new JTextField[values.length];
         for (int i = 0; i < values.length; i++) {
             DynamicEnum.EnumValue value = values[i];
             panel.add(new JLabel(value.name() + ":"));
             valueFields[i] = new JTextField(value.value(), 20);
-            panel.add(valueFields[i], "growx, wrap");
+            panel.add(valueFields[i], "growx");
+
+            // Add info icon with tooltip showing the description
+            JLabel infoLabel = new JLabel("ⓘ");
+            String description = descriptions.getOrDefault(value.name(), "");
+            infoLabel.setToolTipText(description);
+            infoLabel.setForeground(Color.BLUE);
+            panel.add(infoLabel, "wrap");
         }
 
         // Show the dialog
