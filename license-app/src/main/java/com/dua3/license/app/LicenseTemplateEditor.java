@@ -10,6 +10,8 @@ import org.apache.logging.log4j.Logger;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
 import java.io.*;
 import java.nio.file.*;
 import java.util.ArrayList;
@@ -94,7 +96,7 @@ public class LicenseTemplateEditor extends JDialog {
 
         // Set up the dialog
         setLayout(new BorderLayout(10, 10));
-        setSize(600, 400);
+        setSize(1200, 400);
         setLocationRelativeTo(parent);
 
         // Create the main panel
@@ -131,6 +133,9 @@ public class LicenseTemplateEditor extends JDialog {
         JButton saveButton = new JButton("Save Template");
         saveButton.addActionListener(e -> saveTemplate());
 
+        JButton generateEnumButton = new JButton("Generate enum");
+        generateEnumButton.addActionListener(e -> generateEnum());
+
         JButton closeButton = new JButton("Close");
         closeButton.addActionListener(e -> dispose());
 
@@ -138,6 +143,7 @@ public class LicenseTemplateEditor extends JDialog {
         buttonPanel.add(removeButton);
         buttonPanel.add(loadButton);
         buttonPanel.add(saveButton);
+        buttonPanel.add(generateEnumButton);
         buttonPanel.add(closeButton);
 
         mainPanel.add(buttonPanel, BorderLayout.SOUTH);
@@ -406,4 +412,104 @@ public class LicenseTemplateEditor extends JDialog {
         }
     }
 
+    /**
+     * Generates a Java enum named "LicenseFields" from the current template.
+     * The enum uses the key as name and contains a String description() method that returns the description.
+     */
+    private void generateEnum() {
+        // Check if there are any properties
+        if (tableModel.getRowCount() == 0) {
+            JOptionPane.showMessageDialog(this,
+                    "Please add at least one property.",
+                    "No Properties",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        StringBuilder enumCode = new StringBuilder();
+        enumCode.append("public enum LicenseFields {\n");
+
+        // Add enum constants
+        boolean hasValidFields = false;
+        List<String> validEnumEntries = new ArrayList<>();
+
+        for (int i = 0; i < tableModel.getRowCount(); i++) {
+            String key = (String) tableModel.getValueAt(i, 0);
+            String description = (String) tableModel.getValueAt(i, 1);
+
+            if (key != null && !key.trim().isEmpty()) {
+                hasValidFields = true;
+                // Convert key to valid enum constant name (uppercase with underscores)
+                String enumName = key.toUpperCase().replace('-', '_').replace(' ', '_');
+
+                // Create enum constant with description
+                String enumEntry = "    " + enumName + "(\"" + 
+                      (description != null ? description.replace("\"", "\\\"") : "") + 
+                      "\")";
+
+                validEnumEntries.add(enumEntry);
+            }
+        }
+
+        // Join all valid entries with commas
+        enumCode.append(String.join(",\n", validEnumEntries));
+        if (!validEnumEntries.isEmpty()) {
+            enumCode.append("\n");
+        }
+
+        // If no valid fields were found, show an error message
+        if (!hasValidFields) {
+            JOptionPane.showMessageDialog(this,
+                    "Please add at least one property with a valid name.",
+                    "No Valid Properties",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // Add private field and constructor
+        enumCode.append("\n    private final String description;\n\n");
+        enumCode.append("    LicenseFields(String description) {\n");
+        enumCode.append("        this.description = description;\n");
+        enumCode.append("    }\n\n");
+
+        // Add description method
+        enumCode.append("    public String description() {\n");
+        enumCode.append("        return description;\n");
+        enumCode.append("    }\n");
+
+        // Close enum
+        enumCode.append("}\n");
+
+        // Create a dialog to display the generated enum
+        JDialog dialog = new JDialog(this, "Generated Enum", true);
+        dialog.setLayout(new BorderLayout(10, 10));
+        dialog.setSize(600, 400);
+        dialog.setLocationRelativeTo(this);
+
+        JTextArea textArea = new JTextArea(enumCode.toString());
+        textArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        dialog.add(scrollPane, BorderLayout.CENTER);
+
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+
+        JButton copyButton = new JButton("Copy to Clipboard");
+        copyButton.addActionListener(e -> {
+            StringSelection stringSelection = new StringSelection(textArea.getText());
+            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            clipboard.setContents(stringSelection, null);
+            JOptionPane.showMessageDialog(dialog,
+                    "Enum code copied to clipboard.",
+                    "Copy Successful",
+                    JOptionPane.INFORMATION_MESSAGE);
+        });
+        buttonPanel.add(copyButton);
+
+        JButton closeButton = new JButton("Close");
+        closeButton.addActionListener(e -> dialog.dispose());
+        buttonPanel.add(closeButton);
+        dialog.add(buttonPanel, BorderLayout.SOUTH);
+
+        dialog.setVisible(true);
+    }
 }
