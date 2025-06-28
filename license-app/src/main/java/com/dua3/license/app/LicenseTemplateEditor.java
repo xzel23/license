@@ -9,9 +9,13 @@ import org.apache.logging.log4j.Logger;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
 import java.io.*;
 import java.nio.file.*;
 import java.util.ArrayList;
@@ -115,6 +119,13 @@ public class LicenseTemplateEditor extends JDialog {
         tableModel = new DefaultTableModel(columnNames, 0);
         propertiesTable = new JTable(tableModel);
         propertiesTable.setFillsViewportHeight(true);
+        propertiesTable.setDragEnabled(true);
+        propertiesTable.setDropMode(DropMode.INSERT_ROWS);
+        propertiesTable.setTransferHandler(new TableRowTransferHandler(propertiesTable));
+
+        // Add a tooltip to indicate drag-and-drop functionality
+        propertiesTable.setToolTipText("Drag and drop rows to reorder license fields");
+
         JScrollPane tableScrollPane = new JScrollPane(propertiesTable);
         mainPanel.add(tableScrollPane, BorderLayout.CENTER);
 
@@ -511,5 +522,125 @@ public class LicenseTemplateEditor extends JDialog {
         dialog.add(buttonPanel, BorderLayout.SOUTH);
 
         dialog.setVisible(true);
+    }
+
+    /**
+     * A TransferHandler that handles drag and drop operations for table rows.
+     */
+    private static class TableRowTransferHandler extends TransferHandler {
+        private final DataFlavor localObjectFlavor = new DataFlavor(Integer.class, "Integer Row Index");
+        private final JTable table;
+        private int[] rows = null;
+        private int addIndex = -1; // Location where items were added
+        private int addCount = 0;  // Number of items added
+
+        public TableRowTransferHandler(JTable table) {
+            this.table = table;
+        }
+
+        @Override
+        protected Transferable createTransferable(JComponent c) {
+            assert (c == table);
+            rows = table.getSelectedRows();
+            return new Transferable() {
+                @Override
+                public DataFlavor[] getTransferDataFlavors() {
+                    return new DataFlavor[]{localObjectFlavor};
+                }
+
+                @Override
+                public boolean isDataFlavorSupported(DataFlavor flavor) {
+                    return localObjectFlavor.equals(flavor);
+                }
+
+                @Override
+                public Object getTransferData(DataFlavor flavor) throws UnsupportedFlavorException {
+                    if (isDataFlavorSupported(flavor)) {
+                        return rows[0];
+                    }
+                    throw new UnsupportedFlavorException(flavor);
+                }
+            };
+        }
+
+        @Override
+        public boolean canImport(TransferSupport info) {
+            // Check for drag-and-drop support
+            if (!info.isDrop() || !info.isDataFlavorSupported(localObjectFlavor)) {
+                return false;
+            }
+
+            // Get drop location info
+            JTable.DropLocation dl = (JTable.DropLocation) info.getDropLocation();
+            if (dl.getRow() == -1) {
+                return false;
+            }
+
+            return true;
+        }
+
+        @Override
+        public int getSourceActions(JComponent c) {
+            return TransferHandler.MOVE;
+        }
+
+        @Override
+        public boolean importData(TransferSupport info) {
+            if (!canImport(info)) {
+                return false;
+            }
+
+            JTable.DropLocation dl = (JTable.DropLocation) info.getDropLocation();
+            int index = dl.getRow();
+            int max = table.getModel().getRowCount();
+
+            if (index < 0 || index > max) {
+                index = max;
+            }
+
+            addIndex = index;
+
+            try {
+                Integer rowFrom = (Integer) info.getTransferable().getTransferData(localObjectFlavor);
+                if (rowFrom != -1 && rowFrom != index) {
+                    // Get the data from the source row
+                    DefaultTableModel model = (DefaultTableModel) table.getModel();
+                    Vector<Object> rowData = new Vector<>();
+                    for (int i = 0; i < model.getColumnCount(); i++) {
+                        rowData.add(model.getValueAt(rowFrom, i));
+                    }
+
+                    // Remove the source row
+                    if (index > rowFrom) {
+                        index--;
+                    }
+                    model.removeRow(rowFrom);
+
+                    // Insert at the target location
+                    model.insertRow(index, rowData);
+                    addCount = 1;
+
+                    return true;
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            return false;
+        }
+
+        @Override
+        protected void exportDone(JComponent c, Transferable t, int act) {
+            if (act == TransferHandler.MOVE) {
+                if (addCount > 0) {
+                    // Select the newly added row(s)
+                    table.setRowSelectionInterval(addIndex, addIndex + addCount - 1);
+                }
+            }
+
+            rows = null;
+            addIndex = -1;
+            addCount = 0;
+        }
     }
 }
