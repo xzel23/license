@@ -9,7 +9,6 @@ import org.apache.logging.log4j.Logger;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
-import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.DataFlavor;
@@ -231,9 +230,9 @@ public class LicenseTemplateEditor extends JDialog {
 
             // Clear the table and add the fields
             tableModel.setRowCount(0);
-            for (LicenseField field : fields) {
-                tableModel.addRow(new Object[]{field.getName(), field.getDescription(), field.getDefaultValue()});
-            }
+            fields.forEach(field ->
+                    tableModel.addRow(new Object[]{field.getName(), field.getDescription(), field.getDefaultValue()})
+            );
 
         } catch (IOException e) {
             LOG.error("Failed to load JSON template", e);

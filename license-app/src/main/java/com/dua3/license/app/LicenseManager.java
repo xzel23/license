@@ -703,9 +703,9 @@ public class LicenseManager {
         JButton validateLicenseButton = new JButton("Validate License");
         validateLicenseButton.addActionListener(e -> {
             // Show dialog to validate a license
-            JOptionPane.showMessageDialog(mainFrame, 
-                "Validate License functionality will be implemented here.", 
-                "Validate License", 
+            JOptionPane.showMessageDialog(mainFrame,
+                "Validate License functionality will be implemented here.",
+                "Validate License",
                 JOptionPane.INFORMATION_MESSAGE);
         });
         buttonPanel.add(validateLicenseButton);
@@ -777,7 +777,7 @@ public class LicenseManager {
 
     /**
      * Shows a form to create a license using the selected template.
-     * 
+     *
      * @param templateName the name of the template
      * @param template the DynamicEnum template
      */
