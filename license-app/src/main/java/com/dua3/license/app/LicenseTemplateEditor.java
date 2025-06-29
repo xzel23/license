@@ -79,7 +79,6 @@ class LicenseField {
  */
 public class LicenseTemplateEditor extends JDialog {
     private static final Logger LOG = LogManager.getLogger(LicenseTemplateEditor.class);
-    private static final String TEMPLATES_DIRECTORY = "templates";
 
     private final JTextField templateNameField;
     private final JTable propertiesTable;
@@ -95,7 +94,7 @@ public class LicenseTemplateEditor extends JDialog {
 
         // Create templates directory if it doesn't exist
         try {
-            Files.createDirectories(Paths.get(TEMPLATES_DIRECTORY));
+            Files.createDirectories(Paths.get(LicenseManager.getTemplatesDirectory()));
         } catch (IOException e) {
             LOG.error("Failed to create templates directory", e);
         }
@@ -191,7 +190,7 @@ public class LicenseTemplateEditor extends JDialog {
      * Loads a template from a file.
      */
     private void loadTemplate() {
-        JFileChooser fileChooser = new JFileChooser(TEMPLATES_DIRECTORY);
+        JFileChooser fileChooser = new JFileChooser(LicenseManager.getTemplatesDirectory());
         fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
                 "JSON Template Files", "json"));
 
@@ -299,7 +298,7 @@ public class LicenseTemplateEditor extends JDialog {
         }
 
         // Save the fields to a JSON file
-        File file = new File(TEMPLATES_DIRECTORY, templateName + ".json");
+        File file = new File(LicenseManager.getTemplatesDirectory(), templateName + ".json");
         try {
             ObjectMapper mapper = new ObjectMapper();
             mapper.writerWithDefaultPrettyPrinter().writeValue(file, fields);
@@ -354,7 +353,7 @@ public class LicenseTemplateEditor extends JDialog {
      */
     public static String[] getAvailableTemplates() {
         try {
-            Path templatesDir = Paths.get(TEMPLATES_DIRECTORY);
+            Path templatesDir = Paths.get(LicenseManager.getTemplatesDirectory());
             if (!Files.exists(templatesDir)) {
                 Files.createDirectories(templatesDir);
                 return new String[0];
@@ -382,7 +381,7 @@ public class LicenseTemplateEditor extends JDialog {
      */
     public static DynamicEnum loadDynamicEnum(String templateName) {
         // Only load from JSON
-        File jsonFile = new File(TEMPLATES_DIRECTORY, templateName + ".json");
+        File jsonFile = new File(LicenseManager.getTemplatesDirectory(), templateName + ".json");
         if (jsonFile.exists()) {
             return loadDynamicEnumFromJson(jsonFile);
         }

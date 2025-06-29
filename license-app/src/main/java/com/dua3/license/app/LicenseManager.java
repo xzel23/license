@@ -105,6 +105,10 @@ public class LicenseManager {
         });
     }
 
+    public static String getTemplatesDirectory() {
+        return "templates";
+    }
+
     private void createAndShowGUI() {
         LOG.debug("Creating and showing GUI");
         // Show startup dialog to load or create keystore
