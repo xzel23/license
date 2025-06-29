@@ -9,7 +9,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import net.miginfocom.swing.MigLayout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jspecify.annotations.Nullable;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -33,49 +32,6 @@ import java.util.Vector;
  * A dialog for editing license templates.
  * This allows creating, editing, and saving license templates as DynamicEnum objects.
  */
-
-/**
- * A model class for license template fields.
- */
-class LicenseField {
-    @Nullable private String name;
-    @Nullable private String description;
-    @Nullable private String defaultValue;
-
-    // Default constructor for Jackson
-    public LicenseField() {
-    }
-
-    public LicenseField(String name, String description, String defaultValue) {
-        this.name = name;
-        this.description = description;
-        this.defaultValue = defaultValue;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public String getDefaultValue() {
-        return defaultValue;
-    }
-
-    public void setDefaultValue(String defaultValue) {
-        this.defaultValue = defaultValue;
-    }
-}
 
 /**
  * A dialog for editing license templates.
@@ -199,8 +155,7 @@ public class LicenseTemplateEditor extends JDialog {
                 LicenseManager.getTemplatesDirectory(),
                 Pair.of("JSON files", new String[] {"json"})
         ).ifPresent(selectedFile -> {
-            String templateName = IoUtil.stripExtension(selectedFile.getFileName().toString());
-            loadJsonTemplate(selectedFile, templateName);
+            loadJsonTemplate(selectedFile);
         });
     }
 
@@ -209,19 +164,16 @@ public class LicenseTemplateEditor extends JDialog {
      * Loads a template from a JSON file.
      * 
      * @param file the JSON file
-     * @param templateName the name of the template
      */
-    private void loadJsonTemplate(Path file, String templateName) {
+    private void loadJsonTemplate(Path file) {
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            List<LicenseField> fields = mapper.readValue(file.toFile(), new TypeReference<List<LicenseField>>() {});
-
-            templateNameField.setText(templateName);
+            LicenseTemplate template = LicenseTemplate.loadTemplate(file);
+            templateNameField.setText(template.getName());
 
             // Clear the table and add the fields
             tableModel.setRowCount(0);
-            fields.forEach(field ->
-                    tableModel.addRow(new Object[]{field.getName(), field.getDescription(), field.getDefaultValue()})
+            template.getFields().forEach(field ->
+                    tableModel.addRow(new Object[]{field.name(), field.description(), field.defaultValue()})
             );
 
         } catch (IOException e) {
@@ -266,14 +218,14 @@ public class LicenseTemplateEditor extends JDialog {
      */
     private void saveAsJson(String templateName) {
         // Create a list of LicenseField objects from the table data
-        List<LicenseField> fields = new ArrayList<>();
+        List<LicenseTemplate.LicenseField> fields = new ArrayList<>();
         for (int i = 0; i < tableModel.getRowCount(); i++) {
             String name = (String) tableModel.getValueAt(i, 0);
             String description = (String) tableModel.getValueAt(i, 1);
             String defaultValue = (String) tableModel.getValueAt(i, 2);
 
             if (name != null && !name.trim().isEmpty()) {
-                fields.add(new LicenseField(
+                fields.add(new LicenseTemplate.LicenseField(
                         name,
                         description != null ? description : "",
                         defaultValue != null ? defaultValue : ""));
@@ -362,42 +314,6 @@ public class LicenseTemplateEditor extends JDialog {
 
     // Store field descriptions for templates
     private static final Map<String, Map<String, String>> templateDescriptions = new HashMap<>();
-
-    /**
-     * Loads a DynamicEnum from a JSON file.
-     *
-     * @param file the JSON file
-     * @return a DynamicEnum representing the template
-     * @throws IOException if the template could not be loaded
-     */
-    public static DynamicEnum loadTemplate(Path file) throws IOException {
-        ObjectMapper mapper = new ObjectMapper();
-        List<LicenseField> fields = mapper.readValue(file.toFile(), new TypeReference<List<LicenseField>>() {});
-
-        Properties properties = new Properties();
-
-        // Create a map to store descriptions for this template
-        String templateName = IoUtil.stripExtension(file.getFileName().toString());
-
-        Map<String, String> descriptions = new HashMap<>();
-
-        for (LicenseField field : fields) {
-            // Use defaultValue as the primary value for the DynamicEnum
-            String defaultValue = field.getDefaultValue();
-            String description = field.getDescription();
-
-            // Store the description for later use
-            descriptions.put(field.getName(), description);
-
-            // Use description only if defaultValue is empty
-            properties.setProperty(field.getName(), defaultValue);
-        }
-
-        // Store the descriptions map for this template
-        templateDescriptions.put(templateName, descriptions);
-
-        return DynamicEnum.fromPropertiesWithValues(properties);
-    }
 
     /**
      * Gets the descriptions for a template.

@@ -2,7 +2,6 @@ package com.dua3.license;
 
 import java.util.Arrays;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -41,8 +40,22 @@ public final class DynamicEnum {
      * @return a new {@code DynamicEnum} instance containing the provided enum names as values.
      * @throws IllegalArgumentException if any duplicate names are provided or a name does map to an invalid enum name
      */
-    public static DynamicEnum of(String... names) {
+    public static DynamicEnum ofNames(String... names) {
         return new DynamicEnum(names);
+    }
+
+    /**
+     * Creates a new instance of {@code DynamicEnum} using the specified names and values.
+     * Each name will correspond to a unique value, and both names and values must have the same length.
+     *
+     * @param names an array of Strings representing the enum names. Each name must be unique.
+     * @param values an array of Strings representing the corresponding enum values.
+     * @return a new {@code DynamicEnum} instance containing the provided names and values.
+     * @throws IllegalArgumentException if the lengths of {@code names} and {@code values} do not match,
+     *                                  if duplicates exist in {@code names}, or if names contain invalid enum names.
+     */
+    public static DynamicEnum ofNamesAndValues(String[] names, String[] values) {
+        return new DynamicEnum(names, values);
     }
 
     /**

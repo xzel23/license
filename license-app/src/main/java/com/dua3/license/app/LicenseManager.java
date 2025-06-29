@@ -760,10 +760,9 @@ public class LicenseManager {
                 try {
                     // Load the template
                     Path jsonFile = getTemplatesDirectory().resolve(selectedTemplate + ".json");
-                    // Only load from JSON
-                    DynamicEnum template = LicenseTemplateEditor.loadTemplate(jsonFile);
+                    LicenseTemplate template = LicenseTemplate.loadTemplate(jsonFile);
                     // Show license creation form with the template
-                    showLicenseCreationForm(selectedTemplate, template);
+                    showLicenseCreationForm(template);
                 } catch (IOException e) {
                     JOptionPane.showMessageDialog(mainFrame,
                             "Failed to load the selected template.",
@@ -780,31 +779,26 @@ public class LicenseManager {
      * @param templateName the name of the template
      * @param template the DynamicEnum template
      */
-    private void showLicenseCreationForm(String templateName, DynamicEnum template) {
+    private void showLicenseCreationForm(LicenseTemplate template) {
         // Create the dialog panel
         JPanel panel = new JPanel(new MigLayout("fillx", "[][grow][]", "[]10[]"));
 
         // Add a label for the template
         panel.add(new JLabel("Template:"));
-        panel.add(new JLabel(templateName), "growx, wrap");
-
-        // Get the template values
-        DynamicEnum.EnumValue[] values = template.values();
-
-        // Get descriptions for this template
-        Map<String, String> descriptions = LicenseTemplateEditor.getTemplateDescriptions(templateName);
+        panel.add(new JLabel(template.getName()), "growx, wrap");
 
         // Create input fields for each template value
-        JTextField[] valueFields = new JTextField[values.length];
-        for (int i = 0; i < values.length; i++) {
-            DynamicEnum.EnumValue value = values[i];
-            panel.add(new JLabel(value.name() + ":"));
-            valueFields[i] = new JTextField(value.value(), 20);
+        List<LicenseTemplate.LicenseField> fields = template.getFields();
+        JTextField[] valueFields = new JTextField[fields.size()];
+        for (int i = 0; i < fields.size(); i++) {
+            LicenseTemplate.LicenseField field = fields.get(i);
+            panel.add(new JLabel(field.name() + ":"));
+            valueFields[i] = new JTextField(field.defaultValue(), 20);
             panel.add(valueFields[i], "growx");
 
             // Add info icon with tooltip showing the description
             JLabel infoLabel = new JLabel("ⓘ");
-            String description = descriptions.getOrDefault(value.name(), "");
+            String description = field.defaultValue();
             infoLabel.setToolTipText(description);
             infoLabel.setForeground(Color.BLUE);
             panel.add(infoLabel, "wrap");
@@ -814,7 +808,7 @@ public class LicenseManager {
         int result = JOptionPane.showConfirmDialog(
             mainFrame,
             panel,
-            "Create License with Template: " + templateName,
+            "Create License with Template: " + template.getName(),
             JOptionPane.OK_CANCEL_OPTION,
             JOptionPane.PLAIN_MESSAGE
         );
@@ -822,8 +816,8 @@ public class LicenseManager {
         if (result == JOptionPane.OK_OPTION) {
             // Create a map of properties for the license
             Map<String, Object> properties = new HashMap<>();
-            for (int i = 0; i < values.length; i++) {
-                properties.put(values[i].name(), valueFields[i].getText());
+            for (int i = 0; i < fields.size(); i++) {
+                properties.put(fields.get(i).name(), valueFields[i].getText());
             }
 
             // TODO: Generate the license using the properties and a selected key
