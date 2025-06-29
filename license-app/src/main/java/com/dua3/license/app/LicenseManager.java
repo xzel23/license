@@ -105,8 +105,8 @@ public class LicenseManager {
         });
     }
 
-    public static String getTemplatesDirectory() {
-        return "templates";
+    public static Path getTemplatesDirectory() {
+        return Paths.get("templates");
     }
 
     private void createAndShowGUI() {
@@ -764,16 +764,18 @@ public class LicenseManager {
         if (result == JOptionPane.OK_OPTION) {
             String selectedTemplate = (String) templateComboBox.getSelectedItem();
             if (selectedTemplate != null) {
-                // Load the template
-                DynamicEnum template = LicenseTemplateEditor.loadDynamicEnum(selectedTemplate);
-                if (template != null) {
+                try {
+                    // Load the template
+                    Path jsonFile = getTemplatesDirectory().resolve(selectedTemplate + ".json");
+                    // Only load from JSON
+                    DynamicEnum template = LicenseTemplateEditor.loadTemplate(jsonFile);
                     // Show license creation form with the template
                     showLicenseCreationForm(selectedTemplate, template);
-                } else {
+                } catch (IOException e) {
                     JOptionPane.showMessageDialog(mainFrame,
-                        "Failed to load the selected template.",
-                        "Error",
-                        JOptionPane.ERROR_MESSAGE);
+                            "Failed to load the selected template.",
+                            "Error",
+                            JOptionPane.ERROR_MESSAGE);
                 }
             }
         }
@@ -1124,33 +1126,27 @@ public class LicenseManager {
      *
      * @return the decrypted password as a char array, or null if no password is stored or decryption fails
      */
-    private char[] getPassword() {
-        try {
-            if (encryptedPassword == null || encryptionKey == null) {
-                LOG.debug("No stored password or encryption key found in memory");
-                return null;
-            }
-
-            // Recreate the secret key
-            SecretKey secretKey = new SecretKeySpec(encryptionKey, ENCRYPTION_ALGORITHM);
-
-            // Decrypt the password
-            Cipher cipher = Cipher.getInstance(ENCRYPTION_ALGORITHM);
-            cipher.init(Cipher.DECRYPT_MODE, secretKey);
-            byte[] passwordBytes = cipher.doFinal(encryptedPassword);
-
-            // Convert bytes back to char array
-            char[] password = new char[passwordBytes.length / 2];
-            for (int i = 0; i < password.length; i++) {
-                password[i] = (char) ((passwordBytes[i * 2] << 8) | (passwordBytes[i * 2 + 1] & 0xFF));
-            }
-
-            LOG.debug("Password retrieved and decrypted successfully from memory");
-            return password;
-        } catch (Exception e) {
-            LOG.error("Error retrieving and decrypting password", e);
-            return null;
+    private char[] getPassword() throws GeneralSecurityException {
+        if (encryptedPassword == null || encryptionKey == null) {
+            throw new IllegalStateException("No password stored in memory");
         }
+
+        // Recreate the secret key
+        SecretKey secretKey = new SecretKeySpec(encryptionKey, ENCRYPTION_ALGORITHM);
+
+        // Decrypt the password
+        Cipher cipher = Cipher.getInstance(ENCRYPTION_ALGORITHM);
+        cipher.init(Cipher.DECRYPT_MODE, secretKey);
+        byte[] passwordBytes = cipher.doFinal(encryptedPassword);
+
+        // Convert bytes back to char array
+        char[] password = new char[passwordBytes.length / 2];
+        for (int i = 0; i < password.length; i++) {
+            password[i] = (char) ((passwordBytes[i * 2] << 8) | (passwordBytes[i * 2 + 1] & 0xFF));
+        }
+
+        LOG.debug("Password retrieved and decrypted successfully from memory");
+        return password;
     }
 
     /**

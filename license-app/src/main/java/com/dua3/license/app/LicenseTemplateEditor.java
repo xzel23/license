@@ -1,6 +1,9 @@
 package com.dua3.license.app;
 
 import com.dua3.license.DynamicEnum;
+import com.dua3.utility.data.Pair;
+import com.dua3.utility.io.IoUtil;
+import com.dua3.utility.swing.SwingUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.miginfocom.swing.MigLayout;
@@ -94,7 +97,7 @@ public class LicenseTemplateEditor extends JDialog {
 
         // Create templates directory if it doesn't exist
         try {
-            Files.createDirectories(Paths.get(LicenseManager.getTemplatesDirectory()));
+            Files.createDirectories(LicenseManager.getTemplatesDirectory());
         } catch (IOException e) {
             LOG.error("Failed to create templates directory", e);
         }
@@ -140,7 +143,7 @@ public class LicenseTemplateEditor extends JDialog {
         removeButton.addActionListener(e -> removeProperty());
 
         JButton loadButton = new JButton("Load Template");
-        loadButton.addActionListener(e -> loadTemplate());
+        loadButton.addActionListener(e -> loadTemplate(parent));
 
         JButton saveButton = new JButton("Save Template");
         saveButton.addActionListener(e -> saveTemplate());
@@ -189,28 +192,15 @@ public class LicenseTemplateEditor extends JDialog {
     /**
      * Loads a template from a file.
      */
-    private void loadTemplate() {
-        JFileChooser fileChooser = new JFileChooser(LicenseManager.getTemplatesDirectory());
-        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
-                "JSON Template Files", "json"));
-
-        int result = fileChooser.showOpenDialog(this);
-        if (result == JFileChooser.APPROVE_OPTION) {
-            File selectedFile = fileChooser.getSelectedFile();
-            String fileName = selectedFile.getName();
-
-            // Set the template name from the file name (without extension)
-            String templateName = fileName;
-            if (fileName.endsWith(".json")) {
-                templateName = fileName.substring(0, fileName.length() - 5);
-                loadJsonTemplate(selectedFile, templateName);
-            } else {
-                JOptionPane.showMessageDialog(this,
-                        "Unsupported file format. Please select a .json file.",
-                        "Error",
-                        JOptionPane.ERROR_MESSAGE);
-            }
-        }
+    private void loadTemplate(Component parent) {
+        SwingUtil.showFileOpenDialog(
+                parent,
+                LicenseManager.getTemplatesDirectory(),
+                Pair.of("JSON files", new String[] {"json"})
+        ).ifPresent(selectedFile -> {
+            String templateName = IoUtil.stripExtension(selectedFile.getFileName().toString());
+            loadJsonTemplate(selectedFile, templateName);
+        });
     }
 
 
@@ -220,10 +210,10 @@ public class LicenseTemplateEditor extends JDialog {
      * @param file the JSON file
      * @param templateName the name of the template
      */
-    private void loadJsonTemplate(File file, String templateName) {
+    private void loadJsonTemplate(Path file, String templateName) {
         try {
             ObjectMapper mapper = new ObjectMapper();
-            List<LicenseField> fields = mapper.readValue(file, new TypeReference<List<LicenseField>>() {});
+            List<LicenseField> fields = mapper.readValue(file.toFile(), new TypeReference<List<LicenseField>>() {});
 
             templateNameField.setText(templateName);
 
@@ -298,10 +288,10 @@ public class LicenseTemplateEditor extends JDialog {
         }
 
         // Save the fields to a JSON file
-        File file = new File(LicenseManager.getTemplatesDirectory(), templateName + ".json");
+        Path file = LicenseManager.getTemplatesDirectory().resolve(templateName + ".json");
         try {
             ObjectMapper mapper = new ObjectMapper();
-            mapper.writerWithDefaultPrettyPrinter().writeValue(file, fields);
+            mapper.writerWithDefaultPrettyPrinter().writeValue(file.toFile(), fields);
             JOptionPane.showMessageDialog(this,
                     "Template saved successfully as JSON.",
                     "Success",
@@ -339,10 +329,6 @@ public class LicenseTemplateEditor extends JDialog {
             }
         }
 
-        if (properties.isEmpty()) {
-            return null;
-        }
-
         return DynamicEnum.fromPropertiesWithValues(properties);
     }
 
@@ -353,7 +339,7 @@ public class LicenseTemplateEditor extends JDialog {
      */
     public static String[] getAvailableTemplates() {
         try {
-            Path templatesDir = Paths.get(LicenseManager.getTemplatesDirectory());
+            Path templatesDir = LicenseManager.getTemplatesDirectory();
             if (!Files.exists(templatesDir)) {
                 Files.createDirectories(templatesDir);
                 return new String[0];
@@ -373,22 +359,6 @@ public class LicenseTemplateEditor extends JDialog {
         }
     }
 
-    /**
-     * Loads a template from a file.
-     *
-     * @param templateName the name of the template to load
-     * @return a DynamicEnum representing the template, or null if the template could not be loaded
-     */
-    public static DynamicEnum loadDynamicEnum(String templateName) {
-        // Only load from JSON
-        File jsonFile = new File(LicenseManager.getTemplatesDirectory(), templateName + ".json");
-        if (jsonFile.exists()) {
-            return loadDynamicEnumFromJson(jsonFile);
-        }
-
-        return null;
-    }
-
     // Store field descriptions for templates
     private static final Map<String, Map<String, String>> templateDescriptions = new HashMap<>();
 
@@ -398,45 +368,33 @@ public class LicenseTemplateEditor extends JDialog {
      * @param file the JSON file
      * @return a DynamicEnum representing the template, or null if the template could not be loaded
      */
-    private static DynamicEnum loadDynamicEnumFromJson(File file) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            List<LicenseField> fields = mapper.readValue(file, new TypeReference<List<LicenseField>>() {});
+    public static DynamicEnum loadTemplate(Path file) throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        List<LicenseField> fields = mapper.readValue(file.toFile(), new TypeReference<List<LicenseField>>() {});
 
-            if (fields.isEmpty()) {
-                return null;
-            }
+        Properties properties = new Properties();
 
-            Properties properties = new Properties();
+        // Create a map to store descriptions for this template
+        String templateName = IoUtil.stripExtension(file.getFileName().toString());
 
-            // Create a map to store descriptions for this template
-            String templateName = file.getName();
-            if (templateName.endsWith(".json")) {
-                templateName = templateName.substring(0, templateName.length() - 5);
-            }
+        Map<String, String> descriptions = new HashMap<>();
 
-            Map<String, String> descriptions = new HashMap<>();
+        for (LicenseField field : fields) {
+            // Use defaultValue as the primary value for the DynamicEnum
+            String defaultValue = field.getDefaultValue();
+            String description = field.getDescription();
 
-            for (LicenseField field : fields) {
-                // Use defaultValue as the primary value for the DynamicEnum
-                String defaultValue = field.getDefaultValue();
-                String description = field.getDescription();
+            // Store the description for later use
+            descriptions.put(field.getName(), description);
 
-                // Store the description for later use
-                descriptions.put(field.getName(), description);
-
-                // Use description only if defaultValue is empty
-                properties.setProperty(field.getName(), defaultValue);
-            }
-
-            // Store the descriptions map for this template
-            templateDescriptions.put(templateName, descriptions);
-
-            return DynamicEnum.fromPropertiesWithValues(properties);
-        } catch (IOException e) {
-            LOG.error("Failed to load template from JSON", e);
-            return null;
+            // Use description only if defaultValue is empty
+            properties.setProperty(field.getName(), defaultValue);
         }
+
+        // Store the descriptions map for this template
+        templateDescriptions.put(templateName, descriptions);
+
+        return DynamicEnum.fromPropertiesWithValues(properties);
     }
 
     /**
