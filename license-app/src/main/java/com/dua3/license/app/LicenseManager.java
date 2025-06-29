@@ -7,6 +7,7 @@ import com.dua3.utility.swing.SwingUtil;
 import net.miginfocom.swing.MigLayout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jspecify.annotations.Nullable;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -60,8 +61,8 @@ public class LicenseManager {
     private static final int KEY_SIZE = 256;
 
     // In-memory storage for encrypted password and encryption key
-    private byte[] encryptedPassword;
-    private byte[] encryptionKey;
+    @Nullable private byte[] encryptedPassword;
+    @Nullable private byte[] encryptionKey;
 
     static {
         try {
@@ -71,30 +72,30 @@ public class LicenseManager {
         }
     }
 
-    private JFrame mainFrame;
-    private JTabbedPane tabbedPane;
-    private JPanel keysPanel;
-    private JPanel licensesPanel;
+    @Nullable private JFrame mainFrame;
+    @Nullable private JTabbedPane tabbedPane;
+    @Nullable private JPanel keysPanel;
+    @Nullable private JPanel licensesPanel;
 
-    private FileInput keyStorePathInput;
-    private JPasswordField keystorePasswordField;
-    private JTextField keyAliasField;
-    private JTextField keySubjectField;
-    private JTextField keyValidDaysField;
+    @Nullable private FileInput keyStorePathInput;
+    @Nullable private JPasswordField keystorePasswordField;
+    @Nullable private JTextField keyAliasField;
+    @Nullable private JTextField keySubjectField;
+    @Nullable private JTextField keyValidDaysField;
 
     private final JComboBox<String> licenseKeyAliasComboBox = new JComboBox<>();
-    private JPanel licenseFieldsPanel;
+    @Nullable private JPanel licenseFieldsPanel;
     private final List<JTextField[]> licenseFieldRows = new ArrayList<>();
 
-    private JTextArea licenseOutputArea;
-    private JTextArea verificationOutputArea;
+    @Nullable private JTextArea licenseOutputArea;
+    @Nullable private JTextArea verificationOutputArea;
 
     // Table for displaying keys
     private javax.swing.JTable keysTable;
     private javax.swing.table.DefaultTableModel keysTableModel;
 
-    private KeyStore keyStore;
-    private Path keystorePath;
+    @Nullable private KeyStore keyStore;
+    @Nullable private Path keystorePath;
 
     public static void main(String[] args) {
         LOG.debug("Starting License Manager application");
@@ -1124,7 +1125,9 @@ public class LicenseManager {
     /**
      * Retrieves and decrypts the stored password.
      *
-     * @return the decrypted password as a char array, or null if no password is stored or decryption fails
+     * @return the decrypted password as a char array
+     * @throws IllegalStateException if no password is stored
+     * @throws GeneralSecurityException if decryption fails
      */
     private char[] getPassword() throws GeneralSecurityException {
         if (encryptedPassword == null || encryptionKey == null) {

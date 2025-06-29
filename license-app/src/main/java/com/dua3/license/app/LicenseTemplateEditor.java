@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import net.miginfocom.swing.MigLayout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jspecify.annotations.Nullable;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -37,9 +38,9 @@ import java.util.Vector;
  * A model class for license template fields.
  */
 class LicenseField {
-    private String name;
-    private String description;
-    private String defaultValue;
+    @Nullable private String name;
+    @Nullable private String description;
+    @Nullable private String defaultValue;
 
     // Default constructor for Jackson
     public LicenseField() {
@@ -366,7 +367,8 @@ public class LicenseTemplateEditor extends JDialog {
      * Loads a DynamicEnum from a JSON file.
      *
      * @param file the JSON file
-     * @return a DynamicEnum representing the template, or null if the template could not be loaded
+     * @return a DynamicEnum representing the template
+     * @throws IOException if the template could not be loaded
      */
     public static DynamicEnum loadTemplate(Path file) throws IOException {
         ObjectMapper mapper = new ObjectMapper();
