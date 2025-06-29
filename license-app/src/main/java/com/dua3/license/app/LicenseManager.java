@@ -79,16 +79,8 @@ public class LicenseManager {
 
     @Nullable private FileInput keyStorePathInput;
     @Nullable private JPasswordField keystorePasswordField;
-    @Nullable private JTextField keyAliasField;
-    @Nullable private JTextField keySubjectField;
-    @Nullable private JTextField keyValidDaysField;
 
     private final JComboBox<String> licenseKeyAliasComboBox = new JComboBox<>();
-    @Nullable private JPanel licenseFieldsPanel;
-    private final List<JTextField[]> licenseFieldRows = new ArrayList<>();
-
-    @Nullable private JTextArea licenseOutputArea;
-    @Nullable private JTextArea verificationOutputArea;
 
     // Table for displaying keys
     private javax.swing.JTable keysTable;
