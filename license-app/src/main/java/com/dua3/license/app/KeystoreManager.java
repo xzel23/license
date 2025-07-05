@@ -16,6 +16,7 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
+import java.awt.Component;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,19 +24,17 @@ import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.SecureRandom;
-import java.util.function.BiConsumer;
 import java.util.prefs.Preferences;
 
 /**
  * Dialog for selecting or creating a keystore.
  */
-public class KeystoreSelectionDialog {
-    private static final Logger LOG = LogManager.getLogger(KeystoreSelectionDialog.class);
+public class KeystoreManager {
+    private static final Logger LOG = LogManager.getLogger(KeystoreManager.class);
     private static final String PREF_KEYSTORE_PATH = "keystorePath";
     private static final String ENCRYPTION_ALGORITHM = "AES";
     private static final int KEY_SIZE = 256;
 
-    private final JFrame parent;
     @Nullable private FileInput keyStorePathInput;
     @Nullable private JPasswordField keystorePasswordField;
     private byte[] encryptedPassword;
@@ -44,23 +43,13 @@ public class KeystoreSelectionDialog {
     private KeyStore keyStore;
 
     /**
-     * Creates a new KeystoreSelectionDialog.
-     *
-     * @param parent the parent frame
-     */
-    public KeystoreSelectionDialog(JFrame parent) {
-        this.parent = parent;
-    }
-
-    /**
      * Shows a dialog at startup that asks the user to either load an existing keystore or create a new one.
      * If there's an error, it shows the error message and asks if the user wants to try again.
      *
-     * @param alias the alias to use for the keystore
-     * @param setKeyStore a consumer that will be called with the keystore and password if the dialog is successful
+     * @param parent the parent component
      * @return true if a keystore was successfully loaded or created, false otherwise
      */
-    public boolean showDialog(String alias, BiConsumer<KeyStore, char[]> setKeyStore) {
+    public boolean showDialog(Component parent) {
         String errorMessage = null;
         boolean retry = false;
 
@@ -120,13 +109,10 @@ public class KeystoreSelectionDialog {
 
                     try {
                         KeyStore loadedKeyStore = KeyStoreUtil.loadKeyStoreFromFile(path, getPassword());
-                        setKeystorePath(path);
 
-                        // Store the keystore path
-                        keyStore = loadedKeyStore;
-
-                        // Call the consumer with the keystore and password
-                        setKeyStore.accept(loadedKeyStore, getPassword());
+                        // Store the keystore path and instance
+                        this.keystorePath = path;
+                        this.keyStore = loadedKeyStore;
 
                         LOG.debug("Keystore loaded successfully from: {}", path);
                         return true;
@@ -148,7 +134,7 @@ public class KeystoreSelectionDialog {
                 }
             } else if (option == 1) {
                 // Create new keystore
-                boolean success = createKeystoreFromDialog(setKeyStore);
+                boolean success = createKeystoreFromDialog(parent);
                 if (success) {
                     return true; // Successfully created
                 } else {
@@ -169,10 +155,10 @@ public class KeystoreSelectionDialog {
     /**
      * Creates a new keystore from the dialog input.
      *
-     * @param setKeyStore a consumer that will be called with the keystore and password if the dialog is successful
+     * @param parent the parent component
      * @return true if successful, false otherwise
      */
-    private boolean createKeystoreFromDialog(BiConsumer<KeyStore, char[]> setKeyStore) {
+    private boolean createKeystoreFromDialog(Component parent) {
         LOG.debug("Attempting to create keystore from dialog");
         return keyStorePathInput.getPath().map(path -> {
             LOG.debug("Creating keystore at path: {}", path);
@@ -206,10 +192,8 @@ public class KeystoreSelectionDialog {
 
                 // No need to backup here as this is a new keystore
                 KeyStoreUtil.saveKeyStoreToFile(newKeyStore, path, getPassword());
-                setKeystorePath(path);
-
-                // Call the consumer with the keystore and password
-                setKeyStore.accept(newKeyStore, getPassword());
+                this.keystorePath = path;
+                this.keyStore = newKeyStore;
 
                 LOG.debug("Keystore created successfully at: {}", path);
                 return true;
@@ -290,7 +274,7 @@ public class KeystoreSelectionDialog {
      * @return the stored keystore path or a default path
      */
     private Path getStoredKeystorePath() {
-        Preferences prefs = Preferences.userNodeForPackage(KeystoreSelectionDialog.class);
+        Preferences prefs = Preferences.userNodeForPackage(KeystoreManager.class);
         String storedPath = prefs.get(PREF_KEYSTORE_PATH, null);
         return storedPath != null ? Paths.get(storedPath) : Paths.get(".");
     }
@@ -302,13 +286,15 @@ public class KeystoreSelectionDialog {
      */
     private void saveKeystorePath(Path path) {
         if (path != null) {
-            Preferences prefs = Preferences.userNodeForPackage(KeystoreSelectionDialog.class);
+            Preferences prefs = Preferences.userNodeForPackage(KeystoreManager.class);
             prefs.put(PREF_KEYSTORE_PATH, path.toString());
         }
     }
 
-    private void setKeystorePath(Path keystorePath) {
+    private void setKeystore(Path keystorePath, KeyStore keyStore, char[] keyStorePassword) {
         this.keystorePath = keystorePath;
+        this.keyStore = keyStore;
+        this.encryptedPassword = null;
         saveKeystorePath(keystorePath);
     }
 

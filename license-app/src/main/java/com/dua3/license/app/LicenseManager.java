@@ -40,9 +40,6 @@ public class LicenseManager {
     private static final String APP_NAME = LicenseManager.class.getSimpleName();
     private static final String ERROR = "Error";
 
-    // In-memory storage for keystore password
-    @Nullable private char[] keystorePassword;
-
     static {
         try {
             Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
@@ -50,6 +47,8 @@ public class LicenseManager {
             LOG.error("Failed to register Bouncy Castle provider", e);
         }
     }
+
+    private final KeystoreManager keystoreManager = new KeystoreManager();
 
     @Nullable private JFrame mainFrame;
     @Nullable private JTabbedPane tabbedPane;
@@ -63,9 +62,6 @@ public class LicenseManager {
     // Table for displaying keys
     private javax.swing.JTable keysTable;
     private javax.swing.table.DefaultTableModel keysTableModel;
-
-    @Nullable private KeyStore keyStore;
-    @Nullable private Path keystorePath;
 
     public static void main(String[] args) {
         LOG.debug("Starting License Manager application");
@@ -83,7 +79,7 @@ public class LicenseManager {
     private void createAndShowGUI() {
         LOG.debug("Creating and showing GUI");
         // Show startup dialog to load or create keystore
-        if (!showKeystoreStartupDialog()) {
+        if (!keystoreManager.showDialog(null)) {
             // User chose to exit
             LOG.info("User chose to exit after keystore loading failure");
             System.exit(0);
@@ -176,7 +172,7 @@ public class LicenseManager {
                     int row = keysTable.rowAtPoint(e.getPoint());
                     if (row >= 0) {
                         String alias = (String) keysTable.getValueAt(row, 0);
-                        new KeyDetailsDialog(mainFrame, keyStore, alias).showDialog();
+                        new KeyDetailsDialog(mainFrame, keystoreManager.getKeyStore(), alias).showDialog();
                     }
                 }
             }
@@ -193,6 +189,7 @@ public class LicenseManager {
         JButton addKeyButton = new JButton("Add Key");
         addKeyButton.addActionListener(e -> {
             // Reuse the key generation functionality from the Key Management tab
+            KeyStore keyStore = keystoreManager.getKeyStore();
             if (keyStore == null) {
                 JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", ERROR, JOptionPane.ERROR_MESSAGE);
                 return;
@@ -301,12 +298,13 @@ public class LicenseManager {
                 }
 
                 try {
-                    KeyStoreUtil.generateAndStoreKeyPairWithX509Certificate(keyStore, alias, AsymmetricAlgorithm.RSA, 2048, getPassword(), subject, validDays);
+                    KeyStoreUtil.generateAndStoreKeyPairWithX509Certificate(keyStore, alias, AsymmetricAlgorithm.RSA, 2048, keystoreManager.getPassword(), subject, validDays);
 
                     // Backup the keystore file before saving
+                    Path keystorePath = keystoreManager.getKeystorePath();
                     backupKeystoreFile(keystorePath);
 
-                    KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, getPassword());
+                    KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, keystoreManager.getPassword());
 
                     updateKeyAliasComboBox();
 
@@ -320,6 +318,7 @@ public class LicenseManager {
 
         JButton deleteKeyButton = new JButton("Delete Key");
         deleteKeyButton.addActionListener(e -> {
+            KeyStore keyStore = keystoreManager.getKeyStore();
             if (keyStore == null) {
                 JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", ERROR, JOptionPane.ERROR_MESSAGE);
                 return;
@@ -364,6 +363,8 @@ public class LicenseManager {
      * Updates the keys table with the current keystore information.
      */
     private void updateKeysTable() {
+        KeyStore keyStore = keystoreManager.getKeyStore();
+
         // Clear the table
         keysTableModel.setRowCount(0);
 
@@ -432,28 +433,14 @@ public class LicenseManager {
     }
 
 
-    /**
-     * Shows a dialog at startup that asks the user to either load an existing keystore or create a new one.
-     * If there's an error, it shows the error message and asks if the user wants to try again.
-     *
-     * @return true if a keystore was successfully loaded or created, false otherwise
-     */
-    private boolean showKeystoreStartupDialog() {
-        KeystoreSelectionDialog dialog = new KeystoreSelectionDialog(mainFrame);
-        return dialog.showDialog("", (ks, pwd) -> {
-            keyStore = ks;
-            keystorePassword = pwd;
-        });
-    }
-
-
     private void updateKeyAliasComboBox() {
-        LOG.debug("Updating key alias combo box");
+        KeyStore keyStore = keystoreManager.getKeyStore();
         if (keyStore == null) {
             LOG.debug("No keystore loaded, skipping key alias update");
             return;
         }
 
+        LOG.debug("Updating key alias combo box");
         licenseKeyAliasComboBox.removeAllItems();
 
         try {
@@ -474,23 +461,6 @@ public class LicenseManager {
 
         // Update the keys table as well
         updateKeysTable();
-    }
-
-
-
-    /**
-     * Retrieves the stored password.
-     *
-     * @return the password as a char array
-     * @throws IllegalStateException if no password is stored
-     */
-    private char[] getPassword() {
-        if (keystorePassword == null) {
-            throw new IllegalStateException("No password stored in memory");
-        }
-
-        LOG.debug("Password retrieved from memory");
-        return keystorePassword;
     }
 
     /**
@@ -522,13 +492,15 @@ public class LicenseManager {
     }
 
     private void deleteKey(String alias) throws GeneralSecurityException, IOException {
+        KeyStore keyStore = keystoreManager.getKeyStore();
         if (keyStore == null) {
             throw new IllegalStateException("No keystore loaded");
         }
 
         keyStore.deleteEntry(alias);
+        Path keystorePath = keystoreManager.getKeystorePath();
         backupKeystoreFile(keystorePath);
-        KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, getPassword());
+        KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, keystoreManager.getPassword());
         updateKeyAliasComboBox();
     }
 
