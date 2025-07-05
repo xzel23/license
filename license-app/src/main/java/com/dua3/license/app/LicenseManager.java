@@ -33,9 +33,6 @@ import java.security.PublicKey;
 import java.security.Security;
 import java.time.LocalDateTime;
 import java.util.Base64;
-import java.util.Optional;
-import javax.swing.JFileChooser;
-import javax.swing.filechooser.FileNameExtensionFilter;
 
 public class LicenseManager {
 
