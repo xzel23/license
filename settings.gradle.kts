@@ -29,10 +29,6 @@ dependencyResolutionManagement {
 
     val isSnapshot = projectVersion.toDefaultLowerCase().contains("snapshot")
 
-    if (isSnapshot) {
-        println("SNAPSHOT version detected, using local Maven repository")
-    }
-
     versionCatalogs {
         create("libs") {
             version("projectVersion", projectVersion)
@@ -122,13 +118,12 @@ dependencyResolutionManagement {
         }
 
         if (isSnapshot) {
-            // local maven repository
-            mavenLocal()
+            println("SNAPSHOT version detected, adding Maven snapshot repositories")
 
             // Sonatype Snapshots
             maven {
                 name = "oss.sonatype.org-snapshots"
-                url = java.net.URI("https://s01.oss.sonatype.org/content/repositories/snapshots/")
+                url = java.net.URI("https://central.sonatype.com/repository/maven-snapshots/")
                 mavenContent {
                     snapshotsOnly()
                 }
