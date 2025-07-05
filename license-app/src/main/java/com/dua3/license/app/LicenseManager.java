@@ -41,8 +41,7 @@ public class LicenseManager {
 
     private static final Logger LOG = LogManager.getLogger(LicenseManager.class);
     private static final String APP_NAME = LicenseManager.class.getSimpleName();
-    private static final String ENCRYPTION_ALGORITHM = "AES";
-    private static final int KEY_SIZE = 256;
+    private static final String ERROR = "Error";
 
     // In-memory storage for keystore password
     @Nullable private char[] keystorePassword;
@@ -51,7 +50,7 @@ public class LicenseManager {
         try {
             Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
         } catch (Exception e) {
-            System.err.println("Failed to register Bouncy Castle provider: " + e.getMessage());
+            LOG.error("Failed to register Bouncy Castle provider", e);
         }
     }
 
@@ -198,7 +197,7 @@ public class LicenseManager {
         addKeyButton.addActionListener(e -> {
             // Reuse the key generation functionality from the Key Management tab
             if (keyStore == null) {
-                JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", ERROR, JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
@@ -250,18 +249,18 @@ public class LicenseManager {
                 String validDaysStr = validDaysField.getText().trim();
 
                 if (alias.isEmpty()) {
-                    JOptionPane.showMessageDialog(mainFrame, "Please specify a key alias.", "Error", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(mainFrame, "Please specify a key alias.", ERROR, JOptionPane.ERROR_MESSAGE);
                     return;
                 }
 
                 // Validate required fields
                 if (cn.isEmpty()) {
-                    JOptionPane.showMessageDialog(mainFrame, "Common Name (CN) is required.", "Error", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(mainFrame, "Common Name (CN) is required.", ERROR, JOptionPane.ERROR_MESSAGE);
                     return;
                 }
 
                 if (c.isEmpty()) {
-                    JOptionPane.showMessageDialog(mainFrame, "Country (C) is required.", "Error", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(mainFrame, "Country (C) is required.", ERROR, JOptionPane.ERROR_MESSAGE);
                     return;
                 }
 
@@ -300,7 +299,7 @@ public class LicenseManager {
                         throw new NumberFormatException("Valid days must be positive");
                     }
                 } catch (NumberFormatException e1) {
-                    JOptionPane.showMessageDialog(mainFrame, "Please enter a valid number of days.", "Error", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(mainFrame, "Please enter a valid number of days.", ERROR, JOptionPane.ERROR_MESSAGE);
                     return;
                 }
 
@@ -317,7 +316,7 @@ public class LicenseManager {
                     JOptionPane.showMessageDialog(mainFrame, "Key pair generated and stored successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
                 } catch (GeneralSecurityException | IOException ex) {
                     LOG.warn("Error generating key pair", ex);
-                    JOptionPane.showMessageDialog(mainFrame, "Error generating key pair: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(mainFrame, "Error generating key pair: " + ex.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
                 }
             }
         });
@@ -325,13 +324,13 @@ public class LicenseManager {
         JButton deleteKeyButton = new JButton("Delete Key");
         deleteKeyButton.addActionListener(e -> {
             if (keyStore == null) {
-                JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", ERROR, JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
             int row = keysTable.getSelectedRow();
             if (row < 0) {
-                JOptionPane.showMessageDialog(mainFrame, "Please select a key to delete.", "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(mainFrame, "Please select a key to delete.", ERROR, JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
@@ -347,7 +346,7 @@ public class LicenseManager {
                     JOptionPane.showMessageDialog(mainFrame, "Key deleted successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
                 } catch (Exception ex) {
                     LOG.warn("Error deleting key", ex);
-                    JOptionPane.showMessageDialog(mainFrame, "Error deleting key: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(mainFrame, "Error deleting key: " + ex.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
                 }
             } else if (input != null) {
                 JOptionPane.showMessageDialog(mainFrame, "The alias you entered does not match. Deletion cancelled.", "Deletion Cancelled", JOptionPane.INFORMATION_MESSAGE);
@@ -391,17 +390,17 @@ public class LicenseManager {
                             algorithm = publicKey.getAlgorithm();
 
                             // Estimate key size
-                            if (publicKey instanceof java.security.interfaces.RSAKey) {
-                                keySize = ((java.security.interfaces.RSAKey) publicKey).getModulus().bitLength();
-                            } else if (publicKey instanceof java.security.interfaces.DSAKey) {
-                                keySize = ((java.security.interfaces.DSAKey) publicKey).getParams().getP().bitLength();
-                            } else if (publicKey instanceof java.security.interfaces.ECKey) {
-                                keySize = ((java.security.interfaces.ECKey) publicKey).getParams().getCurve().getField().getFieldSize();
+                            if (publicKey instanceof java.security.interfaces.RSAKey rsaKey) {
+                                keySize = rsaKey.getModulus().bitLength();
+                            } else if (publicKey instanceof java.security.interfaces.DSAKey dsaKey) {
+                                keySize = dsaKey.getParams().getP().bitLength();
+                            } else if (publicKey instanceof java.security.interfaces.ECKey ecKey) {
+                                keySize = ecKey.getParams().getCurve().getField().getFieldSize();
                             }
 
                             // Get subject from X509Certificate
-                            if (cert instanceof java.security.cert.X509Certificate) {
-                                subject = ((java.security.cert.X509Certificate) cert).getSubjectX500Principal().getName();
+                            if (cert instanceof java.security.cert.X509Certificate x509Certificate) {
+                                subject = x509Certificate.getSubjectX500Principal().getName();
                             }
 
                             // Format public key as Base64
@@ -422,7 +421,7 @@ public class LicenseManager {
             });
         } catch (Exception e) {
             LOG.warn("Error loading key information", e);
-            JOptionPane.showMessageDialog(mainFrame, "Error loading key information: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(mainFrame, "Error loading key information: " + e.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -444,12 +443,10 @@ public class LicenseManager {
      */
     private boolean showKeystoreStartupDialog() {
         KeystoreSelectionDialog dialog = new KeystoreSelectionDialog(mainFrame);
-        boolean success = dialog.showDialog("", (ks, pwd) -> {
+        return dialog.showDialog("", (ks, pwd) -> {
             keyStore = ks;
             keystorePassword = pwd;
         });
-
-        return success;
     }
 
 
@@ -475,7 +472,7 @@ public class LicenseManager {
             });
         } catch (Exception e) {
             LOG.warn("Error loading key aliases", e);
-            JOptionPane.showMessageDialog(mainFrame, "Error loading key aliases: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(mainFrame, "Error loading key aliases: " + e.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
         }
 
         // Update the keys table as well
@@ -490,7 +487,7 @@ public class LicenseManager {
      * @return the password as a char array
      * @throws IllegalStateException if no password is stored
      */
-    private char[] getPassword() throws GeneralSecurityException {
+    private char[] getPassword() {
         if (keystorePassword == null) {
             throw new IllegalStateException("No password stored in memory");
         }
@@ -500,29 +497,13 @@ public class LicenseManager {
     }
 
     /**
-     * Clears the stored password.
-     */
-    private void clearStoredPassword() {
-        this.keystorePassword = null;
-        LOG.debug("Stored password cleared from memory");
-    }
-
-    /**
-     * Deletes a key from the keystore.
-     *
-     * @param alias the alias of the key to delete
-     * @param password the keystore password
-     * @throws GeneralSecurityException if there's a security-related error
-     * @throws IOException if there's an I/O error
-     */
-    /**
      * Backs up the keystore file before it is updated.
      * The backup file is named with a timestamp in the format yyyymmddhhmmssss.
      *
      * @param keystorePath the path to the keystore file
      * @throws IOException if there's an I/O error
      */
-    private void backupKeystoreFile(Path keystorePath) throws IOException {
+    private static void backupKeystoreFile(Path keystorePath) throws IOException {
         if (keystorePath == null || !Files.exists(keystorePath)) {
             return; // Nothing to backup
         }
