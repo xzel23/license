@@ -29,6 +29,7 @@ import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Date;
@@ -36,6 +37,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.prefs.Preferences;
 
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -53,6 +56,10 @@ public class LicenseEditor {
     private static final String LICENSE_FILE_EXTENSION = "json";
     private static final String SIGNING_KEY = "### SIGNING_KEY ###";
     private static final String SIGNATURE = "### SIGNATURE ###";
+    private static final String PREF_LICENSE_DIRECTORY = "licenseDirectory";
+    public static final String SIGNING_KEY_ALIAS_LICENSE_FIELD = "SIGNING_KEY_ALIAS";
+    public static final String SIGNATURE_LICENSE_FIELD = "SIGNATURE";
+    public static final String EXPIRY_LICENSE_FIELD = "EXPIRY_DATE";
 
     private final LocalDate today = LocalDate.now();
     private final JFrame parentFrame;
@@ -100,6 +107,29 @@ public class LicenseEditor {
     public LicenseEditor(JFrame parentFrame, KeystoreManager keystoreManager) {
         this.parentFrame = parentFrame;
         this.keystoreManager = keystoreManager;
+    }
+
+    /**
+     * Gets the stored license directory from preferences or returns a default path if none is stored.
+     *
+     * @return the stored license directory or a default path
+     */
+    private Path getStoredLicenseDirectory() {
+        Preferences prefs = Preferences.userNodeForPackage(LicenseEditor.class);
+        String storedPath = prefs.get(PREF_LICENSE_DIRECTORY, null);
+        return storedPath != null ? Paths.get(storedPath) : Paths.get(".");
+    }
+
+    /**
+     * Saves the license directory to preferences.
+     *
+     * @param path the path to save
+     */
+    private void saveLicenseDirectory(Path path) {
+        if (path != null) {
+            Preferences prefs = Preferences.userNodeForPackage(LicenseEditor.class);
+            prefs.put(PREF_LICENSE_DIRECTORY, path.toString());
+        }
     }
 
     /**
@@ -541,6 +571,12 @@ public class LicenseEditor {
             fileChooser.setDialogTitle("Save License Draft");
             fileChooser.setFileFilter(new FileNameExtensionFilter("JSON Files (*.json)", DRAFT_FILE_EXTENSION));
 
+            // Set current directory to the stored license directory
+            Path storedDir = getStoredLicenseDirectory();
+            if (Files.exists(storedDir) && Files.isDirectory(storedDir)) {
+                fileChooser.setCurrentDirectory(storedDir.toFile());
+            }
+
             // Set default file name
             fileChooser.setSelectedFile(new java.io.File("license_draft.json"));
 
@@ -561,6 +597,9 @@ public class LicenseEditor {
                 // Save to file
                 ObjectMapper mapper = new ObjectMapper();
                 mapper.writerWithDefaultPrettyPrinter().writeValue(filePath.toFile(), draft);
+
+                // Save the directory to preferences
+                saveLicenseDirectory(filePath.getParent());
 
                 JOptionPane.showMessageDialog(parentFrame,
                         "License draft saved successfully to " + filePath,
@@ -588,6 +627,12 @@ public class LicenseEditor {
             fileChooser.setDialogTitle("Save License");
             fileChooser.setFileFilter(new FileNameExtensionFilter("JSON Files (*.json)", LICENSE_FILE_EXTENSION));
 
+            // Set current directory to the stored license directory
+            Path storedDir = getStoredLicenseDirectory();
+            if (Files.exists(storedDir) && Files.isDirectory(storedDir)) {
+                fileChooser.setCurrentDirectory(storedDir.toFile());
+            }
+
             // Set default file name using LICENSE_ID if available
             String defaultFileName = "license";
             if (properties.containsKey("LICENSE_ID")) {
@@ -609,6 +654,9 @@ public class LicenseEditor {
                 // Save to file
                 ObjectMapper mapper = new ObjectMapper();
                 mapper.writerWithDefaultPrettyPrinter().writeValue(filePath.toFile(), properties);
+
+                // Save the directory to preferences
+                saveLicenseDirectory(filePath.getParent());
 
                 JOptionPane.showMessageDialog(parentFrame,
                         "License saved successfully to " + filePath,
@@ -636,6 +684,12 @@ public class LicenseEditor {
             fileChooser.setDialogTitle("Load License Draft");
             fileChooser.setFileFilter(new FileNameExtensionFilter("JSON Files (*.json)", DRAFT_FILE_EXTENSION));
 
+            // Set current directory to the stored license directory
+            Path storedDir = getStoredLicenseDirectory();
+            if (Files.exists(storedDir) && Files.isDirectory(storedDir)) {
+                fileChooser.setCurrentDirectory(storedDir.toFile());
+            }
+
             // Show open dialog
             int userSelection = fileChooser.showOpenDialog(parentFrame);
 
@@ -645,6 +699,9 @@ public class LicenseEditor {
                 // Load from file
                 ObjectMapper mapper = new ObjectMapper();
                 LicenseDraft draft = mapper.readValue(filePath.toFile(), LicenseDraft.class);
+
+                // Save the directory to preferences
+                saveLicenseDirectory(filePath.getParent());
 
                 return draft;
             }
@@ -671,6 +728,12 @@ public class LicenseEditor {
             fileChooser.setDialogTitle("Select License File to Validate");
             fileChooser.setFileFilter(new FileNameExtensionFilter("JSON Files (*.json)", LICENSE_FILE_EXTENSION));
 
+            // Set current directory to the stored license directory
+            Path storedDir = getStoredLicenseDirectory();
+            if (Files.exists(storedDir) && Files.isDirectory(storedDir)) {
+                fileChooser.setCurrentDirectory(storedDir.toFile());
+            }
+
             // Show open dialog
             int userSelection = fileChooser.showOpenDialog(parentFrame);
 
@@ -680,6 +743,9 @@ public class LicenseEditor {
 
             Path filePath = fileChooser.getSelectedFile().toPath();
 
+            // Save the directory to preferences
+            saveLicenseDirectory(filePath.getParent());
+
             // Load the license file
             ObjectMapper mapper = new ObjectMapper();
             Map<String, Object> licenseData = mapper.readValue(filePath.toFile(), Map.class);
@@ -688,144 +754,89 @@ public class LicenseEditor {
             StringBuilder validationResults = new StringBuilder();
             boolean isValid = true;
 
-            // Check if the license has a signature
-            String signatureFieldName = null;
-            String signatureValue = null;
-
             // Find the signature field (could be named differently in different templates)
-            for (Map.Entry<String, Object> entry : licenseData.entrySet()) {
-                if (entry.getValue() instanceof String && 
-                    ((String) entry.getValue()).matches("^[A-Za-z0-9+/]+={0,2}$")) { // Basic check for Base64
-                    try {
-                        // Try to decode it as Base64
-                        Base64.getDecoder().decode((String) entry.getValue());
-                        signatureFieldName = entry.getKey();
-                        signatureValue = (String) entry.getValue();
-                        break;
-                    } catch (IllegalArgumentException e) {
-                        // Not valid Base64, continue searching
-                    }
-                }
-            }
+            String signingKeyAlias = Objects.requireNonNullElse(licenseData.get(SIGNING_KEY_ALIAS_LICENSE_FIELD), "").toString();
+            String signatureValue = Objects.requireNonNullElse(licenseData.get(SIGNATURE_LICENSE_FIELD), "").toString();
 
-            if (signatureFieldName == null || signatureValue == null) {
+            if (signatureValue.isBlank()) {
                 validationResults.append("❌ No valid signature found in the license file.\n");
                 isValid = false;
             } else {
-                validationResults.append("✓ Signature field found: ").append(signatureFieldName).append("\n");
+                validationResults.append("✓ Signature found.\n");
+            }
 
+            if (signingKeyAlias.isBlank()) {
+                validationResults.append("❌ No signing key information found in the license.\n");
+                isValid = false;
+            } else {
+                validationResults.append("✓ Signing key alias found.\n");
+            }
+
+            if (isValid) {
                 // Create a copy of the license data without the signature for verification
-                Map<String, Object> dataToVerify = new HashMap<>(licenseData);
-                dataToVerify.remove(signatureFieldName);
+                Map<String, Object> dataToVerify = new LinkedHashMap<>(licenseData);
+                dataToVerify.remove(SIGNATURE_LICENSE_FIELD);
 
-                // Get the signing key alias if present
-                String signingKeyAlias = null;
-                for (Map.Entry<String, Object> entry : licenseData.entrySet()) {
-                    if (entry.getKey().toLowerCase().contains("key") && entry.getValue() instanceof String) {
-                        signingKeyAlias = (String) entry.getValue();
-                        break;
-                    }
-                }
+                // Verify the signature
+                try {
+                    KeyStore keyStore = keystoreManager.getKeyStore();
+                    Certificate cert = keyStore.getCertificate(signingKeyAlias);
 
-                if (signingKeyAlias == null) {
-                    validationResults.append("❌ No signing key information found in the license.\n");
-                    validationResults.append("Please select the key used to sign this license:\n");
-
-                    // Create a combo box with all available keys
-                    JComboBox<String> keyComboBox = new JComboBox<>();
-                    populateSigningKeyComboBox(keyComboBox);
-
-                    if (keyComboBox.getItemCount() == 0) {
-                        validationResults.append("❌ No keys available in the keystore.\n");
+                    if (cert == null) {
+                        validationResults.append("❌ Certificate not found for key: ").append(signingKeyAlias).append("\n");
                         isValid = false;
                     } else {
-                        // Show dialog to select the key
-                        JPanel panel = new JPanel(new MigLayout("fillx", "[][grow]", "[]"));
-                        panel.add(new JLabel("Select signing key:"));
-                        panel.add(keyComboBox, "growx");
+                        PublicKey publicKey = cert.getPublicKey();
 
-                        int result = JOptionPane.showConfirmDialog(
-                                parentFrame,
-                                panel,
-                                "Select Signing Key",
-                                JOptionPane.OK_CANCEL_OPTION,
-                                JOptionPane.PLAIN_MESSAGE
-                        );
+                        // Create signature instance
+                        Signature signature = Signature.getInstance("SHA256withRSA");
+                        signature.initVerify(publicKey);
 
-                        if (result != JOptionPane.OK_OPTION) {
-                            return; // User cancelled
-                        }
+                        // Update with the data to verify
+                        byte[] dataToSign = dataToVerify.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                        signature.update(dataToSign);
 
-                        signingKeyAlias = (String) keyComboBox.getSelectedItem();
-                    }
-                }
+                        // Verify the signature
+                        byte[] signatureBytes = Base64.getDecoder().decode(signatureValue);
+                        boolean signatureValid = signature.verify(signatureBytes);
 
-                if (signingKeyAlias != null) {
-                    validationResults.append("✓ Signing key: ").append(signingKeyAlias).append("\n");
-
-                    // Verify the signature
-                    try {
-                        KeyStore keyStore = keystoreManager.getKeyStore();
-                        Certificate cert = keyStore.getCertificate(signingKeyAlias);
-
-                        if (cert == null) {
-                            validationResults.append("❌ Certificate not found for key: ").append(signingKeyAlias).append("\n");
-                            isValid = false;
+                        if (signatureValid) {
+                            validationResults.append("✓ Signature is valid.\n");
                         } else {
-                            PublicKey publicKey = cert.getPublicKey();
-
-                            // Create signature instance
-                            Signature signature = Signature.getInstance("SHA256withRSA");
-                            signature.initVerify(publicKey);
-
-                            // Update with the data to verify
-                            byte[] dataToSign = dataToVerify.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
-                            signature.update(dataToSign);
-
-                            // Verify the signature
-                            byte[] signatureBytes = Base64.getDecoder().decode(signatureValue);
-                            boolean signatureValid = signature.verify(signatureBytes);
-
-                            if (signatureValid) {
-                                validationResults.append("✓ Signature is valid.\n");
-                            } else {
-                                validationResults.append("❌ Signature verification failed.\n");
-                                isValid = false;
-                            }
+                            validationResults.append("❌ Signature verification failed.\n");
+                            isValid = false;
                         }
-                    } catch (Exception e) {
-                        validationResults.append("❌ Error verifying signature: ").append(e.getMessage()).append("\n");
-                        isValid = false;
                     }
+                } catch (Exception e) {
+                    validationResults.append("❌ Error verifying signature: ").append(e.getMessage()).append("\n");
+                    isValid = false;
                 }
             }
 
             // Check for expiration date
-            String expiryDateStr = null;
-            for (Map.Entry<String, Object> entry : licenseData.entrySet()) {
-                if (entry.getKey().toLowerCase().contains("expiry") || 
-                    entry.getKey().toLowerCase().contains("expiration")) {
-                    expiryDateStr = entry.getValue().toString();
-                    break;
-                }
+            String expiryDateStr = Objects.requireNonNullElse(licenseData.get(EXPIRY_LICENSE_FIELD), "").toString();
+            LocalDate expiryDate = null;
+            try {
+                expiryDate = LocalDate.parse(expiryDateStr);
+            } catch (DateTimeParseException e) {
+                LOG.warn("Error parsing expiry date: {}", expiryDateStr, e);
             }
 
-            if (expiryDateStr != null) {
-                try {
-                    LocalDate expiryDate = LocalDate.parse(expiryDateStr);
-                    LocalDate today = LocalDate.now();
-
-                    if (today.isAfter(expiryDate)) {
-                        validationResults.append("❌ License has expired on ").append(expiryDateStr).append("\n");
-                        isValid = false;
-                    } else {
-                        validationResults.append("✓ License is valid until ").append(expiryDateStr).append("\n");
-                    }
-                } catch (Exception e) {
-                    validationResults.append("⚠️ Could not parse expiry date: ").append(expiryDateStr).append("\n");
-                }
+            if (signatureValue.isBlank()) {
+                validationResults.append("❌ No expiry field in the license file.\n");
+                isValid = false;
+            } else if (expiryDate == null) {
+                validationResults.append("❌ Invalid Expiry date.\n");
+                isValid = false;
             } else {
-                validationResults.append("ℹ️ No expiration date found in the license.\n");
+                validationResults.append("✓ Expiry date found.\n");
+            }
+
+            if (today.isAfter(expiryDate)) {
+                validationResults.append("❌ License has expired on ").append(expiryDateStr).append("\n");
+                isValid = false;
+            } else {
+                validationResults.append("✓ License is valid until ").append(expiryDateStr).append("\n");
             }
 
             // Display the validation results
@@ -853,11 +864,11 @@ public class LicenseEditor {
 
             // Create table data for license properties
             String[] columnNames = {"Property", "Value"};
-            Object[][] data = new Object[licenseData.size() - (signatureFieldName != null ? 1 : 0)][2];
+            Object[][] data = new Object[licenseData.size() - 1][2];
 
             int i = 0;
             for (Map.Entry<String, Object> entry : licenseData.entrySet()) {
-                if (signatureFieldName != null && entry.getKey().equals(signatureFieldName)) {
+                if (entry.getKey().equals(SIGNATURE_LICENSE_FIELD)) {
                     continue; // Skip the signature
                 }
 
