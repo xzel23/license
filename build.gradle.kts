@@ -126,13 +126,6 @@ allprojects {
         implementation(rootProject.libs.dua3.utility)
     }
 
-    configurations.all {
-        resolutionStrategy {
-            cacheChangingModulesFor(5, TimeUnit.MINUTES)
-            cacheDynamicVersionsFor(5, TimeUnit.MINUTES)
-        }
-    }
-
     idea {
         module {
             inheritOutputDirs = false
