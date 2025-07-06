@@ -16,13 +16,28 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.FlowLayout;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.security.GeneralSecurityException;
+import java.security.KeyStore;
+import java.security.PrivateKey;
+import java.security.Signature;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import javax.swing.JFileChooser;
+import javax.swing.filechooser.FileNameExtensionFilter;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Class responsible for license editing functionality.
@@ -30,17 +45,56 @@ import java.util.Map;
 public class LicenseEditor {
 
     private static final Logger LOG = LogManager.getLogger(LicenseEditor.class);
+    private static final String SIGNING_KEY_PLACEHOLDER = "### SIGNING_KEY ###";
+    private static final String SIGNATURE_PLACEHOLDER = "### SIGNATURE ###";
+    private static final String DRAFT_FILE_EXTENSION = "json";
 
     private final LocalDate today = LocalDate.now();
     private final JFrame parentFrame;
+    private final KeystoreManager keystoreManager;
+
+    /**
+     * Represents a license draft that can be saved and loaded.
+     */
+    private static class LicenseDraft {
+        private String templateName;
+        private Map<String, String> fieldValues;
+
+        // Default constructor for Jackson
+        public LicenseDraft() {
+            this.fieldValues = new HashMap<>();
+        }
+
+        public LicenseDraft(String templateName, Map<String, String> fieldValues) {
+            this.templateName = templateName;
+            this.fieldValues = fieldValues;
+        }
+
+        public String getTemplateName() {
+            return templateName;
+        }
+
+        public void setTemplateName(String templateName) {
+            this.templateName = templateName;
+        }
+
+        public Map<String, String> getFieldValues() {
+            return fieldValues;
+        }
+
+        public void setFieldValues(Map<String, String> fieldValues) {
+            this.fieldValues = fieldValues;
+        }
+    }
 
     /**
      * Constructs a new LicenseEditor.
      *
      * @param parentFrame the parent frame for dialogs
      */
-    public LicenseEditor(JFrame parentFrame) {
+    public LicenseEditor(JFrame parentFrame, KeystoreManager keystoreManager) {
         this.parentFrame = parentFrame;
+        this.keystoreManager = keystoreManager;
     }
 
     /**
@@ -163,19 +217,48 @@ public class LicenseEditor {
 
         // Add a label for the template
         panel.add(new JLabel("Template:"));
-        panel.add(new JLabel(template.getName()), "growx, wrap");
+        panel.add(new JLabel(template.getName()), "growx, span 2, wrap");
+
+        // Add buttons for save/load draft
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton saveDraftButton = new JButton("Save Draft");
+        JButton loadDraftButton = new JButton("Load Draft");
+        buttonPanel.add(saveDraftButton);
+        buttonPanel.add(loadDraftButton);
+        panel.add(buttonPanel, "span 3, growx, wrap");
+
+        // Create a map to store field values for saving/loading
+        Map<String, String> fieldValues = new HashMap<>();
 
         // Create input fields for each template value
         List<LicenseTemplate.LicenseField> fields = template.getFields();
-        JTextField[] valueFields = new JTextField[fields.size()];
+        Object[] valueComponents = new Object[fields.size()];
+        Map<String, Integer> specialFieldIndices = new HashMap<>();
+
         for (int i = 0; i < fields.size(); i++) {
             LicenseTemplate.LicenseField field = fields.get(i);
             panel.add(new JLabel(field.name() + ":"));
             String defaultText = getDefaultText(field);
-            valueFields[i] = new JTextField(defaultText, 20);
-            panel.add(valueFields[i], "growx");
-            if (defaultText.strip().startsWith("### ") && defaultText.strip().endsWith(" ###")) {
-                valueFields[i].setEditable(false);
+
+            if (SIGNING_KEY_PLACEHOLDER.equals(defaultText)) {
+                // Create a dropdown for signing keys
+                JComboBox<String> keyComboBox = new JComboBox<>();
+                populateSigningKeyComboBox(keyComboBox);
+                valueComponents[i] = keyComboBox;
+                panel.add(keyComboBox, "growx");
+                specialFieldIndices.put("signingKey", i);
+            } else if (SIGNATURE_PLACEHOLDER.equals(defaultText)) {
+                // Create a text field for the signature (will be filled later)
+                JTextField textField = new JTextField(defaultText, 20);
+                textField.setEditable(false);
+                valueComponents[i] = textField;
+                panel.add(textField, "growx");
+                specialFieldIndices.put("signature", i);
+            } else {
+                // Create a text field for other values
+                JTextField textField = new JTextField(defaultText, 20);
+                valueComponents[i] = textField;
+                panel.add(textField, "growx");
             }
 
             // Add info icon with tooltip showing the description
@@ -185,6 +268,79 @@ public class LicenseEditor {
             infoLabel.setForeground(Color.BLUE);
             panel.add(infoLabel, "wrap");
         }
+
+        // Add action listener for save draft button
+        saveDraftButton.addActionListener(e -> {
+            // Collect current field values
+            for (int i = 0; i < fields.size(); i++) {
+                String fieldName = fields.get(i).name();
+
+                if (valueComponents[i] instanceof JTextField) {
+                    JTextField textField = (JTextField) valueComponents[i];
+                    fieldValues.put(fieldName, textField.getText());
+                } else if (valueComponents[i] instanceof JComboBox) {
+                    JComboBox<?> comboBox = (JComboBox<?>) valueComponents[i];
+                    if (comboBox.getSelectedItem() != null) {
+                        fieldValues.put(fieldName, comboBox.getSelectedItem().toString());
+                    }
+                }
+            }
+
+            // Save the draft
+            saveLicenseDraft(template, fieldValues);
+        });
+
+        // Add action listener for load draft button
+        loadDraftButton.addActionListener(e -> {
+            // Load the draft
+            LicenseDraft draft = loadLicenseDraft();
+
+            if (draft != null) {
+                // Check if the template matches
+                if (!template.getName().equals(draft.getTemplateName())) {
+                    int confirm = JOptionPane.showConfirmDialog(
+                            parentFrame,
+                            "The loaded draft was created with template '" + draft.getTemplateName() + 
+                            "', but the current template is '" + template.getName() + "'.\n" +
+                            "Do you want to continue loading this draft?",
+                            "Template Mismatch",
+                            JOptionPane.YES_NO_OPTION,
+                            JOptionPane.WARNING_MESSAGE
+                    );
+
+                    if (confirm != JOptionPane.YES_OPTION) {
+                        return;
+                    }
+                }
+
+                // Populate fields with loaded values
+                Map<String, String> loadedValues = draft.getFieldValues();
+                for (int i = 0; i < fields.size(); i++) {
+                    String fieldName = fields.get(i).name();
+                    String value = loadedValues.get(fieldName);
+
+                    if (value != null) {
+                        if (valueComponents[i] instanceof JTextField) {
+                            JTextField textField = (JTextField) valueComponents[i];
+                            textField.setText(value);
+                        } else if (valueComponents[i] instanceof JComboBox) {
+                            JComboBox<String> comboBox = (JComboBox<String>) valueComponents[i];
+                            for (int j = 0; j < comboBox.getItemCount(); j++) {
+                                if (comboBox.getItemAt(j).equals(value)) {
+                                    comboBox.setSelectedIndex(j);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                JOptionPane.showMessageDialog(parentFrame,
+                        "License draft loaded successfully.",
+                        "Draft Loaded",
+                        JOptionPane.INFORMATION_MESSAGE);
+            }
+        });
 
         // Show the dialog
         int result = JOptionPane.showConfirmDialog(
@@ -196,17 +352,102 @@ public class LicenseEditor {
         );
 
         if (result == JOptionPane.OK_OPTION) {
-            // Create a map of properties for the license
-            Map<String, Object> properties = new HashMap<>();
-            for (int i = 0; i < fields.size(); i++) {
-                properties.put(fields.get(i).name(), valueFields[i].getText());
-            }
+            try {
+                // Get the selected signing key
+                if (!specialFieldIndices.containsKey("signingKey")) {
+                    JOptionPane.showMessageDialog(parentFrame,
+                            "No signing key field found in the template.",
+                            "Error",
+                            JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
 
-            // TODO: Generate the license using the properties and a selected key
-            JOptionPane.showMessageDialog(parentFrame,
-                    "License would be created with the following properties:\n" + properties,
-                    "License Creation",
-                    JOptionPane.INFORMATION_MESSAGE);
+                if (!specialFieldIndices.containsKey("signature")) {
+                    JOptionPane.showMessageDialog(parentFrame,
+                            "No signature field found in the template.",
+                            "Error",
+                            JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+
+                // Get the selected key alias
+                int signingKeyIndex = specialFieldIndices.get("signingKey");
+                JComboBox<?> keyComboBox = (JComboBox<?>) valueComponents[signingKeyIndex];
+                String keyAlias = (String) keyComboBox.getSelectedItem();
+
+                if (keyAlias == null) {
+                    JOptionPane.showMessageDialog(parentFrame,
+                            "Please select a signing key.",
+                            "Error",
+                            JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+
+                // Create a map of properties for the license
+                Map<String, Object> properties = new HashMap<>();
+                for (int i = 0; i < fields.size(); i++) {
+                    String fieldName = fields.get(i).name();
+
+                    if (i == signingKeyIndex) {
+                        // Use the selected key alias
+                        properties.put(fieldName, keyAlias);
+                    } else if (i == specialFieldIndices.get("signature")) {
+                        // Skip the signature field for now
+                        continue;
+                    } else {
+                        // Get the value from the text field
+                        JTextField textField = (JTextField) valueComponents[i];
+                        properties.put(fieldName, textField.getText());
+                    }
+                }
+
+                // Generate the signature
+                KeyStore keyStore = keystoreManager.getKeyStore();
+                if (keyStore == null) {
+                    JOptionPane.showMessageDialog(parentFrame,
+                            "No keystore loaded.",
+                            "Error",
+                            JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+
+                // Get the private key
+                PrivateKey privateKey = (PrivateKey) keyStore.getKey(keyAlias, keystoreManager.getKeystorePassword());
+
+                // Create a signature
+                Signature signature = Signature.getInstance("SHA256withRSA");
+                signature.initSign(privateKey);
+
+                // Prepare the data for signing (excluding the signature field)
+                byte[] dataToSign = com.dua3.license.License.prepareSigningData(properties);
+                signature.update(dataToSign);
+
+                // Generate the signature
+                byte[] signatureBytes = signature.sign();
+                String signatureBase64 = Base64.getEncoder().encodeToString(signatureBytes);
+
+                // Add the signature to the properties
+                int signatureIndex = specialFieldIndices.get("signature");
+                String signatureFieldName = fields.get(signatureIndex).name();
+                properties.put(signatureFieldName, signatureBase64);
+
+                // Update the signature field in the UI
+                JTextField signatureField = (JTextField) valueComponents[signatureIndex];
+                signatureField.setText(signatureBase64);
+
+                // Save the license to a file
+                JOptionPane.showMessageDialog(parentFrame,
+                        "License created successfully with the following properties:\n" + properties,
+                        "License Creation",
+                        JOptionPane.INFORMATION_MESSAGE);
+
+            } catch (Exception e) {
+                LOG.error("Error creating license", e);
+                JOptionPane.showMessageDialog(parentFrame,
+                        "Error creating license: " + e.getMessage(),
+                        "Error",
+                        JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
 
@@ -215,8 +456,137 @@ public class LicenseEditor {
         return switch (value) {
             case "${license_issue_date}" -> today.toString();
             case "${license_expiry_date}" -> today.plusYears(1).toString();
+            case "${signing_key}" -> "### SIGNING_KEY ###";
             case "${signature}" -> "### SIGNATURE ###";
             default -> value;
         };
+    }
+
+    /**
+     * Saves the current license draft to a file.
+     * 
+     * @param template the license template
+     * @param fieldValues the map of field values
+     */
+    private void saveLicenseDraft(LicenseTemplate template, Map<String, String> fieldValues) {
+        try {
+            // Create a file chooser
+            JFileChooser fileChooser = new JFileChooser();
+            fileChooser.setDialogTitle("Save License Draft");
+            fileChooser.setFileFilter(new FileNameExtensionFilter("JSON Files (*.json)", DRAFT_FILE_EXTENSION));
+
+            // Set default file name
+            fileChooser.setSelectedFile(new java.io.File("license_draft.json"));
+
+            // Show save dialog
+            int userSelection = fileChooser.showSaveDialog(parentFrame);
+
+            if (userSelection == JFileChooser.APPROVE_OPTION) {
+                Path filePath = fileChooser.getSelectedFile().toPath();
+
+                // Add .json extension if not present
+                if (!filePath.toString().toLowerCase().endsWith("." + DRAFT_FILE_EXTENSION)) {
+                    filePath = Paths.get(filePath.toString() + "." + DRAFT_FILE_EXTENSION);
+                }
+
+                // Create license draft object
+                LicenseDraft draft = new LicenseDraft(template.getName(), fieldValues);
+
+                // Save to file
+                ObjectMapper mapper = new ObjectMapper();
+                mapper.writerWithDefaultPrettyPrinter().writeValue(filePath.toFile(), draft);
+
+                JOptionPane.showMessageDialog(parentFrame,
+                        "License draft saved successfully to " + filePath,
+                        "Draft Saved",
+                        JOptionPane.INFORMATION_MESSAGE);
+            }
+        } catch (Exception e) {
+            LOG.error("Error saving license draft", e);
+            JOptionPane.showMessageDialog(parentFrame,
+                    "Error saving license draft: " + e.getMessage(),
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    /**
+     * Loads a license draft from a file.
+     * 
+     * @return the loaded license draft, or null if loading was cancelled or failed
+     */
+    private LicenseDraft loadLicenseDraft() {
+        try {
+            // Create a file chooser
+            JFileChooser fileChooser = new JFileChooser();
+            fileChooser.setDialogTitle("Load License Draft");
+            fileChooser.setFileFilter(new FileNameExtensionFilter("JSON Files (*.json)", DRAFT_FILE_EXTENSION));
+
+            // Show open dialog
+            int userSelection = fileChooser.showOpenDialog(parentFrame);
+
+            if (userSelection == JFileChooser.APPROVE_OPTION) {
+                Path filePath = fileChooser.getSelectedFile().toPath();
+
+                // Load from file
+                ObjectMapper mapper = new ObjectMapper();
+                LicenseDraft draft = mapper.readValue(filePath.toFile(), LicenseDraft.class);
+
+                return draft;
+            }
+        } catch (Exception e) {
+            LOG.error("Error loading license draft", e);
+            JOptionPane.showMessageDialog(parentFrame,
+                    "Error loading license draft: " + e.getMessage(),
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+
+        return null;
+    }
+
+    /**
+     * Populates a combo box with non-expired signing keys from the keystore.
+     *
+     * @param comboBox the combo box to populate
+     */
+    private void populateSigningKeyComboBox(JComboBox<String> comboBox) {
+        KeyStore keyStore = keystoreManager.getKeyStore();
+        if (keyStore == null) {
+            LOG.warn("No keystore loaded, cannot populate signing key combo box");
+            return;
+        }
+
+        comboBox.removeAllItems();
+
+        try {
+            Date now = new Date();
+            keyStore.aliases().asIterator().forEachRemaining(alias -> {
+                try {
+                    if (keyStore.isKeyEntry(alias)) {
+                        Certificate cert = keyStore.getCertificate(alias);
+                        if (cert instanceof X509Certificate x509Cert) {
+                            // Check if the certificate has not expired
+                            try {
+                                x509Cert.checkValidity(now);
+                                // Add the alias to the combo box
+                                comboBox.addItem(alias);
+                            } catch (GeneralSecurityException e) {
+                                // Certificate has expired or is not yet valid, skip it
+                                LOG.debug("Skipping expired or not yet valid certificate: {}", alias);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    LOG.warn("Error processing key alias for combo box: {}", alias, e);
+                }
+            });
+        } catch (Exception e) {
+            LOG.warn("Error loading key aliases", e);
+            JOptionPane.showMessageDialog(parentFrame, 
+                "Error loading key aliases: " + e.getMessage(), 
+                "Error", 
+                JOptionPane.ERROR_MESSAGE);
+        }
     }
 }

@@ -93,7 +93,7 @@ public class LicenseManager {
         mainFrame.setSize(800, 600);
 
         // Initialize the license editor
-        licenseEditor = new LicenseEditor(mainFrame);
+        licenseEditor = new LicenseEditor(mainFrame, keystoreManager);
 
         tabbedPane = new JTabbedPane();
 

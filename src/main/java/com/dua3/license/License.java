@@ -22,6 +22,16 @@ public final class License {
     private final Map<Object, Object> data;
     private final String licenseString;
 
+    /**
+     * Prepares the data for signing.
+     * 
+     * @param data the license data
+     * @return the data to be signed as a byte array
+     */
+    public static byte[] prepareSigningData(Map<?, ?> data) {
+        return data.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
     public static License of(Class<? extends Enum<?>> keyClass, Map<String, Object> properties, Supplier<PublicKey> keySupplier) throws LicenseException {
         return new License(keyClass.asSubclass(Enum.class), properties, keySupplier);
     }
@@ -66,7 +76,7 @@ public final class License {
                 throw new LicenseException("invalid license data", properties.toString());
             }
 
-            signature.update(data.toString().getBytes(StandardCharsets.UTF_8));
+            signature.update(prepareSigningData(data));
 
             if (!switch (properties.get(SIGNATURE)) {
                 case byte[] bytes -> signature.verify(bytes);

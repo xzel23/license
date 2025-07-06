@@ -16,6 +16,17 @@ public final class DynamicEnum {
 
     private static final Pattern PATTERN_ENUM_NAME = Pattern.compile("[A-Z0-9][A-Z0-9_]*");
 
+    /**
+     * Represents a value in a dynamically generated enum-like structure.
+     * Each instance of this record encapsulates the ordinal value,
+     * the name, and the corresponding value of the enum entry.
+     * It also maintains a reference to the parent {@code DynamicEnum}.
+     *
+     * @param ordinal the ordinal position of this value in the dynamic enum
+     * @param name the name of this value
+     * @param value the string representation of this value
+     * @param parent the dynamic enum instance to which this value belongs
+     */
     public record EnumValue(int ordinal, String name, String value, DynamicEnum parent) {
         public String toString() {
             return value;
