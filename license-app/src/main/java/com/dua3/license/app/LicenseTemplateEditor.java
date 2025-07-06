@@ -40,6 +40,7 @@ public class LicenseTemplateEditor extends JDialog {
     private static final Logger LOG = LogManager.getLogger(LicenseTemplateEditor.class);
     private static final String ADD_AT_LEAST_ONE_PROPERTY = "Please add at least one property.";
     private static final String NO_VALID_PROPERTIES = "No Valid Properties";
+    private static final String NO_PROPERTIES = "No Properties";
 
     private final JTextField templateNameField;
     private final JTable propertiesTable;
@@ -201,7 +202,7 @@ public class LicenseTemplateEditor extends JDialog {
         if (tableModel.getRowCount() == 0) {
             JOptionPane.showMessageDialog(this,
                     ADD_AT_LEAST_ONE_PROPERTY,
-                    "No Properties",
+                    NO_PROPERTIES,
                     JOptionPane.WARNING_MESSAGE);
             return;
         }
@@ -234,7 +235,7 @@ public class LicenseTemplateEditor extends JDialog {
         if (fields.isEmpty()) {
             JOptionPane.showMessageDialog(this,
                     ADD_AT_LEAST_ONE_PROPERTY,
-                    "No Properties",
+                    NO_PROPERTIES,
                     JOptionPane.WARNING_MESSAGE);
             return;
         }
@@ -335,7 +336,7 @@ public class LicenseTemplateEditor extends JDialog {
         if (tableModel.getRowCount() == 0) {
             JOptionPane.showMessageDialog(this,
                     ADD_AT_LEAST_ONE_PROPERTY,
-                    "No Properties",
+                    NO_PROPERTIES,
                     JOptionPane.WARNING_MESSAGE);
             return;
         }

@@ -1,6 +1,5 @@
 package com.dua3.license.app;
 
-import com.dua3.utility.swing.SwingUtil;
 import net.miginfocom.swing.MigLayout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -56,9 +55,12 @@ public class LicenseEditor {
     private static final String SIGNING_KEY = "### SIGNING_KEY ###";
     private static final String SIGNATURE = "### SIGNATURE ###";
     private static final String PREF_LICENSE_DIRECTORY = "licenseDirectory";
-    public static final String SIGNING_KEY_ALIAS_LICENSE_FIELD = "SIGNING_KEY_ALIAS";
-    public static final String SIGNATURE_LICENSE_FIELD = "SIGNATURE";
-    public static final String EXPIRY_LICENSE_FIELD = "EXPIRY_DATE";
+    private static final String SIGNING_KEY_ALIAS_LICENSE_FIELD = "SIGNING_KEY_ALIAS";
+    private static final String SIGNATURE_LICENSE_FIELD = "SIGNATURE";
+    private static final String EXPIRY_LICENSE_FIELD = "EXPIRY_DATE";
+    private static final String HTML_OPEN = "<html>";
+    private static final String HTML_CLOSE = "</html>";
+    private static final String ERROR = "Error";
 
     private final LocalDate today = LocalDate.now();
     private final JFrame parentFrame;
@@ -224,7 +226,7 @@ public class LicenseEditor {
                 } catch (IOException e) {
                     JOptionPane.showMessageDialog(parentFrame,
                             "Failed to load the selected template.",
-                            "Error",
+                            ERROR,
                             JOptionPane.ERROR_MESSAGE);
                 }
             }
@@ -345,11 +347,9 @@ public class LicenseEditor {
                     String value = loadedValues.get(fieldName);
 
                     if (value != null) {
-                        if (valueComponents[i] instanceof JTextField) {
-                            JTextField textField = (JTextField) valueComponents[i];
+                        if (valueComponents[i] instanceof JTextField textField) {
                             textField.setText(value);
-                        } else if (valueComponents[i] instanceof JComboBox) {
-                            JComboBox<String> comboBox = (JComboBox<String>) valueComponents[i];
+                        } else if (valueComponents[i] instanceof JComboBox comboBox) {
                             for (int j = 0; j < comboBox.getItemCount(); j++) {
                                 if (comboBox.getItemAt(j).equals(value)) {
                                     comboBox.setSelectedIndex(j);
@@ -382,7 +382,7 @@ public class LicenseEditor {
                 if (!specialFieldIndices.containsKey("signingKey")) {
                     JOptionPane.showMessageDialog(parentFrame,
                             "No signing key field found in the template.",
-                            "Error",
+                            ERROR,
                             JOptionPane.ERROR_MESSAGE);
                     return;
                 }
@@ -390,7 +390,7 @@ public class LicenseEditor {
                 if (!specialFieldIndices.containsKey("signature")) {
                     JOptionPane.showMessageDialog(parentFrame,
                             "No signature field found in the template.",
-                            "Error",
+                            ERROR,
                             JOptionPane.ERROR_MESSAGE);
                     return;
                 }
@@ -403,7 +403,7 @@ public class LicenseEditor {
                 if (keyAlias == null) {
                     JOptionPane.showMessageDialog(parentFrame,
                             "Please select a signing key.",
-                            "Error",
+                            ERROR,
                             JOptionPane.ERROR_MESSAGE);
                     return;
                 }
@@ -416,11 +416,8 @@ public class LicenseEditor {
                     if (i == signingKeyIndex) {
                         // Use the selected key alias
                         properties.put(fieldName, keyAlias);
-                    } else if (i == specialFieldIndices.get("signature")) {
-                        // Skip the signature field for now
-                        continue;
-                    } else {
-                        // Get the value from the text field
+                    } else if (i != specialFieldIndices.get("signature")) {
+                        // Get the value from the text field, but skip the signature field
                         JTextField textField = (JTextField) valueComponents[i];
                         properties.put(fieldName, textField.getText());
                     }
@@ -431,7 +428,7 @@ public class LicenseEditor {
                 if (keyStore == null) {
                     JOptionPane.showMessageDialog(parentFrame,
                             "No keystore loaded.",
-                            "Error",
+                            ERROR,
                             JOptionPane.ERROR_MESSAGE);
                     return;
                 }
@@ -496,7 +493,7 @@ public class LicenseEditor {
                             sb.append(value, index, end).append("<br>");
                             index = end;
                         }
-                        value = "<html>" + sb.toString() + "</html>";
+                        value = HTML_OPEN + sb + HTML_CLOSE;
                     }
                     data[i][1] = value;
                     i++;
@@ -511,7 +508,7 @@ public class LicenseEditor {
                 // Make rows taller for wrapped content
                 for (i = 0; i < table.getRowCount(); i++) {
                     Object value = table.getValueAt(i, 1);
-                    if (value != null && value.toString().startsWith("<html>")) {
+                    if (value != null && value.toString().startsWith(HTML_OPEN)) {
                         // Count the number of <br> tags to estimate height
                         String text = value.toString();
                         int lineCount = (int) text.chars().filter(ch -> ch == '>').count() - 1;
@@ -534,7 +531,7 @@ public class LicenseEditor {
                 LOG.error("Error creating license", e);
                 JOptionPane.showMessageDialog(parentFrame,
                         "Error creating license: " + e.getMessage(),
-                        "Error",
+                        ERROR,
                         JOptionPane.ERROR_MESSAGE);
             }
         }
@@ -603,7 +600,7 @@ public class LicenseEditor {
             LOG.error("Error saving license draft", e);
             JOptionPane.showMessageDialog(parentFrame,
                     "Error saving license draft: " + e.getMessage(),
-                    "Error",
+                    ERROR,
                     JOptionPane.ERROR_MESSAGE);
         }
     }
@@ -660,7 +657,7 @@ public class LicenseEditor {
             LOG.error("Error saving license", e);
             JOptionPane.showMessageDialog(parentFrame,
                     "Error saving license: " + e.getMessage(),
-                    "Error",
+                    ERROR,
                     JOptionPane.ERROR_MESSAGE);
         }
     }
@@ -702,7 +699,7 @@ public class LicenseEditor {
             LOG.error("Error loading license draft", e);
             JOptionPane.showMessageDialog(parentFrame,
                     "Error loading license draft: " + e.getMessage(),
-                    "Error",
+                    ERROR,
                     JOptionPane.ERROR_MESSAGE);
         }
 
@@ -850,9 +847,9 @@ public class LicenseEditor {
             // Create a panel for detailed validation results
             JPanel validationPanel = new JPanel(new BorderLayout());
             validationPanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Validation Results"));
-            JLabel validationDetailsLabel = new JLabel("<html>" + 
-                    validationResults.toString().replace("\n", "<br>") + 
-                    "</html>");
+            JLabel validationDetailsLabel = new JLabel(HTML_OPEN +
+                    validationResults.toString().replace("\n", "<br>") +
+                    HTML_CLOSE);
             validationPanel.add(validationDetailsLabel, BorderLayout.CENTER);
 
             // Create table data for license properties
@@ -888,7 +885,7 @@ public class LicenseEditor {
                         sb.append(value, index, end).append("<br>");
                         index = end;
                     }
-                    value = "<html>" + sb.toString() + "</html>";
+                    value = HTML_OPEN + sb.toString() + HTML_CLOSE;
                 }
                 data[i][1] = value;
                 i++;
@@ -903,7 +900,7 @@ public class LicenseEditor {
             // Make rows taller for wrapped content
             for (i = 0; i < table.getRowCount(); i++) {
                 Object value = table.getValueAt(i, 1);
-                if (value != null && value.toString().startsWith("<html>")) {
+                if (value != null && value.toString().startsWith(HTML_OPEN)) {
                     // Count the number of <br> tags to estimate height
                     String text = value.toString();
                     int lineCount = (int) text.chars().filter(ch -> ch == '>').count() - 1;
@@ -983,8 +980,8 @@ public class LicenseEditor {
         } catch (Exception e) {
             LOG.warn("Error loading key aliases", e);
             JOptionPane.showMessageDialog(parentFrame, 
-                "Error loading key aliases: " + e.getMessage(), 
-                "Error", 
+                "Error loading key aliases: " + e.getMessage(),
+                    ERROR,
                 JOptionPane.ERROR_MESSAGE);
         }
     }

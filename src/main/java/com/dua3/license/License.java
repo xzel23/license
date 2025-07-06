@@ -16,7 +16,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class License {
-    public static final String SIGNATURE = "signature";
+    private static final String SIGNATURE = "signature";
 
     private final Object keyClass;
     private final Map<Object, Object> data;

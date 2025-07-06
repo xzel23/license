@@ -24,7 +24,9 @@ import java.util.Base64;
  */
 public class KeyDetailsDialog {
     private static final Logger LOG = LogManager.getLogger(KeyDetailsDialog.class);
-    
+    private static final String ERROR = "Error";
+    private static final String DIALOG = "Dialog";
+
     private final JFrame mainFrame;
     private final KeyStore keyStore;
     private final String alias;
@@ -49,7 +51,7 @@ public class KeyDetailsDialog {
         LOG.debug("Showing key details for alias: {}", alias);
         if (keyStore == null) {
             LOG.warn("Attempted to show key details but no keystore is loaded");
-            JOptionPane.showMessageDialog(mainFrame, "No keystore loaded.", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(mainFrame, "No keystore loaded.", ERROR, JOptionPane.ERROR_MESSAGE);
             return;
         }
 
@@ -57,7 +59,7 @@ public class KeyDetailsDialog {
             // Get certificate information
             java.security.cert.Certificate cert = keyStore.getCertificate(alias);
             if (cert == null) {
-                JOptionPane.showMessageDialog(mainFrame, "No certificate found for alias: " + alias, "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(mainFrame, "No certificate found for alias: " + alias, ERROR, JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
@@ -76,7 +78,7 @@ public class KeyDetailsDialog {
 
             // Add headline for subject fields
             JLabel subjectHeadline = new JLabel("Subject Fields");
-            subjectHeadline.setFont(new java.awt.Font("Dialog", java.awt.Font.BOLD, 14));
+            subjectHeadline.setFont(new java.awt.Font(DIALOG, java.awt.Font.BOLD, 14));
             subjectPanel.add(subjectHeadline, BorderLayout.NORTH);
 
             // Create table for subject fields
@@ -132,7 +134,7 @@ public class KeyDetailsDialog {
 
             // Add headline for public key
             JLabel publicKeyHeadline = new JLabel("Public Key");
-            publicKeyHeadline.setFont(new java.awt.Font("Dialog", java.awt.Font.BOLD, 14));
+            publicKeyHeadline.setFont(new java.awt.Font(DIALOG, java.awt.Font.BOLD, 14));
             publicKeyPanel.add(publicKeyHeadline, BorderLayout.NORTH);
 
             // Create text area for public key
@@ -165,7 +167,7 @@ public class KeyDetailsDialog {
 
             // Add headline for private key
             JLabel privateKeyHeadline = new JLabel("Private Key");
-            privateKeyHeadline.setFont(new java.awt.Font("Dialog", java.awt.Font.BOLD, 14));
+            privateKeyHeadline.setFont(new java.awt.Font(DIALOG, java.awt.Font.BOLD, 14));
             privateKeyPanel.add(privateKeyHeadline, BorderLayout.NORTH);
 
             // Create text area for private key (initially empty)
@@ -205,7 +207,7 @@ public class KeyDetailsDialog {
 
         } catch (Exception e) {
             LOG.warn("Error retrieving key details for alias: {}", alias, e);
-            JOptionPane.showMessageDialog(mainFrame, "Error retrieving key details: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(mainFrame, "Error retrieving key details: " + e.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
         }
     }
     
@@ -218,7 +220,7 @@ public class KeyDetailsDialog {
         LOG.debug("Attempting to show private key for alias: {}", alias);
         if (keyStore == null) {
             LOG.warn("Attempted to show private key but no keystore is loaded");
-            JOptionPane.showMessageDialog(mainFrame, "No keystore loaded.", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(mainFrame, "No keystore loaded.", ERROR, JOptionPane.ERROR_MESSAGE);
             return;
         }
 
@@ -249,7 +251,7 @@ public class KeyDetailsDialog {
             // Get the private key using the entered password
             PrivateKey privateKey = (PrivateKey) keyStore.getKey(alias, enteredPassword);
             if (privateKey == null) {
-                JOptionPane.showMessageDialog(mainFrame, "No private key found for alias: " + alias, "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(mainFrame, "No private key found for alias: " + alias, ERROR, JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
@@ -258,7 +260,7 @@ public class KeyDetailsDialog {
             privateKeyTextArea.setText(privateKeyString);
         } catch (GeneralSecurityException e) {
             LOG.warn("Error retrieving private key for alias: {}", alias, e);
-            JOptionPane.showMessageDialog(mainFrame, "Error retrieving private key: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(mainFrame, "Error retrieving private key: " + e.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
         } finally {
             // Clear the password from memory
             java.util.Arrays.fill(enteredPassword, '\0');

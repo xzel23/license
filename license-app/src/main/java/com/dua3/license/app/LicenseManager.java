@@ -37,9 +37,10 @@ import java.util.Base64;
 public class LicenseManager {
 
     private static final Logger LOG = LogManager.getLogger(LicenseManager.class);
-    public static final String INFO_SYMBOL = "ⓘ";
     private static final String APP_NAME = LicenseManager.class.getSimpleName();
     private static final String ERROR = "Error";
+
+    public static final String INFO_SYMBOL = "ⓘ";
 
     static {
         try {
