@@ -1,5 +1,6 @@
 package com.dua3.license.app;
 
+import com.dua3.utility.swing.SwingUtil;
 import net.miginfocom.swing.MigLayout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -26,14 +27,10 @@ import java.security.PublicKey;
 import java.security.Signature;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +50,8 @@ public class LicenseEditor {
     private static final String SIGNING_KEY_PLACEHOLDER = "### SIGNING_KEY ###";
     private static final String SIGNATURE_PLACEHOLDER = "### SIGNATURE ###";
     private static final String DRAFT_FILE_EXTENSION = "json";
+    private static final FileNameExtensionFilter LICENSE_DRAFT_EXTENSION_FILTER = new FileNameExtensionFilter("JSON Files (*.json)", DRAFT_FILE_EXTENSION);
+    private static final FileNameExtensionFilter LICENSE_EXTENSION_FILTER = new FileNameExtensionFilter("JSON Files (*.json)", DRAFT_FILE_EXTENSION);
     private static final String LICENSE_FILE_EXTENSION = "json";
     private static final String SIGNING_KEY = "### SIGNING_KEY ###";
     private static final String SIGNATURE = "### SIGNATURE ###";
@@ -156,18 +155,12 @@ public class LicenseEditor {
 
         // Create License button
         JButton createLicenseButton = new JButton("Create License");
-        createLicenseButton.addActionListener(e -> {
-            // Show dialog to create a license
-            showCreateLicenseDialog();
-        });
+        createLicenseButton.addActionListener(e -> showCreateLicenseDialog()); // Show dialog to create a license
         buttonPanel.add(createLicenseButton);
 
         // Validate License button
         JButton validateLicenseButton = new JButton("Validate License");
-        validateLicenseButton.addActionListener(e -> {
-            // Show dialog to validate a license
-            validateLicense();
-        });
+        validateLicenseButton.addActionListener(e -> validateLicense()); // Show dialog to validate a license
         buttonPanel.add(validateLicenseButton);
 
         // Manage Templates button
@@ -569,7 +562,7 @@ public class LicenseEditor {
             // Create a file chooser
             JFileChooser fileChooser = new JFileChooser();
             fileChooser.setDialogTitle("Save License Draft");
-            fileChooser.setFileFilter(new FileNameExtensionFilter("JSON Files (*.json)", DRAFT_FILE_EXTENSION));
+            fileChooser.setFileFilter(LICENSE_DRAFT_EXTENSION_FILTER);
 
             // Set current directory to the stored license directory
             Path storedDir = getStoredLicenseDirectory();
@@ -625,7 +618,7 @@ public class LicenseEditor {
             // Create a file chooser
             JFileChooser fileChooser = new JFileChooser();
             fileChooser.setDialogTitle("Save License");
-            fileChooser.setFileFilter(new FileNameExtensionFilter("JSON Files (*.json)", LICENSE_FILE_EXTENSION));
+            fileChooser.setFileFilter(LICENSE_EXTENSION_FILTER);
 
             // Set current directory to the stored license directory
             Path storedDir = getStoredLicenseDirectory();
@@ -682,7 +675,7 @@ public class LicenseEditor {
             // Create a file chooser
             JFileChooser fileChooser = new JFileChooser();
             fileChooser.setDialogTitle("Load License Draft");
-            fileChooser.setFileFilter(new FileNameExtensionFilter("JSON Files (*.json)", DRAFT_FILE_EXTENSION));
+            fileChooser.setFileFilter(LICENSE_DRAFT_EXTENSION_FILTER);
 
             // Set current directory to the stored license directory
             Path storedDir = getStoredLicenseDirectory();
@@ -726,7 +719,7 @@ public class LicenseEditor {
             // Create a file chooser
             JFileChooser fileChooser = new JFileChooser();
             fileChooser.setDialogTitle("Select License File to Validate");
-            fileChooser.setFileFilter(new FileNameExtensionFilter("JSON Files (*.json)", LICENSE_FILE_EXTENSION));
+            fileChooser.setFileFilter(LICENSE_EXTENSION_FILTER);
 
             // Set current directory to the stored license directory
             Path storedDir = getStoredLicenseDirectory();

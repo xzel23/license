@@ -2,9 +2,7 @@ package com.dua3.license.app;
 
 import com.dua3.license.DynamicEnum;
 import com.dua3.utility.data.Pair;
-import com.dua3.utility.io.IoUtil;
 import com.dua3.utility.swing.SwingUtil;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.miginfocom.swing.MigLayout;
 import org.apache.logging.log4j.LogManager;
@@ -27,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Vector;
+import java.util.stream.Stream;
 
 /**
  * A dialog for editing license templates.
@@ -39,6 +38,8 @@ import java.util.Vector;
  */
 public class LicenseTemplateEditor extends JDialog {
     private static final Logger LOG = LogManager.getLogger(LicenseTemplateEditor.class);
+    private static final String ADD_AT_LEAST_ONE_PROPERTY = "Please add at least one property.";
+    private static final String NO_VALID_PROPERTIES = "No Valid Properties";
 
     private final JTextField templateNameField;
     private final JTable propertiesTable;
@@ -154,9 +155,7 @@ public class LicenseTemplateEditor extends JDialog {
                 parent,
                 LicenseManager.getTemplatesDirectory(),
                 Pair.of("JSON files", new String[] {"json"})
-        ).ifPresent(selectedFile -> {
-            loadJsonTemplate(selectedFile);
-        });
+        ).ifPresent(this::loadJsonTemplate);
     }
 
 
@@ -201,7 +200,7 @@ public class LicenseTemplateEditor extends JDialog {
         // Check if there are any properties
         if (tableModel.getRowCount() == 0) {
             JOptionPane.showMessageDialog(this,
-                    "Please add at least one property.",
+                    ADD_AT_LEAST_ONE_PROPERTY,
                     "No Properties",
                     JOptionPane.WARNING_MESSAGE);
             return;
@@ -234,7 +233,7 @@ public class LicenseTemplateEditor extends JDialog {
 
         if (fields.isEmpty()) {
             JOptionPane.showMessageDialog(this,
-                    "Please add at least one property.",
+                    ADD_AT_LEAST_ONE_PROPERTY,
                     "No Properties",
                     JOptionPane.WARNING_MESSAGE);
             return;
@@ -299,13 +298,15 @@ public class LicenseTemplateEditor extends JDialog {
             }
 
             // Get all template names from .json files only
-            return Files.list(templatesDir)
-                    .filter(path -> path.toString().endsWith(".json"))
-                    .map(path -> {
-                        String fileName = path.getFileName().toString();
-                        return fileName.substring(0, fileName.length() - 5);
-                    })
-                    .toArray(String[]::new);
+            try (Stream<Path> paths = Files.list(templatesDir)) {
+                return paths
+                        .filter(path -> path.toString().endsWith(".json"))
+                        .map(path -> {
+                            String fileName = path.getFileName().toString();
+                            return fileName.substring(0, fileName.length() - 5);
+                        })
+                        .toArray(String[]::new);
+            }
         } catch (IOException e) {
             LOG.error("Failed to get available templates", e);
             return new String[0];
@@ -333,7 +334,7 @@ public class LicenseTemplateEditor extends JDialog {
         // Check if there are any properties
         if (tableModel.getRowCount() == 0) {
             JOptionPane.showMessageDialog(this,
-                    "Please add at least one property.",
+                    ADD_AT_LEAST_ONE_PROPERTY,
                     "No Properties",
                     JOptionPane.WARNING_MESSAGE);
             return;
@@ -373,8 +374,8 @@ public class LicenseTemplateEditor extends JDialog {
         // If no valid fields were found, show an error message
         if (!hasValidFields) {
             JOptionPane.showMessageDialog(this,
-                    "Please add at least one property with a valid name.",
-                    "No Valid Properties",
+                    ADD_AT_LEAST_ONE_PROPERTY,
+                    NO_VALID_PROPERTIES,
                     JOptionPane.WARNING_MESSAGE);
             return;
         }
@@ -474,11 +475,7 @@ public class LicenseTemplateEditor extends JDialog {
 
             // Get drop location info
             JTable.DropLocation dl = (JTable.DropLocation) info.getDropLocation();
-            if (dl.getRow() == -1) {
-                return false;
-            }
-
-            return true;
+            return dl.getRow() != -1;
         }
 
         @Override
@@ -533,11 +530,9 @@ public class LicenseTemplateEditor extends JDialog {
 
         @Override
         protected void exportDone(JComponent c, Transferable t, int act) {
-            if (act == TransferHandler.MOVE) {
-                if (addCount > 0) {
-                    // Select the newly added row(s)
-                    table.setRowSelectionInterval(addIndex, addIndex + addCount - 1);
-                }
+            if (act == MOVE && addCount > 0) {
+                // Select the newly added row(s)
+                table.setRowSelectionInterval(addIndex, addIndex + addCount - 1);
             }
 
             rows = null;

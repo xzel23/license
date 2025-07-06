@@ -7,10 +7,10 @@ import java.util.Properties;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
-public class DynamicEnumTest {
+class DynamicEnumTest {
 
     @Test
-    public void testFromProperties() {
+    void testFromProperties() {
         // Create a Properties object with test values
         Properties props = new Properties();
         props.setProperty("key1", "value1");
@@ -36,7 +36,7 @@ public class DynamicEnumTest {
     }
 
     @Test
-    public void testFromPropertiesWithValues() {
+    void testFromPropertiesWithValues() {
         // Create a Properties object with test values
         Properties props = new Properties();
         props.setProperty("key1", "value1");
@@ -72,7 +72,7 @@ public class DynamicEnumTest {
     }
 
     @Test
-    public void testFromPropertiesWithEmptyProperties() {
+    void testFromPropertiesWithEmptyProperties() {
         // Create an empty Properties object
         Properties emptyProps = new Properties();
 
@@ -86,7 +86,7 @@ public class DynamicEnumTest {
     }
 
     @Test
-    public void testFromPropertiesWithValuesWithEmptyProperties() {
+    void testFromPropertiesWithValuesWithEmptyProperties() {
         // Create an empty Properties object
         Properties emptyProps = new Properties();
 

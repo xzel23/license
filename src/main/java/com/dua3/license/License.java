@@ -69,7 +69,7 @@ public final class License {
             Signature signature = Signature.getInstance("SHA256withRSA");
             signature.initVerify(keySupplier.get());
 
-            this.data = new LinkedHashMap<>(keys.size());
+            this.data = LinkedHashMap.newLinkedHashMap(keys.size());
             keys.forEach(key -> data.put(enumName.apply(key), properties.get(key.toString())));
 
             if (data.size() != properties.size() - 1) {

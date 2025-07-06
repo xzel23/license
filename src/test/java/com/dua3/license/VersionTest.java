@@ -3,10 +3,10 @@ package com.dua3.license;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
-public class VersionTest {
+class VersionTest {
 
     @Test
-    public void testValueOf_ValidVersions() {
+    void testValueOf_ValidVersions() {
         // Test basic version without suffix
         Version v1 = Version.valueOf("1.2.3");
         assertEquals(1, v1.major());
@@ -30,7 +30,7 @@ public class VersionTest {
     }
 
     @Test
-    public void testValueOf_InvalidVersions() {
+    void testValueOf_InvalidVersions() {
         // Test null input
         // Note: When assertions are enabled, an AssertionError is thrown for null input
         // before our explicit null check can throw an IllegalArgumentException
@@ -52,7 +52,7 @@ public class VersionTest {
     }
 
     @Test
-    public void testRoundTrip() {
+    void testRoundTrip() {
         // Test that valueOf(toString()) returns the original version
         Version original = new Version(1, 2, 3, "alpha");
         String versionString = original.toString();

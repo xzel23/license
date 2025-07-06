@@ -84,8 +84,7 @@ public class KeyDetailsDialog {
             javax.swing.table.DefaultTableModel tableModel = new javax.swing.table.DefaultTableModel(columnNames, 0);
 
             // Add subject fields to table if it's an X509Certificate
-            if (cert instanceof java.security.cert.X509Certificate) {
-                java.security.cert.X509Certificate x509Cert = (java.security.cert.X509Certificate) cert;
+            if (cert instanceof java.security.cert.X509Certificate x509Cert) {
                 String subjectDN = x509Cert.getSubjectX500Principal().getName();
 
                 // Parse the subject DN into individual fields
@@ -104,12 +103,12 @@ public class KeyDetailsDialog {
 
                 // Add key size information
                 int keySize = 0;
-                if (publicKey instanceof java.security.interfaces.RSAKey) {
-                    keySize = ((java.security.interfaces.RSAKey) publicKey).getModulus().bitLength();
-                } else if (publicKey instanceof java.security.interfaces.DSAKey) {
-                    keySize = ((java.security.interfaces.DSAKey) publicKey).getParams().getP().bitLength();
-                } else if (publicKey instanceof java.security.interfaces.ECKey) {
-                    keySize = ((java.security.interfaces.ECKey) publicKey).getParams().getCurve().getField().getFieldSize();
+                if (publicKey instanceof java.security.interfaces.RSAKey k) {
+                    keySize = k.getModulus().bitLength();
+                } else if (publicKey instanceof java.security.interfaces.DSAKey k) {
+                    keySize = k.getParams().getP().bitLength();
+                } else if (publicKey instanceof java.security.interfaces.ECKey k) {
+                    keySize = k.getParams().getCurve().getField().getFieldSize();
                 }
 
                 if (keySize > 0) {
