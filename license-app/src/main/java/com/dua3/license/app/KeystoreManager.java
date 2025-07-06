@@ -34,6 +34,14 @@ public class KeystoreManager {
     private static final String ENCRYPTION_ALGORITHM = "AES";
     private static final int KEY_SIZE = 256;
 
+    /**
+     * Enum to specify the mode of the keystore dialog.
+     */
+    public enum DialogMode {
+        LOAD_EXISTING,
+        CREATE_NEW
+    }
+
     @Nullable private FileInput keyStorePathInput;
     @Nullable private JPasswordField keystorePasswordField;
     private byte[] encryptedPassword;
@@ -53,39 +61,18 @@ public class KeystoreManager {
         boolean retry = false;
 
         do {
-            // Create the panel for keystore input
-            JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]10[]10[]"));
-
-            // Keystore path
-            panel.add(new JLabel("Keystore Path:"));
-            Path defaultPath = getStoredKeystorePath();
-            keyStorePathInput = new FileInput(FileInput.SelectionMode.SELECT_FILE, defaultPath, 20);
-            panel.add(keyStorePathInput, "growx, wrap");
-
-            // Keystore password
-            panel.add(new JLabel("Keystore Password:"));
-            keystorePasswordField = new JPasswordField(20);
-            panel.add(keystorePasswordField, "growx, wrap");
+            // Create a simple panel for the initial dialog
+            JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[grow]", "[]"));
 
             // Add error message if there was an error
             if (errorMessage != null) {
                 JLabel errorLabel = new JLabel("<html><font color='red'>Error: " + errorMessage + "</font></html>");
-                panel.add(errorLabel, "span 2, wrap");
+                panel.add(errorLabel, "wrap");
             }
 
-            // Determine dialog options based on whether there was an error
-            String[] options;
-            String defaultOption;
-
-            if (errorMessage != null) {
-                // If there was an error, show options with error message displayed
-                options = new String[]{"Load Existing Keystore", "Create New Keystore", "Cancel"};
-                defaultOption = "Load Existing Keystore";
-            } else {
-                // Initial dialog with standard options
-                options = new String[]{"Load Existing Keystore", "Create New Keystore", "Cancel"};
-                defaultOption = "Load Existing Keystore";
-            }
+            // Only show "Load Keystore" and "New Keystore" buttons
+            String[] options = new String[]{"Load Keystore", "New Keystore"};
+            String defaultOption = "Load Keystore";
 
             int option = JOptionPane.showOptionDialog(
                     parent,
@@ -101,31 +88,8 @@ public class KeystoreManager {
             // Process the user's choice
             if (option == 0) {
                 // Load existing keystore
-                LOG.debug("Attempting to load keystore from dialog");
-                boolean success = keyStorePathInput.getPath().map(path -> {
-                    LOG.debug("Loading keystore from path: {}", path);
-                    if (!readAndStorePassword()) {
-                        return false;
-                    }
-
-                    try {
-                        KeyStore loadedKeyStore = KeyStoreUtil.loadKeyStoreFromFile(path, getPassword());
-
-                        // Store the keystore path and instance
-                        this.keystorePath = path;
-                        this.keyStore = loadedKeyStore;
-
-                        LOG.debug("Keystore loaded successfully from: {}", path);
-                        return true;
-                    } catch (GeneralSecurityException | IOException e) {
-                        LOG.warn("Error loading keystore from path: {}", path, e);
-                        return false;
-                    }
-                }).orElseGet(() -> {
-                    LOG.warn("No keystore path specified for loading");
-                    JOptionPane.showMessageDialog(parent, "Please specify a keystore path.", "Error", JOptionPane.ERROR_MESSAGE);
-                    return false;
-                });
+                LOG.debug("User chose to load an existing keystore");
+                boolean success = showLoadCreateKeystoreDialog(parent, DialogMode.LOAD_EXISTING);
                 if (success) {
                     return true; // Successfully loaded
                 } else {
@@ -135,7 +99,8 @@ public class KeystoreManager {
                 }
             } else if (option == 1) {
                 // Create new keystore
-                boolean success = createKeystoreFromDialog(parent);
+                LOG.debug("User chose to create a new keystore");
+                boolean success = showLoadCreateKeystoreDialog(parent, DialogMode.CREATE_NEW);
                 if (success) {
                     return true; // Successfully created
                 } else {
@@ -154,59 +119,112 @@ public class KeystoreManager {
     }
 
     /**
-     * Creates a new keystore from the dialog input.
+     * Shows a dialog for loading or creating a keystore.
      *
      * @param parent the parent component
+     * @param mode the dialog mode (LOAD_EXISTING or CREATE_NEW)
      * @return true if successful, false otherwise
      */
-    private boolean createKeystoreFromDialog(Component parent) {
-        LOG.debug("Attempting to create keystore from dialog");
+    private boolean showLoadCreateKeystoreDialog(Component parent, DialogMode mode) {
+        LOG.debug("Showing {} keystore dialog", mode == DialogMode.LOAD_EXISTING ? "load" : "create");
+
+        // Create the panel for keystore input
+        JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]10[]"));
+
+        // Keystore path
+        panel.add(new JLabel("Keystore Path:"));
+        Path defaultPath = getStoredKeystorePath();
+        keyStorePathInput = new FileInput(FileInput.SelectionMode.SELECT_FILE, defaultPath, 20);
+        panel.add(keyStorePathInput, "growx, wrap");
+
+        // Keystore password
+        panel.add(new JLabel("Keystore Password:"));
+        keystorePasswordField = new JPasswordField(20);
+        panel.add(keystorePasswordField, "growx");
+
+        // Show the dialog with appropriate title based on mode
+        String dialogTitle = mode == DialogMode.LOAD_EXISTING ? "Load Existing Keystore" : "Create New Keystore";
+        int result = JOptionPane.showConfirmDialog(
+                parent,
+                panel,
+                dialogTitle,
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.PLAIN_MESSAGE
+        );
+
+        if (result != JOptionPane.OK_OPTION) {
+            LOG.debug("User cancelled {} keystore", mode == DialogMode.LOAD_EXISTING ? "loading" : "creating");
+            return false;
+        }
+
+        // Process the input
         return keyStorePathInput.getPath().map(path -> {
-            LOG.debug("Creating keystore at path: {}", path);
+            LOG.debug("{} keystore at path: {}", mode == DialogMode.LOAD_EXISTING ? "Loading" : "Creating", path);
             if (!readAndStorePassword()) {
                 return false;
             }
 
-            // Check if file exists
-            if (Files.exists(path)) {
-                LOG.debug("Keystore file already exists at path: {}", path);
-                int choice = JOptionPane.showConfirmDialog(null, "The keystore file already exists. Do you want to overwrite it?", "File Exists", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+            if (mode == DialogMode.LOAD_EXISTING) {
+                // Load existing keystore
+                try {
+                    KeyStore loadedKeyStore = KeyStoreUtil.loadKeyStoreFromFile(path, getPassword());
 
-                if (choice != JOptionPane.YES_OPTION) {
-                    LOG.debug("User chose not to overwrite existing keystore file");
-                    // Ask for a new filename
-                    FileInput newPathInput = new FileInput(FileInput.SelectionMode.SELECT_FILE, path, 20);
-                    int result = JOptionPane.showConfirmDialog(null, newPathInput, "Enter a new keystore path", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
+                    // Store the keystore path and instance
+                    this.keystorePath = path;
+                    this.keyStore = loadedKeyStore;
+                    saveKeystorePath(path);
 
-                    if (result == JOptionPane.OK_OPTION && newPathInput.getPath().isPresent()) {
-                        path = newPathInput.getPath().get();
-                        LOG.debug("User provided new keystore path: {}", path);
-                    } else {
-                        LOG.debug("User cancelled keystore creation");
-                        return false;
+                    LOG.debug("Keystore loaded successfully from: {}", path);
+                    return true;
+                } catch (GeneralSecurityException | IOException e) {
+                    LOG.warn("Error loading keystore from path: {}", path, e);
+                    JOptionPane.showMessageDialog(parent, "Error loading keystore: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                    return false;
+                }
+            } else {
+                // Create new keystore
+                // Check if file exists
+                if (Files.exists(path)) {
+                    LOG.debug("Keystore file already exists at path: {}", path);
+                    int choice = JOptionPane.showConfirmDialog(null, "The keystore file already exists. Do you want to overwrite it?", "File Exists", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+
+                    if (choice != JOptionPane.YES_OPTION) {
+                        LOG.debug("User chose not to overwrite existing keystore file");
+                        // Ask for a new filename
+                        FileInput newPathInput = new FileInput(FileInput.SelectionMode.SELECT_FILE, path, 20);
+                        int newResult = JOptionPane.showConfirmDialog(null, newPathInput, "Enter a new keystore path", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
+
+                        if (newResult == JOptionPane.OK_OPTION && newPathInput.getPath().isPresent()) {
+                            path = newPathInput.getPath().get();
+                            LOG.debug("User provided new keystore path: {}", path);
+                        } else {
+                            LOG.debug("User cancelled keystore creation");
+                            return false;
+                        }
                     }
                 }
-            }
 
-            try {
-                // Create a new KeyStore instance directly
-                KeyStore newKeyStore = KeyStore.getInstance("PKCS12");
-                newKeyStore.load(null, getPassword());
+                try {
+                    // Create a new KeyStore instance directly
+                    KeyStore newKeyStore = KeyStore.getInstance("PKCS12");
+                    newKeyStore.load(null, getPassword());
 
-                // No need to backup here as this is a new keystore
-                KeyStoreUtil.saveKeyStoreToFile(newKeyStore, path, getPassword());
-                this.keystorePath = path;
-                this.keyStore = newKeyStore;
+                    // No need to backup here as this is a new keystore
+                    KeyStoreUtil.saveKeyStoreToFile(newKeyStore, path, getPassword());
+                    this.keystorePath = path;
+                    this.keyStore = newKeyStore;
+                    saveKeystorePath(path);
 
-                LOG.debug("Keystore created successfully at: {}", path);
-                return true;
-            } catch (GeneralSecurityException | IOException e) {
-                LOG.warn("Error creating keystore at path: {}", path, e);
-                JOptionPane.showMessageDialog(parent, "Error creating keystore: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-                return false;
+                    LOG.debug("Keystore created successfully at: {}", path);
+                    return true;
+                } catch (GeneralSecurityException | IOException e) {
+                    LOG.warn("Error creating keystore at path: {}", path, e);
+                    JOptionPane.showMessageDialog(parent, "Error creating keystore: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                    return false;
+                }
             }
         }).orElseGet(() -> {
-            LOG.warn("No keystore path specified for creation");
+            LOG.warn("No keystore path specified for {}", mode == DialogMode.LOAD_EXISTING ? "loading" : "creation");
             JOptionPane.showMessageDialog(parent, "Please specify a keystore path.", "Error", JOptionPane.ERROR_MESSAGE);
             return false;
         });
@@ -221,8 +239,8 @@ public class KeystoreManager {
             if (!validationResult.isValid()) {
                 JOptionPane.showMessageDialog(null,
                         validationResult.getErrorMessage() + """
-                                
-                                
+
+
                                         Password requirements:
                                         - At least 8 characters
                                         - Maximum 80 characters
