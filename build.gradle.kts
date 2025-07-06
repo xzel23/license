@@ -129,7 +129,6 @@ allprojects {
     configurations.all {
         resolutionStrategy {
             cacheChangingModulesFor(5, TimeUnit.MINUTES)
-            cacheDynamicVersionsFor(5, TimeUnit.MINUTES)
         }
     }
 

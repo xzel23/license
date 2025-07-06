@@ -203,7 +203,7 @@ public class KeystoreManager {
         }
 
         // Process the password
-        if (!storePassword(keystorePasswordField.getPassword())) {
+        if (!storePassword(keystorePasswordField.getPassword(), mode)) {
             return false;
         }
 
@@ -248,9 +248,9 @@ public class KeystoreManager {
         }
     }
 
-    private boolean storePassword(char[] password) {
-        // Validate password when creating a new keystore
-        if (keyStore == null) {
+    private boolean storePassword(char[] password, DialogMode mode) {
+        // Validate password only when creating a new keystore
+        if (mode == DialogMode.CREATE_NEW) {
             PasswordValidationResult validationResult = validatePassword(password);
             if (!validationResult.isValid()) {
                 JOptionPane.showMessageDialog(null,
