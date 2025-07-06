@@ -48,6 +48,7 @@ public class LicenseEditor {
     private static final String SIGNING_KEY_PLACEHOLDER = "### SIGNING_KEY ###";
     private static final String SIGNATURE_PLACEHOLDER = "### SIGNATURE ###";
     private static final String DRAFT_FILE_EXTENSION = "json";
+    private static final String LICENSE_FILE_EXTENSION = "json";
 
     private final LocalDate today = LocalDate.now();
     private final JFrame parentFrame;
@@ -436,6 +437,8 @@ public class LicenseEditor {
                 signatureField.setText(signatureBase64);
 
                 // Save the license to a file
+                saveLicense(properties);
+
                 JOptionPane.showMessageDialog(parentFrame,
                         "License created successfully with the following properties:\n" + properties,
                         "License Creation",
@@ -505,6 +508,50 @@ public class LicenseEditor {
             LOG.error("Error saving license draft", e);
             JOptionPane.showMessageDialog(parentFrame,
                     "Error saving license draft: " + e.getMessage(),
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    /**
+     * Saves the generated license to a file.
+     * 
+     * @param properties the license properties
+     */
+    private void saveLicense(Map<String, Object> properties) {
+        try {
+            // Create a file chooser
+            JFileChooser fileChooser = new JFileChooser();
+            fileChooser.setDialogTitle("Save License");
+            fileChooser.setFileFilter(new FileNameExtensionFilter("JSON Files (*.json)", LICENSE_FILE_EXTENSION));
+
+            // Set default file name
+            fileChooser.setSelectedFile(new java.io.File("license." + LICENSE_FILE_EXTENSION));
+
+            // Show save dialog
+            int userSelection = fileChooser.showSaveDialog(parentFrame);
+
+            if (userSelection == JFileChooser.APPROVE_OPTION) {
+                Path filePath = fileChooser.getSelectedFile().toPath();
+
+                // Add .json extension if not present
+                if (!filePath.toString().toLowerCase().endsWith("." + LICENSE_FILE_EXTENSION)) {
+                    filePath = Paths.get(filePath.toString() + "." + LICENSE_FILE_EXTENSION);
+                }
+
+                // Save to file
+                ObjectMapper mapper = new ObjectMapper();
+                mapper.writerWithDefaultPrettyPrinter().writeValue(filePath.toFile(), properties);
+
+                JOptionPane.showMessageDialog(parentFrame,
+                        "License saved successfully to " + filePath,
+                        "License Saved",
+                        JOptionPane.INFORMATION_MESSAGE);
+            }
+        } catch (Exception e) {
+            LOG.error("Error saving license", e);
+            JOptionPane.showMessageDialog(parentFrame,
+                    "Error saving license: " + e.getMessage(),
                     "Error",
                     JOptionPane.ERROR_MESSAGE);
         }
