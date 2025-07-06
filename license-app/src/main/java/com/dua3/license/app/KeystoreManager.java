@@ -11,7 +11,6 @@ import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
-import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -105,7 +104,9 @@ public class KeystoreManager {
                 LOG.debug("Attempting to load keystore from dialog");
                 boolean success = keyStorePathInput.getPath().map(path -> {
                     LOG.debug("Loading keystore from path: {}", path);
-                    readAndStorePassword();
+                    if (!readAndStorePassword()) {
+                        return false;
+                    }
 
                     try {
                         KeyStore loadedKeyStore = KeyStoreUtil.loadKeyStoreFromFile(path, getPassword());
@@ -162,7 +163,9 @@ public class KeystoreManager {
         LOG.debug("Attempting to create keystore from dialog");
         return keyStorePathInput.getPath().map(path -> {
             LOG.debug("Creating keystore at path: {}", path);
-            readAndStorePassword();
+            if (!readAndStorePassword()) {
+                return false;
+            }
 
             // Check if file exists
             if (Files.exists(path)) {
@@ -209,8 +212,29 @@ public class KeystoreManager {
         });
     }
 
-    private void readAndStorePassword() {
+    private boolean readAndStorePassword() {
         char[] password = keystorePasswordField.getPassword();
+
+        // Validate password when creating a new keystore
+        if (keyStore == null) {
+            PasswordValidationResult validationResult = validatePassword(password);
+            if (!validationResult.isValid()) {
+                JOptionPane.showMessageDialog(null,
+                        validationResult.getErrorMessage() + """
+                                
+                                
+                                        Password requirements:
+                                        - At least 8 characters
+                                        - Maximum 80 characters
+                                        - Contains digits, uppercase and lowercase letters
+                                        - All characters are valid ASCII
+                                        - At least one special character
+                                """,
+                        "Invalid Password", JOptionPane.ERROR_MESSAGE);
+                return false;
+            }
+        }
+
         try {
             // Generate a random symmetric key
             KeyGenerator keyGen = KeyGenerator.getInstance(ENCRYPTION_ALGORITHM);
@@ -233,8 +257,10 @@ public class KeystoreManager {
             this.encryptionKey = secretKey.getEncoded();
 
             LOG.debug("Password encrypted and stored in memory successfully");
+            return true;
         } catch (Exception e) {
             LOG.error("Error encrypting and storing password", e);
+            return false;
         }
     }
 
@@ -296,6 +322,97 @@ public class KeystoreManager {
         this.keyStore = keyStore;
         this.encryptedPassword = null;
         saveKeystorePath(keystorePath);
+    }
+
+    /**
+     * Validates a password against security requirements.
+     * 
+     * @param password the password to validate
+     * @return a validation result containing success status and error message if any
+     */
+    public static PasswordValidationResult validatePassword(char[] password) {
+        if (password == null || password.length == 0) {
+            return new PasswordValidationResult(false, "Password cannot be empty");
+        }
+
+        // Check length requirements
+        if (password.length < 8) {
+            return new PasswordValidationResult(false, "Password must be at least 8 characters long");
+        }
+
+        if (password.length > 80) {
+            return new PasswordValidationResult(false, "Password cannot exceed 80 characters");
+        }
+
+        boolean hasDigit = false;
+        boolean hasUpperCase = false;
+        boolean hasLowerCase = false;
+        boolean hasSpecialChar = false;
+
+        // Check character requirements
+        for (char c : password) {
+            // Check if all characters are valid ASCII
+            if (c > 127) {
+                return new PasswordValidationResult(false, "Password must contain only ASCII characters");
+            }
+
+            if (Character.isDigit(c)) {
+                hasDigit = true;
+            } else if (Character.isUpperCase(c)) {
+                hasUpperCase = true;
+            } else if (Character.isLowerCase(c)) {
+                hasLowerCase = true;
+            } else if (isPunctuation(c) || c == '+' || c == '-' || c == '$' || c == '@' || c == '!' || c == '%' || c == '&' || c == '*' || c == '=' || c == '_') {
+                hasSpecialChar = true;
+            }
+        }
+
+        if (!hasDigit) {
+            return new PasswordValidationResult(false, "Password must contain at least one digit");
+        }
+
+        if (!hasUpperCase) {
+            return new PasswordValidationResult(false, "Password must contain at least one uppercase letter");
+        }
+
+        if (!hasLowerCase) {
+            return new PasswordValidationResult(false, "Password must contain at least one lowercase letter");
+        }
+
+        if (!hasSpecialChar) {
+            return new PasswordValidationResult(false, "Password must contain at least one special character (punctuation, +, -, $, etc)");
+        }
+
+        return new PasswordValidationResult(true, null);
+    }
+
+    /**
+     * Helper method to check if a character is a punctuation symbol.
+     */
+    private static boolean isPunctuation(char c) {
+        return (c >= 33 && c <= 47) || (c >= 58 && c <= 64) || 
+               (c >= 91 && c <= 96) || (c >= 123 && c <= 126);
+    }
+
+    /**
+     * Class to hold password validation results.
+     */
+    public static class PasswordValidationResult {
+        private final boolean valid;
+        private final String errorMessage;
+
+        public PasswordValidationResult(boolean valid, String errorMessage) {
+            this.valid = valid;
+            this.errorMessage = errorMessage;
+        }
+
+        public boolean isValid() {
+            return valid;
+        }
+
+        public String getErrorMessage() {
+            return errorMessage;
+        }
     }
 
     /**
