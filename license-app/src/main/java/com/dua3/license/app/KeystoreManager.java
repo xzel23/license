@@ -5,7 +5,6 @@ import com.dua3.utility.swing.FileInput;
 import net.miginfocom.swing.MigLayout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jspecify.annotations.Nullable;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -42,8 +41,6 @@ public class KeystoreManager {
         CREATE_NEW
     }
 
-    @Nullable private FileInput keyStorePathInput;
-    @Nullable private JPasswordField keystorePasswordField;
     private byte[] encryptedPassword;
     private byte[] encryptionKey;
     private Path keystorePath;
@@ -134,12 +131,12 @@ public class KeystoreManager {
         // Keystore path
         panel.add(new JLabel("Keystore Path:"));
         Path defaultPath = getStoredKeystorePath();
-        keyStorePathInput = new FileInput(FileInput.SelectionMode.SELECT_FILE, defaultPath, 20);
+        FileInput keyStorePathInput = new FileInput(FileInput.SelectionMode.SELECT_FILE, defaultPath, 20);
         panel.add(keyStorePathInput, "growx, wrap");
 
         // Keystore password
         panel.add(new JLabel("Keystore Password:"));
-        keystorePasswordField = new JPasswordField(20);
+        JPasswordField keystorePasswordField = new JPasswordField(20);
         panel.add(keystorePasswordField, "growx");
 
         // Show the dialog with appropriate title based on mode
@@ -160,7 +157,7 @@ public class KeystoreManager {
         // Process the input
         return keyStorePathInput.getPath().map(path -> {
             LOG.debug("{} keystore at path: {}", mode == DialogMode.LOAD_EXISTING ? "Loading" : "Creating", path);
-            if (!readAndStorePassword()) {
+            if (!storePassword(keystorePasswordField.getPassword())) {
                 return false;
             }
 
@@ -230,9 +227,7 @@ public class KeystoreManager {
         });
     }
 
-    private boolean readAndStorePassword() {
-        char[] password = keystorePasswordField.getPassword();
-
+    private boolean storePassword(char[] password) {
         // Validate password when creating a new keystore
         if (keyStore == null) {
             PasswordValidationResult validationResult = validatePassword(password);
