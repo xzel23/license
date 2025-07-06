@@ -47,6 +47,17 @@ public class LicenseTemplate {
     }
 
     /**
+     * Required fields that must be present in every license template.
+     */
+    private static final String[] REQUIRED_FIELDS = {
+        "LICENSE_ID",
+        "ISSUE_DATE",
+        "EXPIRY_DATE",
+        "SIGNING_KEY_ALIAS",
+        "SIGNATURE"
+    };
+
+    /**
      * Loads a DynamicEnum from a JSON file.
      *
      * @param path the JSON file
@@ -56,6 +67,20 @@ public class LicenseTemplate {
     public static LicenseTemplate loadTemplate(Path path) throws IOException {
         ObjectMapper mapper = new ObjectMapper();
         List<LicenseField> fields = mapper.readValue(path.toFile(), new TypeReference<List<LicenseField>>() {});
+
+        // Validate that all required fields are present
+        for (String requiredField : REQUIRED_FIELDS) {
+            boolean found = false;
+            for (LicenseField field : fields) {
+                if (requiredField.equals(field.name())) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                throw new IOException("Required field '" + requiredField + "' is missing in the license template");
+            }
+        }
 
         String templateName = IoUtil.stripExtension(path.getFileName().toString());
 

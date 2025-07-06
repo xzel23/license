@@ -9,7 +9,7 @@ import java.security.Signature;
 import java.security.SignatureException;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -69,7 +69,7 @@ public final class License {
             Signature signature = Signature.getInstance("SHA256withRSA");
             signature.initVerify(keySupplier.get());
 
-            this.data = HashMap.newHashMap(keys.size());
+            this.data = new LinkedHashMap<>(keys.size());
             keys.forEach(key -> data.put(enumName.apply(key), properties.get(key.toString())));
 
             if (data.size() != properties.size() - 1) {

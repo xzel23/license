@@ -22,6 +22,7 @@ import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.Signature;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
@@ -32,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -49,6 +51,8 @@ public class LicenseEditor {
     private static final String SIGNATURE_PLACEHOLDER = "### SIGNATURE ###";
     private static final String DRAFT_FILE_EXTENSION = "json";
     private static final String LICENSE_FILE_EXTENSION = "json";
+    private static final String SIGNING_KEY = "### SIGNING_KEY ###";
+    private static final String SIGNATURE = "### SIGNATURE ###";
 
     private final LocalDate today = LocalDate.now();
     private final JFrame parentFrame;
@@ -63,12 +67,12 @@ public class LicenseEditor {
 
         // Default constructor for Jackson
         public LicenseDraft() {
-            this.fieldValues = new HashMap<>();
+            this.fieldValues = new LinkedHashMap<>();
         }
 
         public LicenseDraft(String templateName, Map<String, String> fieldValues) {
             this.templateName = templateName;
-            this.fieldValues = fieldValues;
+            this.fieldValues = new LinkedHashMap<>(fieldValues);
         }
 
         public String getTemplateName() {
@@ -132,10 +136,7 @@ public class LicenseEditor {
         JButton validateLicenseButton = new JButton("Validate License");
         validateLicenseButton.addActionListener(e -> {
             // Show dialog to validate a license
-            JOptionPane.showMessageDialog(parentFrame,
-                    "Validate License functionality will be implemented here.",
-                    "Validate License",
-                    JOptionPane.INFORMATION_MESSAGE);
+            validateLicense();
         });
         buttonPanel.add(validateLicenseButton);
 
@@ -229,12 +230,12 @@ public class LicenseEditor {
         panel.add(buttonPanel, "span 3, growx, wrap");
 
         // Create a map to store field values for saving/loading
-        Map<String, String> fieldValues = new HashMap<>();
+        Map<String, String> fieldValues = new LinkedHashMap<>();
 
         // Create input fields for each template value
         List<LicenseTemplate.LicenseField> fields = template.getFields();
         Object[] valueComponents = new Object[fields.size()];
-        Map<String, Integer> specialFieldIndices = new HashMap<>();
+        Map<String, Integer> specialFieldIndices = new LinkedHashMap<>();
 
         for (int i = 0; i < fields.size(); i++) {
             LicenseTemplate.LicenseField field = fields.get(i);
@@ -385,7 +386,7 @@ public class LicenseEditor {
                 }
 
                 // Create a map of properties for the license
-                Map<String, Object> properties = new HashMap<>();
+                Map<String, Object> properties = new LinkedHashMap<>();
                 for (int i = 0; i < fields.size(); i++) {
                     String fieldName = fields.get(i).name();
 
@@ -439,8 +440,70 @@ public class LicenseEditor {
                 // Save the license to a file
                 saveLicense(properties);
 
+                // Create a table to display license properties
+                JPanel licenseDataPanel = new JPanel(new BorderLayout());
+                licenseDataPanel.add(new JLabel("License created successfully with the following properties:"), BorderLayout.NORTH);
+
+                // Create table data
+                String[] columnNames = {"Property", "Value"};
+                Object[][] data = new Object[properties.size()][2];
+
+                int i = 0;
+                for (Map.Entry<String, Object> entry : properties.entrySet()) {
+                    data[i][0] = entry.getKey();
+
+                    // Format value with line breaks for long text
+                    String value = String.valueOf(entry.getValue());
+                    if (value.length() > 80) {
+                        StringBuilder sb = new StringBuilder();
+                        int index = 0;
+                        while (index < value.length()) {
+                            int end = Math.min(index + 80, value.length());
+                            if (end < value.length() && Character.isLetterOrDigit(value.charAt(end)) 
+                                && Character.isLetterOrDigit(value.charAt(end - 1))) {
+                                // Try to break at a non-alphanumeric character
+                                int breakPoint = end - 1;
+                                while (breakPoint > index && Character.isLetterOrDigit(value.charAt(breakPoint))) {
+                                    breakPoint--;
+                                }
+                                if (breakPoint > index) {
+                                    end = breakPoint + 1;
+                                }
+                            }
+                            sb.append(value, index, end).append("<br>");
+                            index = end;
+                        }
+                        value = "<html>" + sb.toString() + "</html>";
+                    }
+                    data[i][1] = value;
+                    i++;
+                }
+
+                // Create table with custom renderer for line breaks
+                javax.swing.JTable table = new javax.swing.JTable(data, columnNames);
+                table.getColumnModel().getColumn(0).setPreferredWidth(150);
+                table.getColumnModel().getColumn(1).setPreferredWidth(450);
+                table.setRowHeight(25);
+
+                // Make rows taller for wrapped content
+                for (i = 0; i < table.getRowCount(); i++) {
+                    Object value = table.getValueAt(i, 1);
+                    if (value != null && value.toString().startsWith("<html>")) {
+                        // Count the number of <br> tags to estimate height
+                        String text = value.toString();
+                        int lineCount = (int) text.chars().filter(ch -> ch == '>').count() - 1;
+                        table.setRowHeight(i, Math.max(25, lineCount * 20));
+                    }
+                }
+
+                // Add table to a scroll pane
+                javax.swing.JScrollPane scrollPane = new javax.swing.JScrollPane(table);
+                scrollPane.setPreferredSize(new java.awt.Dimension(600, 400));
+                licenseDataPanel.add(scrollPane, BorderLayout.CENTER);
+
+                // Show the dialog with the table
                 JOptionPane.showMessageDialog(parentFrame,
-                        "License created successfully with the following properties:\n" + properties,
+                        licenseDataPanel,
                         "License Creation",
                         JOptionPane.INFORMATION_MESSAGE);
 
@@ -459,8 +522,8 @@ public class LicenseEditor {
         return switch (value) {
             case "${license_issue_date}" -> today.toString();
             case "${license_expiry_date}" -> today.plusYears(1).toString();
-            case "${signing_key}" -> "### SIGNING_KEY ###";
-            case "${signature}" -> "### SIGNATURE ###";
+            case "${signing_key}" -> SIGNING_KEY;
+            case "${signature}" -> SIGNATURE;
             default -> value;
         };
     }
@@ -525,8 +588,12 @@ public class LicenseEditor {
             fileChooser.setDialogTitle("Save License");
             fileChooser.setFileFilter(new FileNameExtensionFilter("JSON Files (*.json)", LICENSE_FILE_EXTENSION));
 
-            // Set default file name
-            fileChooser.setSelectedFile(new java.io.File("license." + LICENSE_FILE_EXTENSION));
+            // Set default file name using LICENSE_ID if available
+            String defaultFileName = "license";
+            if (properties.containsKey("LICENSE_ID")) {
+                defaultFileName = properties.get("LICENSE_ID").toString();
+            }
+            fileChooser.setSelectedFile(new java.io.File(defaultFileName + "." + LICENSE_FILE_EXTENSION));
 
             // Show save dialog
             int userSelection = fileChooser.showSaveDialog(parentFrame);
@@ -590,6 +657,287 @@ public class LicenseEditor {
         }
 
         return null;
+    }
+
+    /**
+     * Validates a license file.
+     * This method allows the user to select a license file, then validates its signature
+     * and checks if the license has expired.
+     */
+    private void validateLicense() {
+        try {
+            // Create a file chooser
+            JFileChooser fileChooser = new JFileChooser();
+            fileChooser.setDialogTitle("Select License File to Validate");
+            fileChooser.setFileFilter(new FileNameExtensionFilter("JSON Files (*.json)", LICENSE_FILE_EXTENSION));
+
+            // Show open dialog
+            int userSelection = fileChooser.showOpenDialog(parentFrame);
+
+            if (userSelection != JFileChooser.APPROVE_OPTION) {
+                return; // User cancelled
+            }
+
+            Path filePath = fileChooser.getSelectedFile().toPath();
+
+            // Load the license file
+            ObjectMapper mapper = new ObjectMapper();
+            Map<String, Object> licenseData = mapper.readValue(filePath.toFile(), Map.class);
+
+            // Validation results
+            StringBuilder validationResults = new StringBuilder();
+            boolean isValid = true;
+
+            // Check if the license has a signature
+            String signatureFieldName = null;
+            String signatureValue = null;
+
+            // Find the signature field (could be named differently in different templates)
+            for (Map.Entry<String, Object> entry : licenseData.entrySet()) {
+                if (entry.getValue() instanceof String && 
+                    ((String) entry.getValue()).matches("^[A-Za-z0-9+/]+={0,2}$")) { // Basic check for Base64
+                    try {
+                        // Try to decode it as Base64
+                        Base64.getDecoder().decode((String) entry.getValue());
+                        signatureFieldName = entry.getKey();
+                        signatureValue = (String) entry.getValue();
+                        break;
+                    } catch (IllegalArgumentException e) {
+                        // Not valid Base64, continue searching
+                    }
+                }
+            }
+
+            if (signatureFieldName == null || signatureValue == null) {
+                validationResults.append("❌ No valid signature found in the license file.\n");
+                isValid = false;
+            } else {
+                validationResults.append("✓ Signature field found: ").append(signatureFieldName).append("\n");
+
+                // Create a copy of the license data without the signature for verification
+                Map<String, Object> dataToVerify = new HashMap<>(licenseData);
+                dataToVerify.remove(signatureFieldName);
+
+                // Get the signing key alias if present
+                String signingKeyAlias = null;
+                for (Map.Entry<String, Object> entry : licenseData.entrySet()) {
+                    if (entry.getKey().toLowerCase().contains("key") && entry.getValue() instanceof String) {
+                        signingKeyAlias = (String) entry.getValue();
+                        break;
+                    }
+                }
+
+                if (signingKeyAlias == null) {
+                    validationResults.append("❌ No signing key information found in the license.\n");
+                    validationResults.append("Please select the key used to sign this license:\n");
+
+                    // Create a combo box with all available keys
+                    JComboBox<String> keyComboBox = new JComboBox<>();
+                    populateSigningKeyComboBox(keyComboBox);
+
+                    if (keyComboBox.getItemCount() == 0) {
+                        validationResults.append("❌ No keys available in the keystore.\n");
+                        isValid = false;
+                    } else {
+                        // Show dialog to select the key
+                        JPanel panel = new JPanel(new MigLayout("fillx", "[][grow]", "[]"));
+                        panel.add(new JLabel("Select signing key:"));
+                        panel.add(keyComboBox, "growx");
+
+                        int result = JOptionPane.showConfirmDialog(
+                                parentFrame,
+                                panel,
+                                "Select Signing Key",
+                                JOptionPane.OK_CANCEL_OPTION,
+                                JOptionPane.PLAIN_MESSAGE
+                        );
+
+                        if (result != JOptionPane.OK_OPTION) {
+                            return; // User cancelled
+                        }
+
+                        signingKeyAlias = (String) keyComboBox.getSelectedItem();
+                    }
+                }
+
+                if (signingKeyAlias != null) {
+                    validationResults.append("✓ Signing key: ").append(signingKeyAlias).append("\n");
+
+                    // Verify the signature
+                    try {
+                        KeyStore keyStore = keystoreManager.getKeyStore();
+                        Certificate cert = keyStore.getCertificate(signingKeyAlias);
+
+                        if (cert == null) {
+                            validationResults.append("❌ Certificate not found for key: ").append(signingKeyAlias).append("\n");
+                            isValid = false;
+                        } else {
+                            PublicKey publicKey = cert.getPublicKey();
+
+                            // Create signature instance
+                            Signature signature = Signature.getInstance("SHA256withRSA");
+                            signature.initVerify(publicKey);
+
+                            // Update with the data to verify
+                            byte[] dataToSign = dataToVerify.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                            signature.update(dataToSign);
+
+                            // Verify the signature
+                            byte[] signatureBytes = Base64.getDecoder().decode(signatureValue);
+                            boolean signatureValid = signature.verify(signatureBytes);
+
+                            if (signatureValid) {
+                                validationResults.append("✓ Signature is valid.\n");
+                            } else {
+                                validationResults.append("❌ Signature verification failed.\n");
+                                isValid = false;
+                            }
+                        }
+                    } catch (Exception e) {
+                        validationResults.append("❌ Error verifying signature: ").append(e.getMessage()).append("\n");
+                        isValid = false;
+                    }
+                }
+            }
+
+            // Check for expiration date
+            String expiryDateStr = null;
+            for (Map.Entry<String, Object> entry : licenseData.entrySet()) {
+                if (entry.getKey().toLowerCase().contains("expiry") || 
+                    entry.getKey().toLowerCase().contains("expiration")) {
+                    expiryDateStr = entry.getValue().toString();
+                    break;
+                }
+            }
+
+            if (expiryDateStr != null) {
+                try {
+                    LocalDate expiryDate = LocalDate.parse(expiryDateStr);
+                    LocalDate today = LocalDate.now();
+
+                    if (today.isAfter(expiryDate)) {
+                        validationResults.append("❌ License has expired on ").append(expiryDateStr).append("\n");
+                        isValid = false;
+                    } else {
+                        validationResults.append("✓ License is valid until ").append(expiryDateStr).append("\n");
+                    }
+                } catch (Exception e) {
+                    validationResults.append("⚠️ Could not parse expiry date: ").append(expiryDateStr).append("\n");
+                }
+            } else {
+                validationResults.append("ℹ️ No expiration date found in the license.\n");
+            }
+
+            // Display the validation results
+            String title = isValid ? "License is Valid" : "License Validation Failed";
+            int messageType = isValid ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE;
+
+            // Create a panel to display validation results and license data
+            JPanel licenseDataPanel = new JPanel(new BorderLayout());
+
+            // Add validation summary at the top
+            JLabel validationLabel = new JLabel(isValid ? 
+                    "✅ License is valid" : 
+                    "❌ License validation failed");
+            validationLabel.setFont(new java.awt.Font("Dialog", java.awt.Font.BOLD, 14));
+            validationLabel.setForeground(isValid ? new Color(0, 128, 0) : Color.RED);
+            licenseDataPanel.add(validationLabel, BorderLayout.NORTH);
+
+            // Create a panel for detailed validation results
+            JPanel validationPanel = new JPanel(new BorderLayout());
+            validationPanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Validation Results"));
+            JLabel validationDetailsLabel = new JLabel("<html>" + 
+                    validationResults.toString().replace("\n", "<br>") + 
+                    "</html>");
+            validationPanel.add(validationDetailsLabel, BorderLayout.CENTER);
+
+            // Create table data for license properties
+            String[] columnNames = {"Property", "Value"};
+            Object[][] data = new Object[licenseData.size() - (signatureFieldName != null ? 1 : 0)][2];
+
+            int i = 0;
+            for (Map.Entry<String, Object> entry : licenseData.entrySet()) {
+                if (signatureFieldName != null && entry.getKey().equals(signatureFieldName)) {
+                    continue; // Skip the signature
+                }
+
+                data[i][0] = entry.getKey();
+
+                // Format value with line breaks for long text
+                String value = String.valueOf(entry.getValue());
+                if (value.length() > 80) {
+                    StringBuilder sb = new StringBuilder();
+                    int index = 0;
+                    while (index < value.length()) {
+                        int end = Math.min(index + 80, value.length());
+                        if (end < value.length() && Character.isLetterOrDigit(value.charAt(end)) 
+                            && Character.isLetterOrDigit(value.charAt(end - 1))) {
+                            // Try to break at a non-alphanumeric character
+                            int breakPoint = end - 1;
+                            while (breakPoint > index && Character.isLetterOrDigit(value.charAt(breakPoint))) {
+                                breakPoint--;
+                            }
+                            if (breakPoint > index) {
+                                end = breakPoint + 1;
+                            }
+                        }
+                        sb.append(value, index, end).append("<br>");
+                        index = end;
+                    }
+                    value = "<html>" + sb.toString() + "</html>";
+                }
+                data[i][1] = value;
+                i++;
+            }
+
+            // Create table with custom renderer for line breaks
+            javax.swing.JTable table = new javax.swing.JTable(data, columnNames);
+            table.getColumnModel().getColumn(0).setPreferredWidth(150);
+            table.getColumnModel().getColumn(1).setPreferredWidth(450);
+            table.setRowHeight(25);
+
+            // Make rows taller for wrapped content
+            for (i = 0; i < table.getRowCount(); i++) {
+                Object value = table.getValueAt(i, 1);
+                if (value != null && value.toString().startsWith("<html>")) {
+                    // Count the number of <br> tags to estimate height
+                    String text = value.toString();
+                    int lineCount = (int) text.chars().filter(ch -> ch == '>').count() - 1;
+                    table.setRowHeight(i, Math.max(25, lineCount * 20));
+                }
+            }
+
+            // Add table to a scroll pane
+            javax.swing.JScrollPane scrollPane = new javax.swing.JScrollPane(table);
+            scrollPane.setPreferredSize(new java.awt.Dimension(600, 300));
+
+            // Create a split panel for validation results and license data
+            javax.swing.JSplitPane splitPane = new javax.swing.JSplitPane(
+                    javax.swing.JSplitPane.VERTICAL_SPLIT,
+                    validationPanel,
+                    scrollPane);
+            splitPane.setDividerLocation(150);
+            splitPane.setPreferredSize(new java.awt.Dimension(600, 500));
+
+            licenseDataPanel.add(splitPane, BorderLayout.CENTER);
+
+            // Show the dialog with the table
+            JOptionPane.showMessageDialog(
+                    parentFrame,
+                    licenseDataPanel,
+                    title,
+                    messageType
+            );
+
+        } catch (Exception e) {
+            LOG.error("Error validating license", e);
+            JOptionPane.showMessageDialog(
+                    parentFrame,
+                    "Error validating license: " + e.getMessage(),
+                    "Validation Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
+        }
     }
 
     /**
