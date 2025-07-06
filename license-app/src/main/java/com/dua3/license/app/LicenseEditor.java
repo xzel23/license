@@ -17,6 +17,9 @@ import java.awt.Color;
 import java.awt.FlowLayout;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +31,7 @@ public class LicenseEditor {
 
     private static final Logger LOG = LogManager.getLogger(LicenseEditor.class);
 
+    private final LocalDate today = LocalDate.now();
     private final JFrame parentFrame;
 
     /**
@@ -167,12 +171,16 @@ public class LicenseEditor {
         for (int i = 0; i < fields.size(); i++) {
             LicenseTemplate.LicenseField field = fields.get(i);
             panel.add(new JLabel(field.name() + ":"));
-            valueFields[i] = new JTextField(field.defaultValue(), 20);
+            String defaultText = getDefaultText(field);
+            valueFields[i] = new JTextField(defaultText, 20);
             panel.add(valueFields[i], "growx");
+            if (defaultText.strip().startsWith("### ") && defaultText.strip().endsWith(" ###")) {
+                valueFields[i].setEditable(false);
+            }
 
             // Add info icon with tooltip showing the description
             JLabel infoLabel = new JLabel(LicenseManager.INFO_SYMBOL);
-            String description = field.defaultValue();
+            String description = field.description();
             infoLabel.setToolTipText(description);
             infoLabel.setForeground(Color.BLUE);
             panel.add(infoLabel, "wrap");
@@ -200,5 +208,15 @@ public class LicenseEditor {
                     "License Creation",
                     JOptionPane.INFORMATION_MESSAGE);
         }
+    }
+
+    private String getDefaultText(LicenseTemplate.LicenseField field) {
+        String value = field.defaultValue();
+        return switch (value) {
+            case "${license_issue_date}" -> today.toString();
+            case "${license_expiry_date}" -> today.plusYears(1).toString();
+            case "${signature}" -> "### SIGNATURE ###";
+            default -> value;
+        };
     }
 }
