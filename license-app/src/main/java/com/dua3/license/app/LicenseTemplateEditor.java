@@ -358,9 +358,9 @@ public class LicenseTemplateEditor extends JDialog {
                 String enumName = key.toUpperCase().replace('-', '_').replace(' ', '_');
 
                 // Create enum constant with description
-                String enumEntry = "    " + enumName + "(\"" + 
-                      (description != null ? description.replace("\"", "\\\"") : "") + 
-                      "\")";
+                String enumEntry = "    " + enumName + "(\"" +
+                        (description != null ? description.replace("\"", "\\\"") : "") +
+                        "\")";
 
                 validEnumEntries.add(enumEntry);
             }
@@ -369,7 +369,7 @@ public class LicenseTemplateEditor extends JDialog {
         // Join all valid entries with commas
         enumCode.append(String.join(",\n", validEnumEntries));
         if (!validEnumEntries.isEmpty()) {
-            enumCode.append("\n");
+            enumCode.append(";\n");
         }
 
         // If no valid fields were found, show an error message
