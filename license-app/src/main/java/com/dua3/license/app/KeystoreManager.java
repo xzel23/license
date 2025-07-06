@@ -185,7 +185,15 @@ public class KeystoreManager {
         JPanel passwordPanel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]"));
         passwordPanel.add(new JLabel("Keystore Password:"));
         JPasswordField keystorePasswordField = new JPasswordField(20);
-        passwordPanel.add(keystorePasswordField, "growx");
+        passwordPanel.add(keystorePasswordField, "growx, wrap");
+
+        // Add confirmation field for new keystores
+        JPasswordField confirmPasswordField = null;
+        if (mode == DialogMode.CREATE_NEW) {
+            passwordPanel.add(new JLabel("Confirm Password:"));
+            confirmPasswordField = new JPasswordField(20);
+            passwordPanel.add(confirmPasswordField, "growx");
+        }
 
         // Show the password dialog
         String passwordDialogTitle = mode == DialogMode.LOAD_EXISTING ? "Enter Keystore Password" : "Create Keystore Password";
@@ -200,6 +208,21 @@ public class KeystoreManager {
         if (passwordResult != JOptionPane.OK_OPTION) {
             LOG.debug("User cancelled password entry for {} keystore", mode == DialogMode.LOAD_EXISTING ? "loading" : "creating");
             return false;
+        }
+
+        // For new keystores, verify that passwords match
+        if (mode == DialogMode.CREATE_NEW && confirmPasswordField != null) {
+            char[] password = keystorePasswordField.getPassword();
+            char[] confirmPassword = confirmPasswordField.getPassword();
+
+            if (!java.util.Arrays.equals(password, confirmPassword)) {
+                LOG.debug("Passwords do not match for new keystore creation");
+                JOptionPane.showMessageDialog(parent, 
+                    "Passwords do not match. Please try again.", 
+                    "Password Mismatch", 
+                    JOptionPane.ERROR_MESSAGE);
+                return false;
+            }
         }
 
         // Process the password
