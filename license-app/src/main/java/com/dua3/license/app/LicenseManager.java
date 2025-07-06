@@ -37,6 +37,7 @@ import java.util.Base64;
 public class LicenseManager {
 
     private static final Logger LOG = LogManager.getLogger(LicenseManager.class);
+    public static final String INFO_SYMBOL = "ⓘ";
     private static final String APP_NAME = LicenseManager.class.getSimpleName();
     private static final String ERROR = "Error";
 
@@ -206,28 +207,37 @@ public class LicenseManager {
             JTextField emailField = new JTextField("", 20);
             JTextField validDaysField = new JTextField("3650", 5);
 
+            // Create a helper method to add a label with info icon and tooltip
             JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]5[]5[]5[]5[]5[]5[]5[]5[]"));
-            panel.add(new JLabel("Key Alias:"));
-            panel.add(aliasField, "growx, wrap");
+
+            // Add field with label, info icon, and tooltip
+            addLabeledFieldWithTooltip(panel, "Key Alias:", 
+                "A unique identifier for this key in the keystore", aliasField);
 
             // Add subject fields with required fields marked
-            panel.add(new JLabel("CN - Common Name: *"));
-            panel.add(cnField, "growx, wrap");
-            panel.add(new JLabel("O - Organization:"));
-            panel.add(oField, "growx, wrap");
-            panel.add(new JLabel("OU - Organizational Unit:"));
-            panel.add(ouField, "growx, wrap");
-            panel.add(new JLabel("C - Country: *"));
-            panel.add(cField, "growx, wrap");
-            panel.add(new JLabel("ST - State/Province:"));
-            panel.add(stField, "growx, wrap");
-            panel.add(new JLabel("L - Locality (City):"));
-            panel.add(lField, "growx, wrap");
-            panel.add(new JLabel("Email Address:"));
-            panel.add(emailField, "growx, wrap");
+            addLabeledFieldWithTooltip(panel, "CN - Common Name: *", 
+                "The name of the entity this certificate represents (required)", cnField);
 
-            panel.add(new JLabel("Valid Days:"));
-            panel.add(validDaysField, "growx");
+            addLabeledFieldWithTooltip(panel, "O - Organization:", 
+                "The organization to which the entity belongs", oField);
+
+            addLabeledFieldWithTooltip(panel, "OU - Organizational Unit:", 
+                "The department or division within the organization", ouField);
+
+            addLabeledFieldWithTooltip(panel, "C - Country: *", 
+                "The two-letter country code (e.g., US, UK, DE) (required)", cField);
+
+            addLabeledFieldWithTooltip(panel, "ST - State/Province:", 
+                "The state or province where the organization is located", stField);
+
+            addLabeledFieldWithTooltip(panel, "L - Locality (City):", 
+                "The city where the organization is located", lField);
+
+            addLabeledFieldWithTooltip(panel, "Email Address:", 
+                "Contact email address for the certificate owner", emailField);
+
+            addLabeledFieldWithTooltip(panel, "Valid Days:", 
+                "Number of days the certificate will be valid from creation date", validDaysField);
 
             int result = JOptionPane.showConfirmDialog(mainFrame, panel, "Add New Key", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 
@@ -502,6 +512,28 @@ public class LicenseManager {
         backupKeystoreFile(keystorePath);
         KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, keystoreManager.getPassword());
         updateKeyAliasComboBox();
+    }
+
+    /**
+     * Adds a labeled field with an information icon that shows a tooltip with the field's description.
+     *
+     * @param panel The panel to add the components to
+     * @param labelText The text for the label
+     * @param description The description to show in the tooltip
+     * @param field The text field to add
+     */
+    private void addLabeledFieldWithTooltip(JPanel panel, String labelText, String description, JTextField field) {
+        // Create and add the label
+        JLabel label = new JLabel(labelText);
+        panel.add(label);
+
+        // Add the label panel and field to the main panel
+        panel.add(field, "grow x");
+
+        // Create the info icon with tooltip
+        JLabel infoIcon = new JLabel(INFO_SYMBOL);
+        infoIcon.setToolTipText(description);
+        panel.add(infoIcon, "wrap");
     }
 
 }

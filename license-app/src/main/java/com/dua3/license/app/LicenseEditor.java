@@ -1,6 +1,5 @@
 package com.dua3.license.app;
 
-import com.dua3.utility.swing.SwingUtil;
 import net.miginfocom.swing.MigLayout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -172,7 +171,7 @@ public class LicenseEditor {
             panel.add(valueFields[i], "growx");
 
             // Add info icon with tooltip showing the description
-            JLabel infoLabel = new JLabel("ⓘ");
+            JLabel infoLabel = new JLabel(LicenseManager.INFO_SYMBOL);
             String description = field.defaultValue();
             infoLabel.setToolTipText(description);
             infoLabel.setForeground(Color.BLUE);
