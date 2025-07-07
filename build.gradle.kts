@@ -68,10 +68,30 @@ sonar {
     }
 }
 
+// Aggregate all subprojects' publishToStagingDirectory tasks into a root-level task
+tasks.register("publishToStagingDirectory") {
+    group = "publishing"
+    description = "Publish all subprojects' artifacts to root staging directory for JReleaser"
+
+    dependsOn(subprojects.mapNotNull { it.tasks.findByName("publishToStagingDirectory") })
+}
+
+
+subprojects {
+    // Task to publish to staging directory per subproject
+    val publishToStagingDirectory by tasks.registering {
+        group = "publishing"
+        description = "Publish artifacts to root staging directory for JReleaser"
+
+        dependsOn(tasks.withType<PublishToMavenRepository>().matching {
+            it.repository.name == "stagingDirectory"
+        })
+    }
+}
+
 /////////////////////////////////////////////////////////////////////////////
 // Subprojects configuration
 /////////////////////////////////////////////////////////////////////////////
-
 allprojects {
 
     // Set project version from root libs.versions
@@ -342,14 +362,6 @@ allprojects {
 /////////////////////////////////////////////////////////////////////////////
 // Root project tasks and JReleaser configuration
 /////////////////////////////////////////////////////////////////////////////
-
-// Aggregate all subprojects' publishToStagingDirectory tasks into a root-level task
-    tasks.register("publishToStagingDirectory") {
-        group = "publishing"
-        description = "Publish all subprojects' artifacts to root staging directory for JReleaser"
-
-        dependsOn(subprojects.mapNotNull { it.tasks.findByName("publishToStagingDirectory") })
-    }
 
 // Make jreleaserDeploy depend on the root-level publishToStagingDirectory task
     tasks.named("jreleaserDeploy") {
