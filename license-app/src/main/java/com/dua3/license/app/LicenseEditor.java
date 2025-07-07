@@ -46,22 +46,31 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class LicenseEditor {
 
     private static final Logger LOG = LogManager.getLogger(LicenseEditor.class);
-    private static final String SIGNING_KEY_PLACEHOLDER = "### SIGNING_KEY ###";
-    private static final String SIGNATURE_PLACEHOLDER = "### SIGNATURE ###";
-    private static final String DRAFT_FILE_EXTENSION = "json";
-    private static final FileNameExtensionFilter LICENSE_DRAFT_EXTENSION_FILTER = new FileNameExtensionFilter("JSON Files (*.json)", DRAFT_FILE_EXTENSION);
-    private static final FileNameExtensionFilter LICENSE_EXTENSION_FILTER = new FileNameExtensionFilter("JSON Files (*.json)", DRAFT_FILE_EXTENSION);
-    private static final String LICENSE_FILE_EXTENSION = "json";
-    private static final String SIGNING_KEY = "### SIGNING_KEY ###";
-    private static final String SIGNATURE = "### SIGNATURE ###";
+
+    // file extensions and file filters
+    private static final String DRAFT_FILE_EXTENSION = "license_draft";
+    private static final String LICENSE_FILE_EXTENSION = "license";
+    private static final FileNameExtensionFilter LICENSE_DRAFT_EXTENSION_FILTER = new FileNameExtensionFilter("License Draft Files (*.licensed)", DRAFT_FILE_EXTENSION);
+    private static final FileNameExtensionFilter LICENSE_EXTENSION_FILTER = new FileNameExtensionFilter("License Files (*.license)", LICENSE_FILE_EXTENSION);
+
+    // preferences paths
     private static final String PREF_LICENSE_DIRECTORY = "licenseDirectory";
+
+    // required license fields
     private static final String SIGNING_KEY_ALIAS_LICENSE_FIELD = "SIGNING_KEY_ALIAS";
     private static final String SIGNATURE_LICENSE_FIELD = "SIGNATURE";
     private static final String EXPIRY_LICENSE_FIELD = "EXPIRY_DATE";
+
+    // placeholders for license field values
+    private static final String SIGNING_KEY_PLACEHOLDER = "### SIGNING_KEY ###";
+    private static final String SIGNATURE_PLACEHOLDER = "### SIGNATURE ###";
+
+    // text constants
     private static final String HTML_OPEN = "<html>";
     private static final String HTML_CLOSE = "</html>";
     private static final String ERROR = "Error";
 
+    // instance data
     private final LocalDate today = LocalDate.now();
     private final JFrame parentFrame;
     private final KeystoreManager keystoreManager;
@@ -542,8 +551,8 @@ public class LicenseEditor {
         return switch (value) {
             case "${license_issue_date}" -> today.toString();
             case "${license_expiry_date}" -> today.plusYears(1).toString();
-            case "${signing_key}" -> SIGNING_KEY;
-            case "${signature}" -> SIGNATURE;
+            case "${signing_key}" -> SIGNING_KEY_PLACEHOLDER;
+            case "${signature}" -> SIGNATURE_PLACEHOLDER;
             default -> value;
         };
     }
