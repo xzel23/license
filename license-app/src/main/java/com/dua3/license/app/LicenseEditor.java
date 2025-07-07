@@ -313,11 +313,9 @@ public class LicenseEditor {
             for (int i = 0; i < fields.size(); i++) {
                 String fieldName = fields.get(i).name();
 
-                if (valueComponents[i] instanceof JTextField) {
-                    JTextField textField = (JTextField) valueComponents[i];
+                if (valueComponents[i] instanceof JTextField textField) {
                     fieldValues.put(fieldName, textField.getText());
-                } else if (valueComponents[i] instanceof JComboBox) {
-                    JComboBox<?> comboBox = (JComboBox<?>) valueComponents[i];
+                } else if (valueComponents[i] instanceof JComboBox comboBox) {
                     if (comboBox.getSelectedItem() != null) {
                         fieldValues.put(fieldName, comboBox.getSelectedItem().toString());
                     }
@@ -360,7 +358,7 @@ public class LicenseEditor {
                     if (value != null) {
                         if (valueComponents[i] instanceof JTextField textField) {
                             textField.setText(value);
-                        } else if (valueComponents[i] instanceof JComboBox comboBox) {
+                        } else if (valueComponents[i] instanceof JComboBox<?> comboBox) {
                             for (int j = 0; j < comboBox.getItemCount(); j++) {
                                 if (comboBox.getItemAt(j).equals(value)) {
                                     comboBox.setSelectedIndex(j);
@@ -882,8 +880,8 @@ public class LicenseEditor {
                     int index = 0;
                     while (index < value.length()) {
                         int end = Math.min(index + 80, value.length());
-                        if (end < value.length() && Character.isLetterOrDigit(value.charAt(end)) 
-                            && Character.isLetterOrDigit(value.charAt(end - 1))) {
+                        if (end < value.length() && Character.isLetterOrDigit(value.charAt(end))
+                                && Character.isLetterOrDigit(value.charAt(end - 1))) {
                             // Try to break at a non-alphanumeric character
                             int breakPoint = end - 1;
                             while (breakPoint > index && Character.isLetterOrDigit(value.charAt(breakPoint))) {
