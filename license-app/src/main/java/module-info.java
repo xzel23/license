@@ -1,3 +1,6 @@
+/**
+ * Main module definition for the Dua3 License Application.
+ */
 module dua3.license.license.app.main {
     requires com.dua3.utility;
     requires com.dua3.utility.swing;

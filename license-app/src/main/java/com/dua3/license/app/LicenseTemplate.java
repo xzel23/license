@@ -11,6 +11,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Represents a license template that consists of a name, a file path,
+ * and a collection of fields. Each field provides metadata and default values
+ * for generating license structures.
+ */
 public class LicenseTemplate {
 
     /**
@@ -82,7 +87,7 @@ public class LicenseTemplate {
             }
         }
 
-        String templateName = IoUtil.stripExtension(path.getFileName().toString());
+        String templateName = IoUtil.stripExtension(String.valueOf(path.getFileName()));
 
         return new LicenseTemplate(path, templateName, fields);
     }

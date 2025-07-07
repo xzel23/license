@@ -38,10 +38,21 @@ public class KeystoreManager {
     private static final String ERROR = "Error";
 
     /**
+     * Constructs an instance of KeystoreManager.
+     */
+    public KeystoreManager() { /* nothing to do */ }
+
+    /**
      * Enum to specify the mode of the keystore dialog.
      */
     public enum DialogMode {
+        /**
+         * Specifies the mode for loading an existing keystore in the dialog.
+         */
         LOAD_EXISTING,
+        /**
+         * Specifies the mode for creating a new keystore in the dialog.
+         */
         CREATE_NEW
     }
 
@@ -276,9 +287,9 @@ public class KeystoreManager {
         // Validate password only when creating a new keystore
         if (mode == DialogMode.CREATE_NEW) {
             PasswordValidationResult validationResult = validatePassword(password);
-            if (!validationResult.isValid()) {
+            if (!validationResult.valid()) {
                 JOptionPane.showMessageDialog(null,
-                        validationResult.getErrorMessage() + """
+                        validationResult.errorMessage() + """
 
 
                                         Password requirements:
@@ -446,24 +457,11 @@ public class KeystoreManager {
     }
 
     /**
-     * Class to hold password validation results.
+     * Represents the result of a password validation process.
+     * @param valid a boolean indicating whether the password is considered valid.
+     * @param errorMessage string containing an error message if the password is invalid,
      */
-    public static class PasswordValidationResult {
-        private final boolean valid;
-        private final String errorMessage;
-
-        public PasswordValidationResult(boolean valid, String errorMessage) {
-            this.valid = valid;
-            this.errorMessage = errorMessage;
-        }
-
-        public boolean isValid() {
-            return valid;
-        }
-
-        public String getErrorMessage() {
-            return errorMessage;
-        }
+    public record PasswordValidationResult(boolean valid, String errorMessage) {
     }
 
     /**

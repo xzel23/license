@@ -34,12 +34,23 @@ import java.security.Security;
 import java.time.LocalDateTime;
 import java.util.Base64;
 
+/**
+ * The LicenseManager class is responsible for managing software licenses
+ * and keystore operations as part of an application. It also provides
+ * a graphical user interface for interacting with license keys, keystores,
+ * and licenses.
+ */
 public class LicenseManager {
 
     private static final Logger LOG = LogManager.getLogger(LicenseManager.class);
     private static final String APP_NAME = LicenseManager.class.getSimpleName();
     private static final String ERROR = "Error";
 
+    /**
+     * A constant string representing an information symbol "ⓘ".
+     * <p>
+     * This symbol is used to add tooltips to input elements in the user interface.
+     */
     public static final String INFO_SYMBOL = "ⓘ";
 
     static {
@@ -65,6 +76,12 @@ public class LicenseManager {
     private javax.swing.JTable keysTable;
     private javax.swing.table.DefaultTableModel keysTableModel;
 
+    /**
+     * The main method serves as the entry point for the License Manager application.
+     * It initializes the application's look and feel and invokes the creation of the main GUI.
+     *
+     * @param args Command-line arguments passed to the application.
+     */
     public static void main(String[] args) {
         LOG.debug("Starting License Manager application");
         SwingUtil.setNativeLookAndFeel(APP_NAME);
@@ -74,17 +91,31 @@ public class LicenseManager {
         });
     }
 
+    /**
+     * Constructs a new instance of the LicenseManager class.
+     */
+    public LicenseManager() { /* nothing to do */ }
+
+    /**
+     * Retrieves the path to the templates directory.
+     *
+     * @return the path to the directory named "templates"
+     */
     public static Path getTemplatesDirectory() {
         return Paths.get("templates");
     }
 
+    /**
+     * Initializes and displays the main graphical user interface (GUI) of the application.
+     * This method ensures that the keystore is loaded or created before proceeding.
+     * If loading the keystore fails and the user opts to exit, the method will terminate early.
+     */
     private void createAndShowGUI() {
         LOG.debug("Creating and showing GUI");
         // Show startup dialog to load or create keystore
         if (!keystoreManager.showDialog(null)) {
             // User chose to exit
             LOG.info("User chose to exit after keystore loading failure");
-            System.exit(0);
             return;
         }
 
@@ -212,33 +243,33 @@ public class LicenseManager {
             JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]5[]5[]5[]5[]5[]5[]5[]5[]"));
 
             // Add field with label, info icon, and tooltip
-            addLabeledFieldWithTooltip(panel, "Key Alias:", 
-                "A unique identifier for this key in the keystore", aliasField);
+            addLabeledFieldWithTooltip(panel, "Key Alias:",
+                    "A unique identifier for this key in the keystore", aliasField);
 
             // Add subject fields with required fields marked
-            addLabeledFieldWithTooltip(panel, "CN - Common Name: *", 
-                "The name of the entity this certificate represents (required)", cnField);
+            addLabeledFieldWithTooltip(panel, "CN - Common Name: *",
+                    "The name of the entity this certificate represents (required)", cnField);
 
-            addLabeledFieldWithTooltip(panel, "O - Organization:", 
-                "The organization to which the entity belongs", oField);
+            addLabeledFieldWithTooltip(panel, "O - Organization:",
+                    "The organization to which the entity belongs", oField);
 
-            addLabeledFieldWithTooltip(panel, "OU - Organizational Unit:", 
-                "The department or division within the organization", ouField);
+            addLabeledFieldWithTooltip(panel, "OU - Organizational Unit:",
+                    "The department or division within the organization", ouField);
 
-            addLabeledFieldWithTooltip(panel, "C - Country: *", 
-                "The two-letter country code (e.g., US, UK, DE) (required)", cField);
+            addLabeledFieldWithTooltip(panel, "C - Country: *",
+                    "The two-letter country code (e.g., US, UK, DE) (required)", cField);
 
-            addLabeledFieldWithTooltip(panel, "ST - State/Province:", 
-                "The state or province where the organization is located", stField);
+            addLabeledFieldWithTooltip(panel, "ST - State/Province:",
+                    "The state or province where the organization is located", stField);
 
-            addLabeledFieldWithTooltip(panel, "L - Locality (City):", 
-                "The city where the organization is located", lField);
+            addLabeledFieldWithTooltip(panel, "L - Locality (City):",
+                    "The city where the organization is located", lField);
 
-            addLabeledFieldWithTooltip(panel, "Email Address:", 
-                "Contact email address for the certificate owner", emailField);
+            addLabeledFieldWithTooltip(panel, "Email Address:",
+                    "Contact email address for the certificate owner", emailField);
 
-            addLabeledFieldWithTooltip(panel, "Valid Days:", 
-                "Number of days the certificate will be valid from creation date", validDaysField);
+            addLabeledFieldWithTooltip(panel, "Valid Days:",
+                    "Number of days the certificate will be valid from creation date", validDaysField);
 
             int result = JOptionPane.showConfirmDialog(mainFrame, panel, "Add New Key", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 
@@ -491,7 +522,7 @@ public class LicenseManager {
         String timestamp = String.format("%04d%02d%02d%02d%02d%04d", now.getYear(), now.getMonthValue(), now.getDayOfMonth(), now.getHour(), now.getMinute(), now.getSecond() * 100 + now.getNano() / 10_000_000); // Convert to seconds.hundredths
 
         // Create backup file path
-        String fileName = keystorePath.getFileName().toString();
+        String fileName = String.valueOf(keystorePath.getFileName());
         int dotIndex = fileName.lastIndexOf('.');
         String baseName = (dotIndex > 0) ? fileName.substring(0, dotIndex) : fileName;
         String extension = (dotIndex > 0) ? fileName.substring(dotIndex) : "";

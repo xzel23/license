@@ -1,8 +1,11 @@
 <FindBugsFilter>
     <Match>
-        <!-- Bugs reported by SpotBugs for automatic injected null checks -->
         <Or>
+            <!-- Bugs reported by SpotBugs for automatic injected null checks -->
             <Bug pattern="RCN_REDUNDANT_NULLCHECK_WOULD_HAVE_BEEN_A_NPE"/>
+            <!-- returning keystore -->
+            <Bug pattern="EI_EXPOSE_REP"/>
+            <Bug pattern="EI_EXPOSE_REP2"/>
         </Or>
     </Match>
 </FindBugsFilter>

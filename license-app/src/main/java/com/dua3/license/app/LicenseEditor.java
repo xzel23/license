@@ -15,6 +15,7 @@ import javax.swing.SwingConstants;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.FlowLayout;
+import java.awt.HeadlessException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -110,9 +111,10 @@ public class LicenseEditor {
     }
 
     /**
-     * Constructs a new LicenseEditor.
+     * Constructs a LicenseEditor object with the provided parent frame and keystore manager.
      *
-     * @param parentFrame the parent frame for dialogs
+     * @param parentFrame the parent JFrame of this editor
+     * @param keystoreManager the KeystoreManager instance to manage cryptographic operations
      */
     public LicenseEditor(JFrame parentFrame, KeystoreManager keystoreManager) {
         this.parentFrame = parentFrame;
@@ -536,7 +538,7 @@ public class LicenseEditor {
                         "License Creation",
                         JOptionPane.INFORMATION_MESSAGE);
 
-            } catch (Exception e) {
+            } catch (HeadlessException | GeneralSecurityException e) {
                 LOG.error("Error creating license", e);
                 JOptionPane.showMessageDialog(parentFrame,
                         "Error creating license: " + e.getMessage(),
@@ -587,7 +589,7 @@ public class LicenseEditor {
 
                 // Add .json extension if not present
                 if (!filePath.toString().toLowerCase().endsWith("." + DRAFT_FILE_EXTENSION)) {
-                    filePath = Paths.get(filePath.toString() + "." + DRAFT_FILE_EXTENSION);
+                    filePath = Paths.get(filePath + "." + DRAFT_FILE_EXTENSION);
                 }
 
                 // Create license draft object
@@ -938,8 +940,7 @@ public class LicenseEditor {
                     title,
                     messageType
             );
-
-        } catch (Exception e) {
+        } catch (IOException e) {
             LOG.error("Error validating license", e);
             JOptionPane.showMessageDialog(
                     parentFrame,
