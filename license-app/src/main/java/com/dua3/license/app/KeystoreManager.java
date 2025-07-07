@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -34,8 +35,11 @@ public class KeystoreManager {
     private static final Logger LOG = LogManager.getLogger(KeystoreManager.class);
     private static final String PREF_KEYSTORE_PATH = "keystorePath";
     private static final String ENCRYPTION_ALGORITHM = "AES";
+    private static final String CIPHER_TRANSFORMATION = "AES/GCM/NoPadding";
+    private static final int GCM_IV_LENGTH = 12; // 96 bits
     private static final int KEY_SIZE = 256;
     private static final String ERROR = "Error";
+    private byte[] iv;
 
     /**
      * Constructs an instance of KeystoreManager.
@@ -292,13 +296,13 @@ public class KeystoreManager {
                         validationResult.errorMessage() + """
 
 
-                                        Password requirements:
-                                        - At least 8 characters
-                                        - Maximum 80 characters
-                                        - Contains digits, uppercase and lowercase letters
-                                        - All characters are valid ASCII
-                                        - At least one special character
-                                """,
+                                    Password requirements:
+                                    - At least 8 characters
+                                    - Maximum 80 characters
+                                    - Contains digits, uppercase and lowercase letters
+                                    - All characters are valid ASCII
+                                    - At least one special character
+                            """,
                         "Invalid Password", JOptionPane.ERROR_MESSAGE);
                 return false;
             }
@@ -317,13 +321,19 @@ public class KeystoreManager {
                 passwordBytes[i * 2 + 1] = (byte) password[i];
             }
 
-            // Encrypt the password
-            Cipher cipher = Cipher.getInstance(ENCRYPTION_ALGORITHM);
-            cipher.init(Cipher.ENCRYPT_MODE, secretKey);
+            // Generate random IV for GCM
+            byte[] ivBytes = new byte[GCM_IV_LENGTH];
+            new SecureRandom().nextBytes(ivBytes);
 
-            // Store the encrypted password and key in memory
+            // Encrypt the password using GCM mode
+            Cipher cipher = Cipher.getInstance(CIPHER_TRANSFORMATION);
+            GCMParameterSpec gcmSpec = new GCMParameterSpec(128, ivBytes); // 128-bit tag
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey, gcmSpec);
+
+            // Store the encrypted password, key, and IV in memory
             this.encryptedPassword = cipher.doFinal(passwordBytes);
             this.encryptionKey = secretKey.getEncoded();
+            this.iv = ivBytes;
 
             LOG.debug("Password encrypted and stored in memory successfully");
             return true;
@@ -341,16 +351,17 @@ public class KeystoreManager {
      * @throws GeneralSecurityException if decryption fails
      */
     public char[] getPassword() throws GeneralSecurityException {
-        if (encryptedPassword == null || encryptionKey == null) {
+        if (encryptedPassword == null || encryptionKey == null || iv == null) {
             throw new IllegalStateException("No password stored in memory");
         }
 
         // Recreate the secret key
         SecretKey secretKey = new SecretKeySpec(encryptionKey, ENCRYPTION_ALGORITHM);
 
-        // Decrypt the password
-        Cipher cipher = Cipher.getInstance(ENCRYPTION_ALGORITHM);
-        cipher.init(Cipher.DECRYPT_MODE, secretKey);
+        // Decrypt the password using GCM mode
+        Cipher cipher = Cipher.getInstance(CIPHER_TRANSFORMATION);
+        GCMParameterSpec gcmSpec = new GCMParameterSpec(128, iv);
+        cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec);
         byte[] passwordBytes = cipher.doFinal(encryptedPassword);
 
         // Convert bytes back to char array
