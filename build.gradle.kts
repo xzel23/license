@@ -68,15 +68,6 @@ sonar {
     }
 }
 
-// Aggregate all subprojects' publishToStagingDirectory tasks into a root-level task
-tasks.register("publishToStagingDirectory") {
-    group = "publishing"
-    description = "Publish all subprojects' artifacts to root staging directory for JReleaser"
-
-    dependsOn(subprojects.mapNotNull { it.tasks.findByName("publishToStagingDirectory") })
-}
-
-
 subprojects {
     // Task to publish to staging directory per subproject
     val publishToStagingDirectory by tasks.registering {
@@ -356,63 +347,70 @@ allprojects {
             }
         }
     }
-
+}
 
 /////////////////////////////////////////////////////////////////////////////
 // Root project tasks and JReleaser configuration
 /////////////////////////////////////////////////////////////////////////////
 
+// Aggregate all subprojects' publishToStagingDirectory tasks into a root-level task
+tasks.register("publishToStagingDirectory") {
+    group = "publishing"
+    description = "Publish all subprojects' artifacts to root staging directory for JReleaser"
+
+    dependsOn(subprojects.mapNotNull { it.tasks.findByName("publishToStagingDirectory") })
+}
+
 // Make jreleaserDeploy depend on the root-level publishToStagingDirectory task
-    tasks.named("jreleaserDeploy") {
-        dependsOn("publishToStagingDirectory")
+tasks.named("jreleaserDeploy") {
+    dependsOn("publishToStagingDirectory")
+}
+
+jreleaser {
+    project {
+        name.set(rootProject.name)
+        version.set(rootProject.libs.versions.projectVersion.get())
+        group = Meta.GROUP
+        authors.set(listOf(Meta.DEVELOPER_NAME))
+        license.set(Meta.LICENSE_NAME)
+        links {
+            homepage.set(Meta.ORGANIZATION_URL)
+        }
+        inceptionYear.set(Meta.INCEPTION_YEAR)
+        gitRootSearch.set(true)
     }
 
-    jreleaser {
-        project {
-            name.set(rootProject.name)
-            version.set(rootProject.libs.versions.projectVersion.get())
-            group = Meta.GROUP
-            authors.set(listOf(Meta.DEVELOPER_NAME))
-            license.set(Meta.LICENSE_NAME)
-            links {
-                homepage.set(Meta.ORGANIZATION_URL)
-            }
-            inceptionYear.set(Meta.INCEPTION_YEAR)
-            gitRootSearch.set(true)
-        }
+    signing {
+        publicKey.set(System.getenv("SIGNING_PUBLIC_KEY"))
+        secretKey.set(System.getenv("SIGNING_SECRET_KEY"))
+        passphrase.set(System.getenv("SIGNING_PASSWORD"))
+        active.set(org.jreleaser.model.Active.ALWAYS)
+        armored.set(true)
+    }
 
-        signing {
-            publicKey.set(System.getenv("SIGNING_PUBLIC_KEY"))
-            secretKey.set(System.getenv("SIGNING_SECRET_KEY"))
-            passphrase.set(System.getenv("SIGNING_PASSWORD"))
-            active.set(org.jreleaser.model.Active.ALWAYS)
-            armored.set(true)
-        }
-
-        deploy {
-            maven {
-                mavenCentral {
-                    create("release-deploy") {
-                        active.set(org.jreleaser.model.Active.RELEASE)
-                        url.set("https://central.sonatype.com/api/v1/publisher")
-                        stagingRepositories.add("build/staging-deploy")
-                        username.set(System.getenv("SONATYPE_USERNAME"))
-                        password.set(System.getenv("SONATYPE_PASSWORD"))
-                    }
+    deploy {
+        maven {
+            mavenCentral {
+                create("release-deploy") {
+                    active.set(org.jreleaser.model.Active.RELEASE)
+                    url.set("https://central.sonatype.com/api/v1/publisher")
+                    stagingRepositories.add("build/staging-deploy")
+                    username.set(System.getenv("SONATYPE_USERNAME"))
+                    password.set(System.getenv("SONATYPE_PASSWORD"))
                 }
-                nexus2 {
-                    create("snapshot-deploy") {
-                        active.set(org.jreleaser.model.Active.SNAPSHOT)
-                        snapshotUrl.set("https://central.sonatype.com/repository/maven-snapshots/")
-                        applyMavenCentralRules.set(true)
-                        verifyPom.set(false)
-                        snapshotSupported.set(true)
-                        closeRepository.set(true)
-                        releaseRepository.set(true)
-                        stagingRepositories.add("build/staging-deploy")
-                        username.set(System.getenv("SONATYPE_USERNAME"))
-                        password.set(System.getenv("SONATYPE_PASSWORD"))
-                    }
+            }
+            nexus2 {
+                create("snapshot-deploy") {
+                    active.set(org.jreleaser.model.Active.SNAPSHOT)
+                    snapshotUrl.set("https://central.sonatype.com/repository/maven-snapshots/")
+                    applyMavenCentralRules.set(true)
+                    verifyPom.set(false)
+                    snapshotSupported.set(true)
+                    closeRepository.set(true)
+                    releaseRepository.set(true)
+                    stagingRepositories.add("build/staging-deploy")
+                    username.set(System.getenv("SONATYPE_USERNAME"))
+                    password.set(System.getenv("SONATYPE_PASSWORD"))
                 }
             }
         }
