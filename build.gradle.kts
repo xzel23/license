@@ -90,7 +90,7 @@ subprojects {
 }
 
 /////////////////////////////////////////////////////////////////////////////
-// Subprojects configuration
+// Common configuration for all projects
 /////////////////////////////////////////////////////////////////////////////
 allprojects {
 
@@ -113,7 +113,6 @@ allprojects {
     apply(plugin = "idea")
     apply(plugin = "jacoco")
     apply(plugin = "java-library")
-    apply(plugin = rootProject.libs.plugins.jreleaser.get().pluginId)
     apply(plugin = rootProject.libs.plugins.test.logger.get().pluginId)
     apply(plugin = rootProject.libs.plugins.spotbugs.get().pluginId)
     apply(plugin = rootProject.libs.plugins.cabe.get().pluginId)
