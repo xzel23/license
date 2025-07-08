@@ -3,7 +3,7 @@
 
 import org.gradle.internal.extensions.stdlib.toDefaultLowerCase
 
-rootProject.name = "dua3-license"
+rootProject.name = "license"
 val projectVersion = "0.0.1-SNAPSHOT"
 
 include("license-app")
