@@ -13,12 +13,14 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import java.awt.Component;
 import java.io.IOException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -40,7 +42,70 @@ public class KeystoreManager {
     private static final int GCM_IV_LENGTH = 12; // 96 bits
     private static final int KEY_SIZE = 256;
     private static final String ERROR = "Error";
+    private static final String LOGO_PATH_64 = "/com/dua3/license/app/Keytool-64.png";
+    private static final String LOGO_PATH_128 = "/com/dua3/license/app/Keytool-128.png";
+    private static final String LOGO_PATH_256 = "/com/dua3/license/app/Keytool-256.png";
+    private static final String LOGO_PATH_512 = "/com/dua3/license/app/Keytool-512.png";
     private byte[] iv;
+
+    /**
+     * Gets the appropriate logo icon based on the screen resolution.
+     * 
+     * @return the logo icon
+     */
+    private ImageIcon getLogoIcon() {
+        // Get the screen resolution
+        int screenResolution = java.awt.Toolkit.getDefaultToolkit().getScreenResolution();
+
+        // Choose the appropriate logo size based on the screen resolution
+        String logoPath;
+        if (screenResolution > 200) {
+            logoPath = LOGO_PATH_512;
+        } else if (screenResolution > 120) {
+            logoPath = LOGO_PATH_256;
+        } else if (screenResolution > 80) {
+            logoPath = LOGO_PATH_128;
+        } else {
+            logoPath = LOGO_PATH_64;
+        }
+
+        // Load the logo
+        URL logoUrl = KeystoreManager.class.getResource(logoPath);
+        if (logoUrl != null) {
+            return new ImageIcon(logoUrl);
+        } else {
+            LOG.warn("Could not load logo from path: {}", logoPath);
+            return null;
+        }
+    }
+
+    /**
+     * Creates a panel with the logo icon centered horizontally and the specified message below it.
+     * 
+     * @param message the message to display below the icon, can be a string or a component
+     * @return a panel with the centered logo icon and message
+     */
+    private JPanel createCenteredLogoPanel(Object message) {
+        ImageIcon icon = getLogoIcon();
+        JPanel panel = new JPanel(new MigLayout("fillx, wrap 1, insets 10", "[center]", "[][]"));
+
+        // Add the icon at the top, centered
+        if (icon != null) {
+            JLabel iconLabel = new JLabel(icon);
+            panel.add(iconLabel, "center, wrap");
+        }
+
+        // Add the message below the icon
+        if (message != null) {
+            if (message instanceof Component component) {
+                panel.add(component, "growx");
+            } else {
+                panel.add(new JLabel(message.toString()), "center");
+            }
+        }
+
+        return panel;
+    }
 
     /**
      * Constructs an instance of KeystoreManager.
@@ -77,14 +142,16 @@ public class KeystoreManager {
         String errorMessage = null;
 
         do {
-            // Create a simple panel for the initial dialog
-            JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[grow]", "[]"));
-
-            // Add error message if there was an error
+            // Create a panel for error message if needed
+            JPanel messagePanel = null;
             if (errorMessage != null) {
+                messagePanel = new JPanel(new MigLayout("fill, insets 0", "[grow]", "[]"));
                 JLabel errorLabel = new JLabel("<html><font color='red'>Error: " + errorMessage + "</font></html>");
-                panel.add(errorLabel, "wrap");
+                messagePanel.add(errorLabel, "wrap");
             }
+
+            // Create a panel with centered logo and message
+            JPanel panel = createCenteredLogoPanel(messagePanel);
 
             // Only show "Load Keystore" and "New Keystore" buttons
             String[] options = new String[]{"Load Keystore", "New Keystore"};
@@ -95,8 +162,8 @@ public class KeystoreManager {
                     panel,
                     "Keystore Selection",
                     JOptionPane.DEFAULT_OPTION,
-                    errorMessage != null ? JOptionPane.WARNING_MESSAGE : JOptionPane.QUESTION_MESSAGE,
-                    null,
+                    JOptionPane.PLAIN_MESSAGE,
+                    null, // No icon since we're including it in the panel
                     options,
                     defaultOption
             );
@@ -157,7 +224,7 @@ public class KeystoreManager {
         // Check if a path was selected
         if (selectedPath.isEmpty()) {
             LOG.warn("No keystore path specified for {}", modeString);
-            JOptionPane.showMessageDialog(parent, "Please specify a keystore path.", ERROR, JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(parent, createCenteredLogoPanel("Please specify a keystore path."), ERROR, JOptionPane.PLAIN_MESSAGE, null);
             return false;
         }
 
@@ -170,10 +237,11 @@ public class KeystoreManager {
             LOG.debug("Keystore file already exists at path: {}", path);
             int choice = JOptionPane.showConfirmDialog(
                     parent,
-                    "The keystore file already exists. Do you want to overwrite it?",
+                    createCenteredLogoPanel("The keystore file already exists. Do you want to overwrite it?"),
                     "File Exists",
                     JOptionPane.YES_NO_OPTION,
-                    JOptionPane.WARNING_MESSAGE
+                    JOptionPane.PLAIN_MESSAGE,
+                    null
             );
 
             if (choice != JOptionPane.YES_OPTION) {
@@ -182,10 +250,11 @@ public class KeystoreManager {
                 FileInput newPathInput = new FileInput(FileInput.SelectionMode.SELECT_FILE, path, 20);
                 int newResult = JOptionPane.showConfirmDialog(
                         parent,
-                        newPathInput,
+                        createCenteredLogoPanel(newPathInput),
                         "Enter a new keystore path",
                         JOptionPane.OK_CANCEL_OPTION,
-                        JOptionPane.QUESTION_MESSAGE
+                        JOptionPane.PLAIN_MESSAGE,
+                        null
                 );
 
                 if (newResult == JOptionPane.OK_OPTION && newPathInput.getPath().isPresent()) {
@@ -216,10 +285,11 @@ public class KeystoreManager {
         String passwordDialogTitle = mode == DialogMode.LOAD_EXISTING ? "Enter Keystore Password" : "Create Keystore Password";
         int passwordResult = JOptionPane.showConfirmDialog(
                 parent,
-                passwordPanel,
+                createCenteredLogoPanel(passwordPanel),
                 passwordDialogTitle,
                 JOptionPane.OK_CANCEL_OPTION,
-                JOptionPane.PLAIN_MESSAGE
+                JOptionPane.PLAIN_MESSAGE,
+                null
         );
 
         if (passwordResult != JOptionPane.OK_OPTION) {
@@ -235,9 +305,10 @@ public class KeystoreManager {
             if (!java.util.Arrays.equals(password, confirmPassword)) {
                 LOG.debug("Passwords do not match for new keystore creation");
                 JOptionPane.showMessageDialog(parent,
-                        "Passwords do not match. Please try again.",
+                        createCenteredLogoPanel("Passwords do not match. Please try again."),
                         "Password Mismatch",
-                        JOptionPane.ERROR_MESSAGE);
+                        JOptionPane.PLAIN_MESSAGE,
+                        null);
                 return false;
             }
         }
@@ -262,7 +333,7 @@ public class KeystoreManager {
                 return true;
             } catch (GeneralSecurityException | IOException e) {
                 LOG.warn("Error loading keystore from path: {}", path, e);
-                JOptionPane.showMessageDialog(parent, "Error loading keystore: " + e.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(parent, createCenteredLogoPanel("Error loading keystore: " + e.getMessage()), ERROR, JOptionPane.PLAIN_MESSAGE, null);
                 return false;
             }
         } else {
@@ -282,7 +353,7 @@ public class KeystoreManager {
                 return true;
             } catch (GeneralSecurityException | IOException e) {
                 LOG.warn("Error creating keystore at path: {}", path, e);
-                JOptionPane.showMessageDialog(parent, "Error creating keystore: " + e.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(parent, createCenteredLogoPanel("Error creating keystore: " + e.getMessage()), ERROR, JOptionPane.PLAIN_MESSAGE, null);
                 return false;
             }
         }
@@ -294,7 +365,7 @@ public class KeystoreManager {
             PasswordValidationResult validationResult = validatePassword(password);
             if (!validationResult.valid()) {
                 JOptionPane.showMessageDialog(null,
-                        validationResult.errorMessage() + """
+                        createCenteredLogoPanel(validationResult.errorMessage() + """
 
 
                                     Password requirements:
@@ -303,8 +374,8 @@ public class KeystoreManager {
                                     - Contains digits, uppercase and lowercase letters
                                     - All characters are valid ASCII
                                     - At least one special character
-                            """,
-                        "Invalid Password", JOptionPane.ERROR_MESSAGE);
+                            """),
+                        "Invalid Password", JOptionPane.PLAIN_MESSAGE, null);
                 return false;
             }
         }
