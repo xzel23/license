@@ -70,6 +70,9 @@ public class LicenseEditor {
     private static final String HTML_OPEN = "<html>";
     private static final String HTML_CLOSE = "</html>";
     private static final String ERROR = "Error";
+    private static final String SIGNING_KEY = "signingKey";
+    private static final String SIGNATURE = "signature";
+    private static final String GROWX = "growx";
 
     // instance data
     private final LocalDate today = LocalDate.now();
@@ -283,20 +286,20 @@ public class LicenseEditor {
                 JComboBox<String> keyComboBox = new JComboBox<>();
                 populateSigningKeyComboBox(keyComboBox);
                 valueComponents[i] = keyComboBox;
-                panel.add(keyComboBox, "growx");
-                specialFieldIndices.put("signingKey", i);
+                panel.add(keyComboBox, GROWX);
+                specialFieldIndices.put(SIGNING_KEY, i);
             } else if (SIGNATURE_PLACEHOLDER.equals(defaultText)) {
                 // Create a text field for the signature (will be filled later)
                 JTextField textField = new JTextField(defaultText, 20);
                 textField.setEditable(false);
                 valueComponents[i] = textField;
-                panel.add(textField, "growx");
-                specialFieldIndices.put("signature", i);
+                panel.add(textField, GROWX);
+                specialFieldIndices.put(SIGNATURE, i);
             } else {
                 // Create a text field for other values
                 JTextField textField = new JTextField(defaultText, 20);
                 valueComponents[i] = textField;
-                panel.add(textField, "growx");
+                panel.add(textField, GROWX);
             }
 
             // Add info icon with tooltip showing the description
@@ -315,10 +318,9 @@ public class LicenseEditor {
 
                 if (valueComponents[i] instanceof JTextField textField) {
                     fieldValues.put(fieldName, textField.getText());
-                } else if (valueComponents[i] instanceof JComboBox comboBox) {
-                    if (comboBox.getSelectedItem() != null) {
-                        fieldValues.put(fieldName, comboBox.getSelectedItem().toString());
-                    }
+                } else if (valueComponents[i] instanceof JComboBox<?> comboBox
+                        && comboBox.getSelectedItem() instanceof Object selectedItem) {
+                    fieldValues.put(fieldName, selectedItem.toString());
                 }
             }
 
@@ -388,7 +390,7 @@ public class LicenseEditor {
         if (result == JOptionPane.OK_OPTION) {
             try {
                 // Get the selected signing key
-                if (!specialFieldIndices.containsKey("signingKey")) {
+                if (!specialFieldIndices.containsKey(SIGNING_KEY)) {
                     JOptionPane.showMessageDialog(parentFrame,
                             "No signing key field found in the template.",
                             ERROR,
@@ -396,7 +398,7 @@ public class LicenseEditor {
                     return;
                 }
 
-                if (!specialFieldIndices.containsKey("signature")) {
+                if (!specialFieldIndices.containsKey(SIGNATURE)) {
                     JOptionPane.showMessageDialog(parentFrame,
                             "No signature field found in the template.",
                             ERROR,
@@ -405,7 +407,7 @@ public class LicenseEditor {
                 }
 
                 // Get the selected key alias
-                int signingKeyIndex = specialFieldIndices.get("signingKey");
+                int signingKeyIndex = specialFieldIndices.get(SIGNING_KEY);
                 JComboBox<?> keyComboBox = (JComboBox<?>) valueComponents[signingKeyIndex];
                 String keyAlias = (String) keyComboBox.getSelectedItem();
 
@@ -425,7 +427,7 @@ public class LicenseEditor {
                     if (i == signingKeyIndex) {
                         // Use the selected key alias
                         properties.put(fieldName, keyAlias);
-                    } else if (i != specialFieldIndices.get("signature")) {
+                    } else if (i != specialFieldIndices.get(SIGNATURE)) {
                         // Get the value from the text field, but skip the signature field
                         JTextField textField = (JTextField) valueComponents[i];
                         properties.put(fieldName, textField.getText());
@@ -458,7 +460,7 @@ public class LicenseEditor {
                 String signatureBase64 = Base64.getEncoder().encodeToString(signatureBytes);
 
                 // Add the signature to the properties
-                int signatureIndex = specialFieldIndices.get("signature");
+                int signatureIndex = specialFieldIndices.get(SIGNATURE);
                 String signatureFieldName = fields.get(signatureIndex).name();
                 properties.put(signatureFieldName, signatureBase64);
 

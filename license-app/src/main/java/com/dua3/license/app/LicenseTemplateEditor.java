@@ -19,10 +19,8 @@ import java.awt.datatransfer.UnsupportedFlavorException;
 import java.io.*;
 import java.nio.file.*;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Locale;
 import java.util.Properties;
 import java.util.Vector;
 import java.util.stream.Stream;
@@ -36,7 +34,7 @@ import java.util.stream.Stream;
  * A dialog for editing license templates.
  * This allows creating, editing, and saving license templates as DynamicEnum objects.
  */
-public class LicenseTemplateEditor extends JDialog {
+public final class LicenseTemplateEditor extends JDialog {
     private static final Logger LOG = LogManager.getLogger(LicenseTemplateEditor.class);
     private static final String ADD_AT_LEAST_ONE_PROPERTY = "Please add at least one property.";
     private static final String NO_VALID_PROPERTIES = "No Valid Properties";
@@ -213,7 +211,7 @@ public class LicenseTemplateEditor extends JDialog {
 
     /**
      * Saves the current template as a JSON file.
-     * 
+     *
      * @param templateName the name of the template
      */
     private void saveAsJson(String templateName) {
@@ -314,19 +312,6 @@ public class LicenseTemplateEditor extends JDialog {
         }
     }
 
-    // Store field descriptions for templates
-    private static final Map<String, Map<String, String>> templateDescriptions = new HashMap<>();
-
-    /**
-     * Gets the descriptions for a template.
-     *
-     * @param templateName the name of the template
-     * @return a map of field names to descriptions, or an empty map if the template is not found
-     */
-    public static Map<String, String> getTemplateDescriptions(String templateName) {
-        return templateDescriptions.getOrDefault(templateName, Collections.emptyMap());
-    }
-
     /**
      * Generates a Java enum named "LicenseFields" from the current template.
      * The enum uses the key as name and contains a String description() method that returns the description.
@@ -345,7 +330,7 @@ public class LicenseTemplateEditor extends JDialog {
         enumCode.append("public enum LicenseFields {\n");
 
         // Add enum constants
-        boolean hasValidFields = false;
+        boolean hasInvalidFields = true;
         List<String> validEnumEntries = new ArrayList<>();
 
         for (int i = 0; i < tableModel.getRowCount(); i++) {
@@ -353,9 +338,11 @@ public class LicenseTemplateEditor extends JDialog {
             String description = (String) tableModel.getValueAt(i, 1);
 
             if (key != null && !key.trim().isEmpty()) {
-                hasValidFields = true;
+                hasInvalidFields = false;
                 // Convert key to valid enum constant name (uppercase with underscores)
-                String enumName = key.toUpperCase().replace('-', '_').replace(' ', '_');
+                String enumName = key.toUpperCase(Locale.ROOT)
+                        .replace('-', '_')
+                        .replace(' ', '_');
 
                 // Create enum constant with description
                 String enumEntry = "    " + enumName + "(\"" +
@@ -373,7 +360,7 @@ public class LicenseTemplateEditor extends JDialog {
         }
 
         // If no valid fields were found, show an error message
-        if (!hasValidFields) {
+        if (hasInvalidFields) {
             JOptionPane.showMessageDialog(this,
                     ADD_AT_LEAST_ONE_PROPERTY,
                     NO_VALID_PROPERTIES,
@@ -431,7 +418,7 @@ public class LicenseTemplateEditor extends JDialog {
     /**
      * A TransferHandler that handles drag and drop operations for table rows.
      */
-    private static class TableRowTransferHandler extends TransferHandler {
+    private static final class TableRowTransferHandler extends TransferHandler {
         private final DataFlavor localObjectFlavor = new DataFlavor(Integer.class, "Integer Row Index");
         private final JTable table;
         private int[] rows = null;
@@ -501,7 +488,7 @@ public class LicenseTemplateEditor extends JDialog {
             addIndex = index;
 
             try {
-                Integer rowFrom = (Integer) info.getTransferable().getTransferData(localObjectFlavor);
+                int rowFrom = (Integer) info.getTransferable().getTransferData(localObjectFlavor);
                 if (rowFrom != -1 && rowFrom != index) {
                     // Get the data from the source row
                     DefaultTableModel model = (DefaultTableModel) table.getModel();
@@ -522,16 +509,18 @@ public class LicenseTemplateEditor extends JDialog {
 
                     return true;
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Unable to get transfer data", e);
+            } catch (UnsupportedFlavorException e) {
+                throw new IllegalStateException("Unsupported data", e);
             }
 
             return false;
         }
 
         @Override
-        protected void exportDone(JComponent c, Transferable t, int act) {
-            if (act == MOVE && addCount > 0) {
+        protected void exportDone(JComponent c, Transferable t, int action) {
+            if (action == MOVE && addCount > 0) {
                 // Select the newly added row(s)
                 table.setRowSelectionInterval(addIndex, addIndex + addCount - 1);
             }
