@@ -359,6 +359,7 @@ tasks.register("publishToStagingDirectory") {
     description = "Publish all subprojects' artifacts to root staging directory for JReleaser"
 
     dependsOn(subprojects.mapNotNull { it.tasks.findByName("publishToStagingDirectory") })
+    dependsOn("publishMavenJavaPublicationToStagingDirectoryRepository")
 }
 
 // Make jreleaserDeploy depend on the root-level publishToStagingDirectory task
