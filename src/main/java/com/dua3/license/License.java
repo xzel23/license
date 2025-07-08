@@ -7,6 +7,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.SignatureException;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.LinkedHashMap;
@@ -17,6 +18,12 @@ import java.util.function.Supplier;
 
 public final class License {
     private static final String SIGNATURE = "signature";
+
+    // required license fields
+    public static final String SIGNING_KEY_ALIAS_LICENSE_FIELD = "SIGNING_KEY_ALIAS";
+    public static final String SIGNATURE_LICENSE_FIELD = "SIGNATURE";
+    public static final String ISSUE_DATE_LICENSE_FIELD = "ISSUE_DATE";
+    public static final String EXPIRY_DATE_LICENSE_FIELD = "EXPIRY_DATE";
 
     private final Object keyClass;
     private final Map<Object, Object> data;
@@ -111,4 +118,29 @@ public final class License {
     public String getLicenseString() {
         return licenseString;
     }
+
+    private Object toKey(String name) {
+        return switch (keyClass) {
+            case DynamicEnum de -> de.valueOf(name);
+            case Class<?> cls when cls.isEnum() -> Enum.valueOf((Class<Enum>) cls, name);
+            default -> throw new IllegalArgumentException("invalid key");
+        };
+    }
+
+    public String getSigningKeyAlias() {
+        return (String) get(toKey(SIGNING_KEY_ALIAS_LICENSE_FIELD));
+    }
+
+    public String getSignature() {
+        return (String) get(toKey(SIGNATURE_LICENSE_FIELD));
+    }
+
+    public LocalDate getIssueDate() {
+        return (LocalDate) get(toKey(ISSUE_DATE_LICENSE_FIELD));
+    }
+
+    public LocalDate getExpiryDate() {
+        return (LocalDate) get(toKey(EXPIRY_DATE_LICENSE_FIELD));
+    }
+
 }

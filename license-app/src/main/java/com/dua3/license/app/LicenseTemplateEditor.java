@@ -1,6 +1,7 @@
 package com.dua3.license.app;
 
 import com.dua3.license.DynamicEnum;
+import com.dua3.license.app.LicenseEditor;
 import com.dua3.utility.data.Pair;
 import com.dua3.utility.swing.SwingUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,9 +20,11 @@ import java.awt.datatransfer.UnsupportedFlavorException;
 import java.io.*;
 import java.nio.file.*;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
+import java.util.Set;
 import java.util.Vector;
 import java.util.stream.Stream;
 
@@ -40,9 +43,18 @@ public final class LicenseTemplateEditor extends JDialog {
     private static final String NO_VALID_PROPERTIES = "No Valid Properties";
     private static final String NO_PROPERTIES = "No Properties";
 
+    // Required fields that cannot be edited or deleted
+    private static final List<String> REQUIRED_FIELDS = List.of(
+            "LICENSE_ISSUE_DATE",
+            "LICENSE_EXPIRY_DATE",
+            "SIGNING_KEY",
+            "SIGNATURE"
+    );
+
     private final JTextField templateNameField;
     private final JTable propertiesTable;
     private final DefaultTableModel tableModel;
+    private JButton removeButton;
 
     /**
      * Creates a new LicenseTemplateEditor dialog.
@@ -77,15 +89,35 @@ public final class LicenseTemplateEditor extends JDialog {
 
         // Create the properties table
         String[] columnNames = {"Property Name", "Property Value", "Default Value"};
-        tableModel = new DefaultTableModel(columnNames, 0);
+        tableModel = new DefaultTableModel(columnNames, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                // Check if this is a required field
+                if (row < getRowCount()) {
+                    String propertyName = (String) getValueAt(row, 0);
+                    if (REQUIRED_FIELDS.contains(propertyName)) {
+                        return false; // Required fields are not editable
+                    }
+                }
+                return true; // Other fields are editable
+            }
+        };
         propertiesTable = new JTable(tableModel);
         propertiesTable.setFillsViewportHeight(true);
         propertiesTable.setDragEnabled(true);
         propertiesTable.setDropMode(DropMode.INSERT_ROWS);
         propertiesTable.setTransferHandler(new TableRowTransferHandler(propertiesTable));
+        propertiesTable.getTableHeader().setReorderingAllowed(false);
 
         // Add a tooltip to indicate drag-and-drop functionality
         propertiesTable.setToolTipText("Drag and drop rows to reorder license fields");
+
+        // Add a selection listener to update the Remove button state
+        propertiesTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                updateRemoveButtonState();
+            }
+        });
 
         JScrollPane tableScrollPane = new JScrollPane(propertiesTable);
         mainPanel.add(tableScrollPane, BorderLayout.CENTER);
@@ -96,7 +128,7 @@ public final class LicenseTemplateEditor extends JDialog {
         JButton addButton = new JButton("Add Property");
         addButton.addActionListener(e -> addProperty());
 
-        JButton removeButton = new JButton("Remove Property");
+        removeButton = new JButton("Remove Property");
         removeButton.addActionListener(e -> removeProperty());
 
         JButton loadButton = new JButton("Load Template");
@@ -122,21 +154,109 @@ public final class LicenseTemplateEditor extends JDialog {
 
         // Add the main panel to the dialog
         add(mainPanel);
+
+        // Automatically add the required fields
+        addRequiredFields();
+
+        // Set initial state of the Remove button
+        updateRemoveButtonState();
+    }
+
+    /**
+     * Updates the enabled state of the Remove Property button based on the current selection.
+     * The button is disabled if a required field is selected.
+     */
+    private void updateRemoveButtonState() {
+        int selectedRow = propertiesTable.getSelectedRow();
+        if (selectedRow != -1) {
+            String propertyName = (String) tableModel.getValueAt(selectedRow, 0);
+            removeButton.setEnabled(!REQUIRED_FIELDS.contains(propertyName));
+        } else {
+            removeButton.setEnabled(false); // Disable if no row is selected
+        }
+    }
+
+    /**
+     * Adds the required license fields to the table if they don't already exist.
+     * These fields cannot be modified or deleted, but can be reordered.
+     */
+    private void addRequiredFields() {
+        // Check for existing fields
+        Set<String> existingFields = new HashSet<>();
+        for (int i = 0; i < tableModel.getRowCount(); i++) {
+            String fieldName = (String) tableModel.getValueAt(i, 0);
+            existingFields.add(fieldName);
+        }
+
+        // Add LICENSE_ISSUE_DATE field if it doesn't exist
+        if (!existingFields.contains("LICENSE_ISSUE_DATE")) {
+            tableModel.addRow(new Object[]{
+                "LICENSE_ISSUE_DATE", 
+                "Issue date of the license", 
+                LicenseEditor.$LICENSE_ISSUE_DATE
+            });
+        }
+
+        // Add LICENSE_EXPIRY_DATE field if it doesn't exist
+        if (!existingFields.contains("LICENSE_EXPIRY_DATE")) {
+            tableModel.addRow(new Object[]{
+                "LICENSE_EXPIRY_DATE", 
+                "Expiry date of the license", 
+                LicenseEditor.$LICENSE_EXPIRY_DATE
+            });
+        }
+
+        // Add SIGNING_KEY field if it doesn't exist
+        if (!existingFields.contains("SIGNING_KEY")) {
+            tableModel.addRow(new Object[]{
+                "SIGNING_KEY", 
+                "Key used to sign the license", 
+                LicenseEditor.$SIGNING_KEY
+            });
+        }
+
+        // Add SIGNATURE field if it doesn't exist
+        if (!existingFields.contains("SIGNATURE")) {
+            tableModel.addRow(new Object[]{
+                "SIGNATURE", 
+                "Digital signature of the license", 
+                LicenseEditor.$SIGNATURE
+            });
+        }
     }
 
     /**
      * Adds a new empty property to the table.
+     * Selects the new row and starts editing the first cell.
      */
     private void addProperty() {
         tableModel.addRow(new Object[]{"", "", ""});
+        int newRowIndex = tableModel.getRowCount() - 1;
+
+        // Select the newly added row
+        propertiesTable.setRowSelectionInterval(newRowIndex, newRowIndex);
+
+        // Start editing the first cell of the new row
+        propertiesTable.editCellAt(newRowIndex, 0);
+        propertiesTable.getEditorComponent().requestFocus();
     }
 
     /**
      * Removes the selected property from the table.
+     * Required fields cannot be removed.
      */
     private void removeProperty() {
         int selectedRow = propertiesTable.getSelectedRow();
         if (selectedRow != -1) {
+            // Check if this is a required field
+            String propertyName = (String) tableModel.getValueAt(selectedRow, 0);
+            if (REQUIRED_FIELDS.contains(propertyName)) {
+                JOptionPane.showMessageDialog(this,
+                        "The field '" + propertyName + "' is required and cannot be removed.",
+                        "Required Field",
+                        JOptionPane.WARNING_MESSAGE);
+                return;
+            }
             tableModel.removeRow(selectedRow);
         } else {
             JOptionPane.showMessageDialog(this,
@@ -173,6 +293,9 @@ public final class LicenseTemplateEditor extends JDialog {
             template.getFields().forEach(field ->
                     tableModel.addRow(new Object[]{field.name(), field.description(), field.defaultValue()})
             );
+
+            // Make sure required fields are present
+            addRequiredFields();
 
         } catch (IOException e) {
             LOG.error("Failed to load JSON template", e);

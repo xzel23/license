@@ -1,5 +1,6 @@
 package com.dua3.license.app;
 
+import com.dua3.license.License;
 import net.miginfocom.swing.MigLayout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -57,11 +58,6 @@ public class LicenseEditor {
     // preferences paths
     private static final String PREF_LICENSE_DIRECTORY = "licenseDirectory";
 
-    // required license fields
-    private static final String SIGNING_KEY_ALIAS_LICENSE_FIELD = "SIGNING_KEY_ALIAS";
-    private static final String SIGNATURE_LICENSE_FIELD = "SIGNATURE";
-    private static final String EXPIRY_LICENSE_FIELD = "EXPIRY_DATE";
-
     // placeholders for license field values
     private static final String SIGNING_KEY_PLACEHOLDER = "### SIGNING_KEY ###";
     private static final String SIGNATURE_PLACEHOLDER = "### SIGNATURE ###";
@@ -73,6 +69,12 @@ public class LicenseEditor {
     private static final String SIGNING_KEY = "signingKey";
     private static final String SIGNATURE = "signature";
     private static final String GROWX = "growx";
+
+    // placeholder for automatic fields
+    public static final String $LICENSE_ISSUE_DATE = "${license_issue_date}";
+    public static final String $LICENSE_EXPIRY_DATE = "${license_expiry_date}";
+    public static final String $SIGNING_KEY = "${signing_key}";
+    public static final String $SIGNATURE = "${signature}";
 
     // instance data
     private final LocalDate today = LocalDate.now();
@@ -551,10 +553,10 @@ public class LicenseEditor {
     private String getDefaultText(LicenseTemplate.LicenseField field) {
         String value = field.defaultValue();
         return switch (value) {
-            case "${license_issue_date}" -> today.toString();
-            case "${license_expiry_date}" -> today.plusYears(1).toString();
-            case "${signing_key}" -> SIGNING_KEY_PLACEHOLDER;
-            case "${signature}" -> SIGNATURE_PLACEHOLDER;
+            case $LICENSE_ISSUE_DATE -> today.toString();
+            case $LICENSE_EXPIRY_DATE -> today.plusYears(1).toString();
+            case $SIGNING_KEY -> SIGNING_KEY_PLACEHOLDER;
+            case $SIGNATURE -> SIGNATURE_PLACEHOLDER;
             default -> value;
         };
     }
@@ -756,8 +758,8 @@ public class LicenseEditor {
             boolean isValid = true;
 
             // Find the signature field (could be named differently in different templates)
-            String signingKeyAlias = Objects.requireNonNullElse(licenseData.get(SIGNING_KEY_ALIAS_LICENSE_FIELD), "").toString();
-            String signatureValue = Objects.requireNonNullElse(licenseData.get(SIGNATURE_LICENSE_FIELD), "").toString();
+            String signingKeyAlias = Objects.requireNonNullElse(licenseData.get(License.SIGNING_KEY_ALIAS_LICENSE_FIELD), "").toString();
+            String signatureValue = Objects.requireNonNullElse(licenseData.get(License.SIGNATURE_LICENSE_FIELD), "").toString();
 
             if (signatureValue.isBlank()) {
                 validationResults.append("❌ No valid signature found in the license file.\n");
@@ -776,7 +778,7 @@ public class LicenseEditor {
             if (isValid) {
                 // Create a copy of the license data without the signature for verification
                 Map<String, Object> dataToVerify = new LinkedHashMap<>(licenseData);
-                dataToVerify.remove(SIGNATURE_LICENSE_FIELD);
+                dataToVerify.remove(License.SIGNATURE_LICENSE_FIELD);
 
                 // Verify the signature
                 try {
@@ -815,7 +817,7 @@ public class LicenseEditor {
             }
 
             // Check for expiration date
-            String expiryDateStr = Objects.requireNonNullElse(licenseData.get(EXPIRY_LICENSE_FIELD), "").toString();
+            String expiryDateStr = Objects.requireNonNullElse(licenseData.get(License.EXPIRY_DATE_LICENSE_FIELD), "").toString();
             LocalDate expiryDate = null;
             try {
                 expiryDate = LocalDate.parse(expiryDateStr);
@@ -869,7 +871,7 @@ public class LicenseEditor {
 
             int i = 0;
             for (Map.Entry<String, Object> entry : licenseData.entrySet()) {
-                if (entry.getKey().equals(SIGNATURE_LICENSE_FIELD)) {
+                if (entry.getKey().equals(License.SIGNATURE_LICENSE_FIELD)) {
                     continue; // Skip the signature
                 }
 
@@ -989,10 +991,11 @@ public class LicenseEditor {
             });
         } catch (Exception e) {
             LOG.warn("Error loading key aliases", e);
-            JOptionPane.showMessageDialog(parentFrame, 
-                "Error loading key aliases: " + e.getMessage(),
+            JOptionPane.showMessageDialog(parentFrame,
+                    "Error loading key aliases: " + e.getMessage(),
                     ERROR,
-                JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.ERROR_MESSAGE
+            );
         }
     }
 }
