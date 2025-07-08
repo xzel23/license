@@ -33,6 +33,7 @@ import java.util.prefs.Preferences;
  */
 public class KeystoreManager {
     private static final Logger LOG = LogManager.getLogger(KeystoreManager.class);
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final String PREF_KEYSTORE_PATH = "keystorePath";
     private static final String ENCRYPTION_ALGORITHM = "AES";
     private static final String CIPHER_TRANSFORMATION = "AES/GCM/NoPadding";
@@ -311,7 +312,7 @@ public class KeystoreManager {
         try {
             // Generate a random symmetric key
             KeyGenerator keyGen = KeyGenerator.getInstance(ENCRYPTION_ALGORITHM);
-            keyGen.init(KEY_SIZE, new SecureRandom());
+            keyGen.init(KEY_SIZE, SECURE_RANDOM);
             SecretKey secretKey = keyGen.generateKey();
 
             // Convert password to bytes
@@ -323,7 +324,7 @@ public class KeystoreManager {
 
             // Generate random IV for GCM
             byte[] ivBytes = new byte[GCM_IV_LENGTH];
-            new SecureRandom().nextBytes(ivBytes);
+            SECURE_RANDOM.nextBytes(ivBytes);
 
             // Encrypt the password using GCM mode
             Cipher cipher = Cipher.getInstance(CIPHER_TRANSFORMATION);
