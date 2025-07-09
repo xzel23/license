@@ -14,9 +14,6 @@ import java.security.PublicKey;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.security.cert.Certificate;
-import java.security.interfaces.RSAPublicKey;
-import java.math.BigInteger;
-import java.security.AlgorithmParameters;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Arrays;
@@ -28,18 +25,46 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
+/**
+ * Represents a License with associated metadata and functionality for validation and processing.
+ * The License class provides mfunctionality load, validate, and manage license data, supporting
+ * cryptographic operations such as signing and signature verification.
+ */
 public final class License {
     private static final Logger LOG = LogManager.getLogger(License.class);
 
     private static final String SIGNATURE = "signature";
 
+    /**
+     * Represents the field name for the unique identifier of a license.
+     * This constant is used as a key to access the license ID within a license object
+     * or during license-related operations.
+     */
     // required license fields
     public static final String LICENSE_ID_LICENSE_FIELD = "LICENSE_ID";
+    /**
+     * A constant representing the field name for the signing key alias
+     * in the license system. This field is used to reference the alias
+     * of the signing key associated with the license.
+     */
     public static final String SIGNING_KEY_ALIAS_LICENSE_FIELD = "SIGNING_KEY_ALIAS";
+    /**
+     * A constant representing the field name for the digital signature in the license data.
+     * This field is used to reference the digital signature associated with the license.
+     */
     public static final String SIGNATURE_LICENSE_FIELD = "SIGNATURE";
+    /**
+     * Represents the field key used to store or retrieve the issue date of the license
+     * from a data structure or input.
+     * This constant is used to reference the license issue date in the license.
+     */
     public static final String ISSUE_DATE_LICENSE_FIELD = "ISSUE_DATE";
+    /**
+     * Represents the field name used to access the expiry date of a license.
+     * This constant is used to reference the expiry date
+     * in the license.
+     */
     public static final String EXPIRY_DATE_LICENSE_FIELD = "EXPIRY_DATE";
 
     private final Object keyClass;
@@ -48,20 +73,12 @@ public final class License {
 
     /**
      * Prepares the data for signing.
-     * 
+     *
      * @param data the license data
      * @return the data to be signed as a byte array
      */
     public static byte[] prepareSigningData(Map<?, ?> data) {
         return data.toString().getBytes(StandardCharsets.UTF_8);
-    }
-
-    public static License of(Class<? extends Enum<?>> keyClass, Map<String, Object> properties, Supplier<PublicKey> keySupplier) throws LicenseException {
-        return new License(keyClass.asSubclass(Enum.class), properties, keySupplier);
-    }
-
-    public static License of(DynamicEnum keyEnum, Map<String, Object> properties, Supplier<PublicKey> keySupplier) throws LicenseException {
-        return new License(keyEnum, properties, keySupplier);
     }
 
     /**
@@ -75,7 +92,7 @@ public final class License {
      */
     public static License load(
             Class<? extends Enum<?>> keyClass,
-            Supplier<PublicKey> keySupplier,
+            Function<String, PublicKey> keySupplier,
             InputStream in
     ) throws LicenseException {
         try {
@@ -106,7 +123,16 @@ public final class License {
         }
     }
 
-    private License(Object keyClass, Map<String, Object> properties, Supplier<PublicKey> keySupplier) throws LicenseException {
+    /**
+     * Constructs a new instance of the License class. This constructor verifies the signature of the license
+     * properties against the provided public key and initializes the license data.
+     *
+     * @param keyClass      the class defining the keys used in the license; this must be an enum class or a DynamicEnum
+     * @param properties    a map of license properties, including the signature and other license data
+     * @param keySupplier   a function that supplies the public key for verifying the license signature, based on its alias
+     * @throws LicenseException if the key class is invalid, the license signature is invalid, or any other error occurs during processing
+     */
+    private License(Object keyClass, Map<String, Object> properties, Function<String, PublicKey> keySupplier) throws LicenseException {
         try {
             Set<Object> keys;
             Function<Object, String> enumName;
@@ -133,7 +159,7 @@ public final class License {
 
             // Verify the signature
             Signature signature = Signature.getInstance("SHA256withRSA");
-            signature.initVerify(keySupplier.get());
+            signature.initVerify(keySupplier.apply(String.valueOf(properties.get(SIGNING_KEY_ALIAS_LICENSE_FIELD))));
 
             this.data = LinkedHashMap.newLinkedHashMap(keys.size());
             keys.forEach(key -> data.put(enumName.apply(key), properties.get(key.toString())));
@@ -164,6 +190,18 @@ public final class License {
         }
     }
 
+    /**
+     * Retrieves the value associated with the specified key from the license data.
+     * The behavior of this method depends on the type of the key and its compatibility
+     * with the predefined key class.
+     *
+     * @param key the key used to lookup the value; this must be compatible with the
+     *            key class (either a DynamicEnum or an Enum class)
+     * @return the value associated with the specified key, or null if no value is
+     *         associated with the key
+     * @throws IllegalArgumentException if the key is of an invalid type or not
+     *                                  compatible with the key class
+     */
     Object get(Object key) {
         return switch (keyClass) {
             case DynamicEnum de
@@ -178,6 +216,14 @@ public final class License {
         return licenseString;
     }
 
+    /**
+     * Converts a string representation of a key into an object representation based on the key class.
+     * The key class determines whether the key is an enumeration or a dynamic enumeration.
+     *
+     * @param name the string representation of the key to be converted
+     * @return the key as an object, which may be an Enum or DynamicEnum value
+     * @throws IllegalArgumentException if the key class is invalid or the key cannot be converted
+     */
     private Object toKey(String name) {
         return switch (keyClass) {
             case DynamicEnum de -> de.valueOf(name);
@@ -186,22 +232,48 @@ public final class License {
         };
     }
 
+    /**
+     * Retrieves the license ID stored in the license data.
+     *
+     * @return the license ID as a string, or null if the license ID is not set
+     */
     public String getLicenseId() {
         return (String) get(toKey(LICENSE_ID_LICENSE_FIELD));
     }
 
+    /**
+     * Retrieves the alias of the signing key used for the license.
+     *
+     * @return a string representing the alias of the signing key, or null if the alias is not set
+     */
     public String getSigningKeyAlias() {
         return (String) get(toKey(SIGNING_KEY_ALIAS_LICENSE_FIELD));
     }
 
+    /**
+     * Retrieves the signature information stored in the license data.
+     *
+     * @return the signature as a string, or null if no signature is associated
+     */
     public String getSignature() {
         return (String) get(toKey(SIGNATURE_LICENSE_FIELD));
     }
 
+    /**
+     * Retrieves the issue date of the license.
+     *
+     * @return the issue date as a {@code LocalDate}, or {@code null} if the issue
+     *         date is not defined in the license data
+     */
     public LocalDate getIssueDate() {
         return (LocalDate) get(toKey(ISSUE_DATE_LICENSE_FIELD));
     }
 
+    /**
+     * Retrieves the expiry date of the license.
+     *
+     * @return the expiry date as a {@code LocalDate}, or null if the expiry date is not set
+     */
     public LocalDate getExpiryDate() {
         return (LocalDate) get(toKey(EXPIRY_DATE_LICENSE_FIELD));
     }
