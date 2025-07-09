@@ -3,6 +3,7 @@ package com.dua3.license;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
+import java.security.KeyStore;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.security.Signature;
@@ -155,11 +156,12 @@ public final class License {
      * Validates a license from license data.
      *
      * @param licenseData the license data to validate
-     * @param getCertificateForKeyAlias function to get a certificate for a key alias
+     * @param keyStore the keystore containing the certificates
+     * @param keyStorePassword the password for the keystore
      * @param validationOutput appendable to write validation messages to
      * @return true if the license is valid, false otherwise
      */
-    public static boolean validate(Map<String, Object> licenseData, Function<String, Certificate> getCertificateForKeyAlias, Appendable validationOutput) {
+    public static boolean validate(Map<String, Object> licenseData, KeyStore keyStore, char[] keyStorePassword, Appendable validationOutput) {
         boolean isValid = true;
 
         try {
@@ -210,7 +212,7 @@ public final class License {
 
                 // Verify the signature
                 try {
-                    Certificate cert = getCertificateForKeyAlias.apply(signingKeyAlias);
+                    Certificate cert = keyStore.getCertificate(signingKeyAlias);
 
                     if (cert == null) {
                         validationOutput.append("❌ Certificate not found for key: ").append(signingKeyAlias).append("\n");
@@ -334,11 +336,12 @@ public final class License {
     /**
      * Validates the license data.
      *
-     * @param getCertificateForKeyAlias function to get a certificate for a key alias
+     * @param keyStore the keystore containing the certificates
+     * @param keyStorePassword the password for the keystore
      * @param validationOutput appendable to write validation messages to
      * @return true if the license is valid, false otherwise
      */
-    public boolean validate(Function<String, Certificate> getCertificateForKeyAlias, Appendable validationOutput) {
+    public boolean validate(KeyStore keyStore, char[] keyStorePassword, Appendable validationOutput) {
         Map<String, Object> licenseData = new LinkedHashMap<>();
 
         // Convert internal data to a map of strings
@@ -347,6 +350,6 @@ public final class License {
         }
 
         // Use the static validate method to validate the license data
-        return validate(licenseData, getCertificateForKeyAlias, validationOutput);
+        return validate(licenseData, keyStore, keyStorePassword, validationOutput);
     }
 }

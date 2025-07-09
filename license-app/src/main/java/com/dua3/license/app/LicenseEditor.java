@@ -754,19 +754,16 @@ public class LicenseEditor {
             // Validation results
             StringBuilder validationResults = new StringBuilder();
 
-            // Create a function to get certificates from the keystore
-            Function<String, Certificate> getCertificateForKeyAlias = alias -> {
-                try {
-                    KeyStore keyStore = keystoreManager.getKeyStore();
-                    return keyStore.getCertificate(alias);
-                } catch (Exception e) {
-                    LOG.warn("Error getting certificate for alias: {}", alias, e);
-                    return null;
-                }
-            };
-
             // Use the License.validate method to validate the license data
-            boolean isValid = License.validate(licenseData, getCertificateForKeyAlias, validationResults);
+            boolean isValid = false;
+            try {
+                KeyStore keyStore = keystoreManager.getKeyStore();
+                char[] password = keystoreManager.getPassword();
+                isValid = License.validate(licenseData, keyStore, password, validationResults);
+            } catch (GeneralSecurityException e) {
+                LOG.warn("Error validating license: {}", e.getMessage(), e);
+                validationResults.append("❌ Error validating license: ").append(e.getMessage()).append("\n");
+            }
 
             // Display the validation results
             String title = isValid ? "License is Valid" : "License Validation Failed";

@@ -44,6 +44,7 @@ public class KeyDetailsDialog {
     private final JFrame mainFrame;
     private final KeyStore keyStore;
     private final String alias;
+    private final Path keystorePath;
 
     /**
      * Creates a new KeyDetailsDialog.
@@ -51,11 +52,13 @@ public class KeyDetailsDialog {
      * @param mainFrame the parent frame
      * @param keyStore the keystore containing the key
      * @param alias the alias of the key to display
+     * @param keystorePath the path to the keystore file
      */
-    public KeyDetailsDialog(JFrame mainFrame, KeyStore keyStore, String alias) {
+    public KeyDetailsDialog(JFrame mainFrame, KeyStore keyStore, String alias, Path keystorePath) {
         this.mainFrame = mainFrame;
         this.keyStore = keyStore;
         this.alias = alias;
+        this.keystorePath = keystorePath;
     }
 
     /**
@@ -330,8 +333,8 @@ public class KeyDetailsDialog {
             return;
         }
 
-        // Create a file chooser
-        JFileChooser fileChooser = new JFileChooser();
+        // Create a file chooser with the current keystore directory as the initial directory
+        JFileChooser fileChooser = new JFileChooser(keystorePath.getParent().toFile());
         fileChooser.setDialogTitle("Export Certificate");
 
         // Set default file name
@@ -413,10 +416,10 @@ public class KeyDetailsDialog {
             return;
         }
 
-        // Show a file save dialog
+        // Show a file save dialog with the current keystore directory as the initial directory
         Optional<Path> selectedPath = SwingUtil.showFileSaveDialog(
                 mainFrame, 
-                Paths.get(System.getProperty("user.home")), 
+                keystorePath.getParent(), 
                 Pair.of("Java Keystore File", new String[]{"jks"})
         );
 

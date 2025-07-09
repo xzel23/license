@@ -216,7 +216,7 @@ public class LicenseManager {
                     int row = keysTable.rowAtPoint(e.getPoint());
                     if (row >= 0) {
                         String alias = (String) keysTable.getValueAt(row, 0);
-                        new KeyDetailsDialog(mainFrame, keystoreManager.getKeyStore(), alias).showDialog();
+                        new KeyDetailsDialog(mainFrame, keystoreManager.getKeyStore(), alias, keystoreManager.getKeystorePath()).showDialog();
                     }
                 }
             }
@@ -604,10 +604,11 @@ public class LicenseManager {
             return;
         }
 
-        // Show a file save dialog
+        // Show a file save dialog with the current keystore directory as the initial directory
+        Path initialDir = keystoreManager.getKeystorePath().getParent();
         Optional<Path> selectedPath = SwingUtil.showFileSaveDialog(
                 mainFrame, 
-                Paths.get(System.getProperty("user.home")), 
+                initialDir, 
                 Pair.of("Java Keystore File", new String[]{"jks"})
         );
 
