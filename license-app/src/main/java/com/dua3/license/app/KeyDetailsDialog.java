@@ -13,11 +13,19 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509Certificate;
 import java.util.Base64;
+import javax.swing.JFileChooser;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 /**
  * Dialog for displaying key details including certificate information and public/private keys.
@@ -30,7 +38,7 @@ public class KeyDetailsDialog {
     private final JFrame mainFrame;
     private final KeyStore keyStore;
     private final String alias;
-    
+
     /**
      * Creates a new KeyDetailsDialog.
      *
@@ -43,7 +51,7 @@ public class KeyDetailsDialog {
         this.keyStore = keyStore;
         this.alias = alias;
     }
-    
+
     /**
      * Shows the key details dialog.
      */
@@ -154,7 +162,18 @@ public class KeyDetailsDialog {
                 JOptionPane.showMessageDialog(mainFrame, "Public key copied to clipboard.", "Success", JOptionPane.INFORMATION_MESSAGE);
             });
 
+            JButton exportCertButton = new JButton("Export Certificate");
+            exportCertButton.addActionListener(e -> {
+                try {
+                    exportCertificate();
+                } catch (Exception ex) {
+                    LOG.warn("Error exporting certificate for alias: {}", alias, ex);
+                    JOptionPane.showMessageDialog(mainFrame, "Error exporting certificate: " + ex.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
+                }
+            });
+
             JPanel publicKeyButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+            publicKeyButtonPanel.add(exportCertButton);
             publicKeyButtonPanel.add(copyPublicKeyButton);
             publicKeyPanel.add(publicKeyButtonPanel, BorderLayout.SOUTH);
 
@@ -210,7 +229,7 @@ public class KeyDetailsDialog {
             JOptionPane.showMessageDialog(mainFrame, "Error retrieving key details: " + e.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
         }
     }
-    
+
     /**
      * Shows the private key for the given alias after password verification.
      *
@@ -265,5 +284,93 @@ public class KeyDetailsDialog {
             // Clear the password from memory
             java.util.Arrays.fill(enteredPassword, '\0');
         }
+    }
+
+    /**
+     * Exports the certificate for the current key alias to a file.
+     * 
+     * @throws GeneralSecurityException if there is an error accessing the certificate
+     * @throws IOException if there is an error writing the certificate to a file
+     */
+    private void exportCertificate() throws GeneralSecurityException, IOException {
+        LOG.debug("Exporting certificate for alias: {}", alias);
+        if (keyStore == null) {
+            LOG.warn("Attempted to export certificate but no keystore is loaded");
+            JOptionPane.showMessageDialog(mainFrame, "No keystore loaded.", ERROR, JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        // Get the certificate from the keystore
+        Certificate cert = keyStore.getCertificate(alias);
+        if (cert == null) {
+            JOptionPane.showMessageDialog(mainFrame, "No certificate found for alias: " + alias, ERROR, JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        // Check if it's an X509Certificate
+        if (!(cert instanceof X509Certificate)) {
+            JOptionPane.showMessageDialog(mainFrame, "The certificate is not an X509 certificate.", ERROR, JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        // Create a file chooser
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Export Certificate");
+
+        // Set default file name
+        fileChooser.setSelectedFile(new java.io.File(alias + ".cer"));
+
+        // Add file filters
+        FileNameExtensionFilter derFilter = new FileNameExtensionFilter("DER Certificate (*.der)", "der");
+        FileNameExtensionFilter pemFilter = new FileNameExtensionFilter("PEM Certificate (*.pem, *.crt, *.cer)", "pem", "crt", "cer");
+        fileChooser.addChoosableFileFilter(derFilter);
+        fileChooser.addChoosableFileFilter(pemFilter);
+        fileChooser.setFileFilter(pemFilter); // Default to PEM format
+
+        // Show save dialog
+        int result = fileChooser.showSaveDialog(mainFrame);
+        if (result != JFileChooser.APPROVE_OPTION) {
+            return; // User cancelled
+        }
+
+        // Get selected file
+        Path filePath = fileChooser.getSelectedFile().toPath();
+
+        // Determine format based on selected filter or file extension
+        boolean usePemFormat = true; // Default to PEM
+        if (fileChooser.getFileFilter() == derFilter) {
+            usePemFormat = false;
+        } else if (!filePath.toString().toLowerCase().endsWith(".pem") && 
+                   !filePath.toString().toLowerCase().endsWith(".crt") && 
+                   !filePath.toString().toLowerCase().endsWith(".cer")) {
+            // If PEM filter is selected but file doesn't have PEM extension, add .pem
+            filePath = Path.of(filePath.toString() + ".pem");
+        }
+
+        // Export the certificate
+        try (FileOutputStream fos = new FileOutputStream(filePath.toFile())) {
+            if (usePemFormat) {
+                // PEM format (Base64 encoded with header and footer)
+                byte[] certBytes = cert.getEncoded();
+                String encoded = Base64.getEncoder().encodeToString(certBytes);
+
+                // Split the Base64 string into lines of 64 characters
+                StringBuilder pemBuilder = new StringBuilder();
+                pemBuilder.append("-----BEGIN CERTIFICATE-----\n");
+                for (int i = 0; i < encoded.length(); i += 64) {
+                    pemBuilder.append(encoded, i, Math.min(i + 64, encoded.length())).append('\n');
+                }
+                pemBuilder.append("-----END CERTIFICATE-----\n");
+
+                fos.write(pemBuilder.toString().getBytes());
+            } else {
+                // DER format (binary)
+                fos.write(cert.getEncoded());
+            }
+        }
+
+        JOptionPane.showMessageDialog(mainFrame, 
+                "Certificate exported successfully to:\n" + filePath, 
+                "Export Successful", JOptionPane.INFORMATION_MESSAGE);
     }
 }

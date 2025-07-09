@@ -2,6 +2,7 @@ package com.dua3.license.app;
 
 import com.dua3.utility.crypt.AsymmetricAlgorithm;
 import com.dua3.utility.crypt.KeyStoreUtil;
+import com.dua3.utility.data.Pair;
 import com.dua3.utility.io.IoUtil;
 import com.dua3.utility.swing.SwingUtil;
 import net.miginfocom.swing.MigLayout;
@@ -15,6 +16,7 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPasswordField;
 import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextField;
@@ -32,8 +34,10 @@ import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.PublicKey;
 import java.security.Security;
+import java.security.cert.Certificate;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.Optional;
 
 /**
  * The LicenseManager class is responsible for managing software licenses
@@ -398,9 +402,34 @@ public class LicenseManager {
             }
         });
 
+        JButton exportKeystoreButton = new JButton("Export public keys and certificates to new Keystore");
+        exportKeystoreButton.addActionListener(e -> {
+            KeyStore keyStore = keystoreManager.getKeyStore();
+            if (keyStore == null) {
+                JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", ERROR, JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            int row = keysTable.getSelectedRow();
+            if (row < 0) {
+                JOptionPane.showMessageDialog(mainFrame, "Please select a key to export.", ERROR, JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            String alias = (String) keysTable.getValueAt(row, 0);
+
+            try {
+                exportKeystore(alias);
+            } catch (Exception ex) {
+                LOG.warn("Error exporting keystore", ex);
+                JOptionPane.showMessageDialog(mainFrame, "Error exporting keystore: " + ex.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         buttonPanel.add(addKeyButton);
         buttonPanel.add(deleteKeyButton);
+        buttonPanel.add(exportKeystoreButton);
         buttonPanel.add(refreshButton);
         keysPanel.add(buttonPanel, BorderLayout.SOUTH);
 
@@ -424,7 +453,8 @@ public class LicenseManager {
         try {
             keyStore.aliases().asIterator().forEachRemaining(alias -> {
                 try {
-                    if (keyStore.isKeyEntry(alias)) {
+                    // Process both key entries and certificate entries
+                    if (keyStore.isKeyEntry(alias) || keyStore.isCertificateEntry(alias)) {
                         // Get certificate information
                         java.security.cert.Certificate cert = keyStore.getCertificate(alias);
                         String algorithm = "N/A";
@@ -495,7 +525,8 @@ public class LicenseManager {
         try {
             keyStore.aliases().asIterator().forEachRemaining(alias -> {
                 try {
-                    if (keyStore.isKeyEntry(alias)) {
+                    // Include both key entries and certificate entries
+                    if (keyStore.isKeyEntry(alias) || keyStore.isCertificateEntry(alias)) {
                         licenseKeyAliasComboBox.addItem(alias);
                     }
                 } catch (Exception e) {
@@ -551,6 +582,95 @@ public class LicenseManager {
         backupKeystoreFile(keystorePath);
         KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, keystoreManager.getPassword());
         updateKeyAliasComboBox();
+    }
+
+    /**
+     * Exports only the public key and certificate to a new keystore instance.
+     *
+     * @param alias the alias of the key to export
+     * @throws GeneralSecurityException if there is an error accessing the keystore
+     * @throws IOException if there is an error saving the keystore
+     */
+    private void exportKeystore(String alias) throws GeneralSecurityException, IOException {
+        KeyStore sourceKeyStore = keystoreManager.getKeyStore();
+        if (sourceKeyStore == null) {
+            throw new IllegalStateException("No keystore loaded");
+        }
+
+        // Get the certificate from the keystore
+        Certificate cert = sourceKeyStore.getCertificate(alias);
+        if (cert == null) {
+            JOptionPane.showMessageDialog(mainFrame, "No certificate found for alias: " + alias, ERROR, JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        // Show a file save dialog
+        Optional<Path> selectedPath = SwingUtil.showFileSaveDialog(
+                mainFrame, 
+                Paths.get(System.getProperty("user.home")), 
+                Pair.of("Java Keystore File", new String[]{"jks"})
+        );
+
+        // Check if a path was selected
+        if (selectedPath.isEmpty()) {
+            return;
+        }
+
+        Path path = selectedPath.get();
+
+        // Show password dialog
+        JPanel passwordPanel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[][]"));
+        passwordPanel.add(new JLabel("New Keystore Password:"));
+        JPasswordField passwordField = new JPasswordField(20);
+        passwordPanel.add(passwordField, "growx, wrap");
+
+        passwordPanel.add(new JLabel("Confirm Password:"));
+        JPasswordField confirmPasswordField = new JPasswordField(20);
+        passwordPanel.add(confirmPasswordField, "growx");
+
+        int result = JOptionPane.showConfirmDialog(
+                mainFrame,
+                passwordPanel,
+                "Create Keystore Password",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.PLAIN_MESSAGE
+        );
+
+        if (result != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        // Verify passwords match
+        char[] password = passwordField.getPassword();
+        char[] confirmPassword = confirmPasswordField.getPassword();
+
+        if (!java.util.Arrays.equals(password, confirmPassword)) {
+            JOptionPane.showMessageDialog(mainFrame,
+                    "Passwords do not match. Please try again.",
+                    "Password Mismatch",
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        try {
+            // Create a new KeyStore instance
+            KeyStore newKeyStore = KeyStore.getInstance("PKCS12");
+            newKeyStore.load(null, password);
+
+            // Add the certificate to the new keystore
+            newKeyStore.setCertificateEntry(alias, cert);
+
+            // Save the new keystore
+            KeyStoreUtil.saveKeyStoreToFile(newKeyStore, path, password);
+
+            JOptionPane.showMessageDialog(mainFrame, 
+                    "Public key and certificate exported successfully to:\n" + path, 
+                    "Export Successful", JOptionPane.INFORMATION_MESSAGE);
+        } finally {
+            // Clear passwords from memory
+            java.util.Arrays.fill(password, '\0');
+            java.util.Arrays.fill(confirmPassword, '\0');
+        }
     }
 
     /**
