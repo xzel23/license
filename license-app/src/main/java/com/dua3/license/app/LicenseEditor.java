@@ -816,6 +816,32 @@ public class LicenseEditor {
                 }
             }
 
+            // Check for issue date
+            String issueDateStr = Objects.requireNonNullElse(licenseData.get(License.ISSUE_DATE_LICENSE_FIELD), "").toString();
+            LocalDate issueDate = null;
+            try {
+                issueDate = LocalDate.parse(issueDateStr);
+            } catch (DateTimeParseException e) {
+                LOG.warn("Error parsing issue date: {}", issueDateStr, e);
+            }
+
+            if (issueDateStr.isBlank()) {
+                validationResults.append("❌ No issue date field in the license file.\n");
+                isValid = false;
+            } else if (issueDate == null) {
+                validationResults.append("❌ Invalid issue date.\n");
+                isValid = false;
+            } else {
+                validationResults.append("✓ Issue date found.\n");
+            }
+
+            if (issueDate != null && today.isBefore(issueDate)) {
+                validationResults.append("❌ License issue date is in the future: ").append(issueDateStr).append("\n");
+                isValid = false;
+            } else if (issueDate != null) {
+                validationResults.append("✓ License issue date is valid: ").append(issueDateStr).append("\n");
+            }
+
             // Check for expiration date
             String expiryDateStr = Objects.requireNonNullElse(licenseData.get(License.EXPIRY_DATE_LICENSE_FIELD), "").toString();
             LocalDate expiryDate = null;
@@ -825,7 +851,7 @@ public class LicenseEditor {
                 LOG.warn("Error parsing expiry date: {}", expiryDateStr, e);
             }
 
-            if (signatureValue.isBlank()) {
+            if (expiryDateStr.isBlank()) {
                 validationResults.append("❌ No expiry field in the license file.\n");
                 isValid = false;
             } else if (expiryDate == null) {
@@ -835,10 +861,10 @@ public class LicenseEditor {
                 validationResults.append("✓ Expiry date found.\n");
             }
 
-            if (today.isAfter(expiryDate)) {
+            if (expiryDate != null && today.isAfter(expiryDate)) {
                 validationResults.append("❌ License has expired on ").append(expiryDateStr).append("\n");
                 isValid = false;
-            } else {
+            } else if (expiryDate != null) {
                 validationResults.append("✓ License is valid until ").append(expiryDateStr).append("\n");
             }
 

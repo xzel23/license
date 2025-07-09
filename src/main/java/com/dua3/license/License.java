@@ -20,6 +20,7 @@ public final class License {
     private static final String SIGNATURE = "signature";
 
     // required license fields
+    public static final String LICENSE_ID_LICENSE_FIELD = "LICENSE_ID";
     public static final String SIGNING_KEY_ALIAS_LICENSE_FIELD = "SIGNING_KEY_ALIAS";
     public static final String SIGNATURE_LICENSE_FIELD = "SIGNATURE";
     public static final String ISSUE_DATE_LICENSE_FIELD = "ISSUE_DATE";
@@ -125,6 +126,10 @@ public final class License {
             case Class<?> cls when cls.isEnum() -> Enum.valueOf((Class<Enum>) cls, name);
             default -> throw new IllegalArgumentException("invalid key");
         };
+    }
+
+    public String getLicenseId() {
+        return (String) get(toKey(LICENSE_ID_LICENSE_FIELD));
     }
 
     public String getSigningKeyAlias() {
