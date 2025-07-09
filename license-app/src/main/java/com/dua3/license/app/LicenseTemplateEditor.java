@@ -51,6 +51,11 @@ public final class LicenseTemplateEditor extends JDialog {
             "SIGNATURE"
     );
 
+    // Required fields that cannot be deleted but can be edited
+    private static final List<String> REQUIRED_EDITABLE_FIELDS = List.of(
+            "LICENSE_ID"
+    );
+
     private final JTextField templateNameField;
     private final JTable propertiesTable;
     private final DefaultTableModel tableModel;
@@ -97,6 +102,10 @@ public final class LicenseTemplateEditor extends JDialog {
                     String propertyName = (String) getValueAt(row, 0);
                     if (REQUIRED_FIELDS.contains(propertyName)) {
                         return false; // Required fields are not editable
+                    }
+                    // REQUIRED_EDITABLE_FIELDS can be edited
+                    if (REQUIRED_EDITABLE_FIELDS.contains(propertyName)) {
+                        return true; // Required but editable fields
                     }
                 }
                 return true; // Other fields are editable
@@ -170,7 +179,7 @@ public final class LicenseTemplateEditor extends JDialog {
         int selectedRow = propertiesTable.getSelectedRow();
         if (selectedRow != -1) {
             String propertyName = (String) tableModel.getValueAt(selectedRow, 0);
-            removeButton.setEnabled(!REQUIRED_FIELDS.contains(propertyName));
+            removeButton.setEnabled(!REQUIRED_FIELDS.contains(propertyName) && !REQUIRED_EDITABLE_FIELDS.contains(propertyName));
         } else {
             removeButton.setEnabled(false); // Disable if no row is selected
         }
@@ -179,6 +188,7 @@ public final class LicenseTemplateEditor extends JDialog {
     /**
      * Adds the required license fields to the table if they don't already exist.
      * These fields cannot be modified or deleted, but can be reordered.
+     * Additionally, adds fields that cannot be deleted but can be modified.
      */
     private void addRequiredFields() {
         // Check for existing fields
@@ -186,6 +196,15 @@ public final class LicenseTemplateEditor extends JDialog {
         for (int i = 0; i < tableModel.getRowCount(); i++) {
             String fieldName = (String) tableModel.getValueAt(i, 0);
             existingFields.add(fieldName);
+        }
+
+        // Add LICENSE_ID field if it doesn't exist (can be edited but not deleted)
+        if (!existingFields.contains("LICENSE_ID")) {
+            tableModel.addRow(new Object[]{
+                "LICENSE_ID", 
+                "Unique identifier for the license", 
+                ""
+            });
         }
 
         // Add LICENSE_ISSUE_DATE field if it doesn't exist
@@ -250,7 +269,7 @@ public final class LicenseTemplateEditor extends JDialog {
         if (selectedRow != -1) {
             // Check if this is a required field
             String propertyName = (String) tableModel.getValueAt(selectedRow, 0);
-            if (REQUIRED_FIELDS.contains(propertyName)) {
+            if (REQUIRED_FIELDS.contains(propertyName) || REQUIRED_EDITABLE_FIELDS.contains(propertyName)) {
                 JOptionPane.showMessageDialog(this,
                         "The field '" + propertyName + "' is required and cannot be removed.",
                         "Required Field",
