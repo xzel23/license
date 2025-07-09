@@ -1,5 +1,10 @@
 package com.dua3.license;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
@@ -9,18 +14,25 @@ import java.security.PublicKey;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.security.cert.Certificate;
+import java.security.interfaces.RSAPublicKey;
+import java.math.BigInteger;
+import java.security.AlgorithmParameters;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Properties;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class License {
+    private static final Logger LOG = LogManager.getLogger(License.class);
+
     private static final String SIGNATURE = "signature";
 
     // required license fields
@@ -50,6 +62,47 @@ public final class License {
 
     public static License of(DynamicEnum keyEnum, Map<String, Object> properties, Supplier<PublicKey> keySupplier) throws LicenseException {
         return new License(keyEnum, properties, keySupplier);
+    }
+
+    /**
+     * Loads a license from an input stream.
+     *
+     * @param keyClass the enum class defining the license keys
+     * @param in the input stream containing the license data
+     * @return the license
+     * @throws LicenseException if the license is invalid or cannot be loaded
+     */
+    public static License load(
+            Class<? extends Enum<?>> keyClass,
+            Supplier<PublicKey> keySupplier,
+            InputStream in
+    ) throws LicenseException {
+        try {
+            // Load properties from the input stream
+            Properties props = new Properties();
+            props.load(in);
+
+            // Convert properties to a map of string to object
+            Map<String, Object> properties = new HashMap<>();
+            for (String key : props.stringPropertyNames()) {
+                String value = props.getProperty(key);
+
+                // Try to parse dates
+                if (key.equals(EXPIRY_DATE_LICENSE_FIELD) || key.equals(ISSUE_DATE_LICENSE_FIELD)) {
+                    try {
+                        properties.put(key, LocalDate.parse(value));
+                    } catch (DateTimeParseException e) {
+                        throw new LicenseException("invalid value for field '" + key + "'", e);
+                    }
+                } else {
+                    properties.put(key, value);
+                }
+            }
+
+            return new License(keyClass.asSubclass(Enum.class), properties, keySupplier);
+        } catch (IOException e) {
+            throw new LicenseException("Failed to load license from input stream", e.toString());
+        }
     }
 
     private License(Object keyClass, Map<String, Object> properties, Supplier<PublicKey> keySupplier) throws LicenseException {
@@ -167,11 +220,11 @@ public final class License {
         try {
             // Check that all required fields are present in the license
             String[] requiredFields = {
-                LICENSE_ID_LICENSE_FIELD,
-                SIGNING_KEY_ALIAS_LICENSE_FIELD,
-                SIGNATURE_LICENSE_FIELD,
-                ISSUE_DATE_LICENSE_FIELD,
-                EXPIRY_DATE_LICENSE_FIELD
+                    LICENSE_ID_LICENSE_FIELD,
+                    SIGNING_KEY_ALIAS_LICENSE_FIELD,
+                    SIGNATURE_LICENSE_FIELD,
+                    ISSUE_DATE_LICENSE_FIELD,
+                    EXPIRY_DATE_LICENSE_FIELD
             };
 
             boolean allRequiredFieldsPresent = true;
@@ -321,12 +374,8 @@ public final class License {
                     validationOutput.append("✓ License ID is valid.\n");
                 }
             }
-        } catch (Exception e) {
-            try {
-                validationOutput.append("❌ Error during validation: ").append(e.getMessage()).append("\n");
-            } catch (Exception appendError) {
-                // Ignore errors when appending to the output
-            }
+        } catch (IOException e) {
+            LOG.warn("Error during license validation: {}", e.getMessage(), e);
             isValid = false;
         }
 

@@ -15,6 +15,7 @@ import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
@@ -27,6 +28,7 @@ import java.util.Base64;
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.nio.file.Paths;
+import java.util.Objects;
 import java.util.Optional;
 import com.dua3.utility.crypt.KeyStoreUtil;
 import com.dua3.utility.data.Pair;
@@ -334,7 +336,7 @@ public class KeyDetailsDialog {
         }
 
         // Create a file chooser with the current keystore directory as the initial directory
-        JFileChooser fileChooser = new JFileChooser(keystorePath.getParent().toFile());
+        JFileChooser fileChooser = new JFileChooser(Objects.requireNonNullElse(keystorePath.getParent(), Paths.get(".")).toString());
         fileChooser.setDialogTitle("Export Certificate");
 
         // Set default file name
@@ -382,7 +384,7 @@ public class KeyDetailsDialog {
                 }
                 pemBuilder.append("-----END CERTIFICATE-----\n");
 
-                fos.write(pemBuilder.toString().getBytes());
+                fos.write(pemBuilder.toString().getBytes(StandardCharsets.UTF_8));
             } else {
                 // DER format (binary)
                 fos.write(cert.getEncoded());

@@ -11,6 +11,12 @@ public class LicenseException extends Exception {
         super(message);
         this.detail = null;
     }
+
+    public LicenseException(@Nullable String message, @Nullable Throwable cause) {
+        super(message, cause);
+        this.detail = null;
+    }
+
     public LicenseException(@Nullable String message, @Nullable String detail) {
         super(message);
         this.detail = detail;
