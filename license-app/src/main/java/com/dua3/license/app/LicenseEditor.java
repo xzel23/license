@@ -757,6 +757,28 @@ public class LicenseEditor {
             StringBuilder validationResults = new StringBuilder();
             boolean isValid = true;
 
+            // Check that all required fields are present in the license
+            String[] requiredFields = {
+                License.LICENSE_ID_LICENSE_FIELD,
+                License.SIGNING_KEY_ALIAS_LICENSE_FIELD,
+                License.SIGNATURE_LICENSE_FIELD,
+                License.ISSUE_DATE_LICENSE_FIELD,
+                License.EXPIRY_DATE_LICENSE_FIELD
+            };
+
+            boolean allRequiredFieldsPresent = true;
+            for (String field : requiredFields) {
+                if (!licenseData.containsKey(field)) {
+                    validationResults.append("❌ Required field missing: ").append(field).append("\n");
+                    isValid = false;
+                    allRequiredFieldsPresent = false;
+                }
+            }
+
+            if (allRequiredFieldsPresent) {
+                validationResults.append("✓ All required fields are present in the license.\n");
+            }
+
             // Find the signature field (could be named differently in different templates)
             String signingKeyAlias = Objects.requireNonNullElse(licenseData.get(License.SIGNING_KEY_ALIAS_LICENSE_FIELD), "").toString();
             String signatureValue = Objects.requireNonNullElse(licenseData.get(License.SIGNATURE_LICENSE_FIELD), "").toString();
@@ -866,6 +888,30 @@ public class LicenseEditor {
                 isValid = false;
             } else if (expiryDate != null) {
                 validationResults.append("✓ License is valid until ").append(expiryDateStr).append("\n");
+            }
+
+            // Check for license ID
+            String licenseId = Objects.requireNonNullElse(licenseData.get(License.LICENSE_ID_LICENSE_FIELD), "").toString();
+
+            if (licenseId.isBlank()) {
+                validationResults.append("❌ No license ID field in the license file or it is empty.\n");
+                isValid = false;
+            } else {
+                // Check if the license ID is trimmed
+                if (!licenseId.equals(licenseId.trim())) {
+                    validationResults.append("❌ License ID contains leading or trailing whitespace.\n");
+                    isValid = false;
+                }
+
+                // Check if the license ID contains only ASCII characters
+                if (!licenseId.matches("\\A\\p{ASCII}*\\z")) {
+                    validationResults.append("❌ License ID contains non-ASCII characters.\n");
+                    isValid = false;
+                }
+
+                if (licenseId.equals(licenseId.trim()) && licenseId.matches("\\A\\p{ASCII}*\\z")) {
+                    validationResults.append("✓ License ID is valid.\n");
+                }
             }
 
             // Display the validation results
