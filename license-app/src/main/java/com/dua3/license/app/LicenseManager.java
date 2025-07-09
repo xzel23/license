@@ -2,6 +2,7 @@ package com.dua3.license.app;
 
 import com.dua3.utility.crypt.AsymmetricAlgorithm;
 import com.dua3.utility.crypt.KeyStoreUtil;
+import com.dua3.utility.io.IoUtil;
 import com.dua3.utility.swing.SwingUtil;
 import net.miginfocom.swing.MigLayout;
 import org.apache.logging.log4j.LogManager;
@@ -99,10 +100,16 @@ public class LicenseManager {
     /**
      * Retrieves the path to the templates directory.
      *
-     * @return the path to the directory named "templates"
+     * @return the path to the directory named "templates" in the application data directory
      */
     public static Path getTemplatesDirectory() {
-        return Paths.get("templates");
+        try {
+            return IoUtil.ensureApplicationDataDir(LicenseManager.class.getName()).resolve("templates");
+        } catch (IOException e) {
+            LOG.error("Failed to create application data directory", e);
+            // Fall back to local templates directory
+            return Paths.get("templates");
+        }
     }
 
     /**
