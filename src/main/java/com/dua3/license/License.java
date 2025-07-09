@@ -7,11 +7,14 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.SignatureException;
+import java.security.cert.Certificate;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -148,4 +151,202 @@ public final class License {
         return (LocalDate) get(toKey(EXPIRY_DATE_LICENSE_FIELD));
     }
 
+    /**
+     * Validates a license from license data.
+     *
+     * @param licenseData the license data to validate
+     * @param getCertificateForKeyAlias function to get a certificate for a key alias
+     * @param validationOutput appendable to write validation messages to
+     * @return true if the license is valid, false otherwise
+     */
+    public static boolean validate(Map<String, Object> licenseData, Function<String, Certificate> getCertificateForKeyAlias, Appendable validationOutput) {
+        boolean isValid = true;
+
+        try {
+            // Check that all required fields are present in the license
+            String[] requiredFields = {
+                LICENSE_ID_LICENSE_FIELD,
+                SIGNING_KEY_ALIAS_LICENSE_FIELD,
+                SIGNATURE_LICENSE_FIELD,
+                ISSUE_DATE_LICENSE_FIELD,
+                EXPIRY_DATE_LICENSE_FIELD
+            };
+
+            boolean allRequiredFieldsPresent = true;
+            for (String field : requiredFields) {
+                if (!licenseData.containsKey(field)) {
+                    validationOutput.append("❌ Required field missing: ").append(field).append("\n");
+                    isValid = false;
+                    allRequiredFieldsPresent = false;
+                }
+            }
+
+            if (allRequiredFieldsPresent) {
+                validationOutput.append("✓ All required fields are present in the license.\n");
+            }
+
+            // Find the signature field
+            String signingKeyAlias = Objects.requireNonNullElse(licenseData.get(SIGNING_KEY_ALIAS_LICENSE_FIELD), "").toString();
+            String signatureValue = Objects.requireNonNullElse(licenseData.get(SIGNATURE_LICENSE_FIELD), "").toString();
+
+            if (signatureValue.isBlank()) {
+                validationOutput.append("❌ No valid signature found in the license file.\n");
+                isValid = false;
+            } else {
+                validationOutput.append("✓ Signature found.\n");
+            }
+
+            if (signingKeyAlias.isBlank()) {
+                validationOutput.append("❌ No signing key information found in the license.\n");
+                isValid = false;
+            } else {
+                validationOutput.append("✓ Signing key alias found.\n");
+            }
+
+            if (isValid) {
+                // Create a copy of the license data without the signature for verification
+                Map<String, Object> dataToVerify = new LinkedHashMap<>(licenseData);
+                dataToVerify.remove(SIGNATURE_LICENSE_FIELD);
+
+                // Verify the signature
+                try {
+                    Certificate cert = getCertificateForKeyAlias.apply(signingKeyAlias);
+
+                    if (cert == null) {
+                        validationOutput.append("❌ Certificate not found for key: ").append(signingKeyAlias).append("\n");
+                        isValid = false;
+                    } else {
+                        PublicKey publicKey = cert.getPublicKey();
+
+                        // Create signature instance
+                        Signature signature = Signature.getInstance("SHA256withRSA");
+                        signature.initVerify(publicKey);
+
+                        // Update with the data to verify
+                        byte[] dataToSign = dataToVerify.toString().getBytes(StandardCharsets.UTF_8);
+                        signature.update(dataToSign);
+
+                        // Verify the signature
+                        byte[] signatureBytes = Base64.getDecoder().decode(signatureValue);
+                        boolean signatureValid = signature.verify(signatureBytes);
+
+                        if (signatureValid) {
+                            validationOutput.append("✓ Signature is valid.\n");
+                        } else {
+                            validationOutput.append("❌ Signature verification failed.\n");
+                            isValid = false;
+                        }
+                    }
+                } catch (Exception e) {
+                    validationOutput.append("❌ Error verifying signature: ").append(e.getMessage()).append("\n");
+                    isValid = false;
+                }
+            }
+
+            // Check for issue date
+            LocalDate today = LocalDate.now();
+            String issueDateStr = Objects.requireNonNullElse(licenseData.get(ISSUE_DATE_LICENSE_FIELD), "").toString();
+            LocalDate issueDate = null;
+            try {
+                issueDate = LocalDate.parse(issueDateStr);
+            } catch (DateTimeParseException e) {
+                // Error parsing issue date
+            }
+
+            if (issueDateStr.isBlank()) {
+                validationOutput.append("❌ No issue date field in the license file.\n");
+                isValid = false;
+            } else if (issueDate == null) {
+                validationOutput.append("❌ Invalid issue date.\n");
+                isValid = false;
+            } else {
+                validationOutput.append("✓ Issue date found.\n");
+            }
+
+            if (issueDate != null && today.isBefore(issueDate)) {
+                validationOutput.append("❌ License issue date is in the future: ").append(issueDateStr).append("\n");
+                isValid = false;
+            } else if (issueDate != null) {
+                validationOutput.append("✓ License issue date is valid: ").append(issueDateStr).append("\n");
+            }
+
+            // Check for expiration date
+            String expiryDateStr = Objects.requireNonNullElse(licenseData.get(EXPIRY_DATE_LICENSE_FIELD), "").toString();
+            LocalDate expiryDate = null;
+            try {
+                expiryDate = LocalDate.parse(expiryDateStr);
+            } catch (DateTimeParseException e) {
+                // Error parsing expiry date
+            }
+
+            if (expiryDateStr.isBlank()) {
+                validationOutput.append("❌ No expiry field in the license file.\n");
+                isValid = false;
+            } else if (expiryDate == null) {
+                validationOutput.append("❌ Invalid Expiry date.\n");
+                isValid = false;
+            } else {
+                validationOutput.append("✓ Expiry date found.\n");
+            }
+
+            if (expiryDate != null && today.isAfter(expiryDate)) {
+                validationOutput.append("❌ License has expired on ").append(expiryDateStr).append("\n");
+                isValid = false;
+            } else if (expiryDate != null) {
+                validationOutput.append("✓ License is valid until ").append(expiryDateStr).append("\n");
+            }
+
+            // Check for license ID
+            String licenseId = Objects.requireNonNullElse(licenseData.get(LICENSE_ID_LICENSE_FIELD), "").toString();
+
+            if (licenseId.isBlank()) {
+                validationOutput.append("❌ No license ID field in the license file or it is empty.\n");
+                isValid = false;
+            } else {
+                // Check if the license ID is trimmed
+                if (!licenseId.equals(licenseId.trim())) {
+                    validationOutput.append("❌ License ID contains leading or trailing whitespace.\n");
+                    isValid = false;
+                }
+
+                // Check if the license ID contains only ASCII characters
+                if (!licenseId.matches("\\A\\p{ASCII}*\\z")) {
+                    validationOutput.append("❌ License ID contains non-ASCII characters.\n");
+                    isValid = false;
+                }
+
+                if (licenseId.equals(licenseId.trim()) && licenseId.matches("\\A\\p{ASCII}*\\z")) {
+                    validationOutput.append("✓ License ID is valid.\n");
+                }
+            }
+        } catch (Exception e) {
+            try {
+                validationOutput.append("❌ Error during validation: ").append(e.getMessage()).append("\n");
+            } catch (Exception appendError) {
+                // Ignore errors when appending to the output
+            }
+            isValid = false;
+        }
+
+        return isValid;
+    }
+
+    /**
+     * Validates the license data.
+     *
+     * @param getCertificateForKeyAlias function to get a certificate for a key alias
+     * @param validationOutput appendable to write validation messages to
+     * @return true if the license is valid, false otherwise
+     */
+    public boolean validate(Function<String, Certificate> getCertificateForKeyAlias, Appendable validationOutput) {
+        Map<String, Object> licenseData = new LinkedHashMap<>();
+
+        // Convert internal data to a map of strings
+        for (Map.Entry<Object, Object> entry : data.entrySet()) {
+            licenseData.put(entry.getKey().toString(), entry.getValue());
+        }
+
+        // Use the static validate method to validate the license data
+        return validate(licenseData, getCertificateForKeyAlias, validationOutput);
+    }
 }

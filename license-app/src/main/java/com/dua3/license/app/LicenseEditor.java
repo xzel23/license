@@ -24,18 +24,16 @@ import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.security.Signature;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.util.Base64;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.function.Function;
 import java.util.prefs.Preferences;
 
 import javax.swing.JFileChooser;
@@ -71,8 +69,8 @@ public class LicenseEditor {
     private static final String GROWX = "growx";
 
     // placeholder for automatic fields
-    public static final String $LICENSE_ISSUE_DATE = "${license_issue_date}";
-    public static final String $LICENSE_EXPIRY_DATE = "${license_expiry_date}";
+    public static final String $ISSUE_DATE = "${license_issue_date}";
+    public static final String $EXPIRY_DATE = "${license_expiry_date}";
     public static final String $SIGNING_KEY = "${signing_key}";
     public static final String $SIGNATURE = "${signature}";
 
@@ -553,8 +551,8 @@ public class LicenseEditor {
     private String getDefaultText(LicenseTemplate.LicenseField field) {
         String value = field.defaultValue();
         return switch (value) {
-            case $LICENSE_ISSUE_DATE -> today.toString();
-            case $LICENSE_EXPIRY_DATE -> today.plusYears(1).toString();
+            case $ISSUE_DATE -> today.toString();
+            case $EXPIRY_DATE -> today.plusYears(1).toString();
             case $SIGNING_KEY -> SIGNING_KEY_PLACEHOLDER;
             case $SIGNATURE -> SIGNATURE_PLACEHOLDER;
             default -> value;
@@ -755,164 +753,20 @@ public class LicenseEditor {
 
             // Validation results
             StringBuilder validationResults = new StringBuilder();
-            boolean isValid = true;
 
-            // Check that all required fields are present in the license
-            String[] requiredFields = {
-                License.LICENSE_ID_LICENSE_FIELD,
-                License.SIGNING_KEY_ALIAS_LICENSE_FIELD,
-                License.SIGNATURE_LICENSE_FIELD,
-                License.ISSUE_DATE_LICENSE_FIELD,
-                License.EXPIRY_DATE_LICENSE_FIELD
-            };
-
-            boolean allRequiredFieldsPresent = true;
-            for (String field : requiredFields) {
-                if (!licenseData.containsKey(field)) {
-                    validationResults.append("❌ Required field missing: ").append(field).append("\n");
-                    isValid = false;
-                    allRequiredFieldsPresent = false;
-                }
-            }
-
-            if (allRequiredFieldsPresent) {
-                validationResults.append("✓ All required fields are present in the license.\n");
-            }
-
-            // Find the signature field (could be named differently in different templates)
-            String signingKeyAlias = Objects.requireNonNullElse(licenseData.get(License.SIGNING_KEY_ALIAS_LICENSE_FIELD), "").toString();
-            String signatureValue = Objects.requireNonNullElse(licenseData.get(License.SIGNATURE_LICENSE_FIELD), "").toString();
-
-            if (signatureValue.isBlank()) {
-                validationResults.append("❌ No valid signature found in the license file.\n");
-                isValid = false;
-            } else {
-                validationResults.append("✓ Signature found.\n");
-            }
-
-            if (signingKeyAlias.isBlank()) {
-                validationResults.append("❌ No signing key information found in the license.\n");
-                isValid = false;
-            } else {
-                validationResults.append("✓ Signing key alias found.\n");
-            }
-
-            if (isValid) {
-                // Create a copy of the license data without the signature for verification
-                Map<String, Object> dataToVerify = new LinkedHashMap<>(licenseData);
-                dataToVerify.remove(License.SIGNATURE_LICENSE_FIELD);
-
-                // Verify the signature
+            // Create a function to get certificates from the keystore
+            Function<String, Certificate> getCertificateForKeyAlias = alias -> {
                 try {
                     KeyStore keyStore = keystoreManager.getKeyStore();
-                    Certificate cert = keyStore.getCertificate(signingKeyAlias);
-
-                    if (cert == null) {
-                        validationResults.append("❌ Certificate not found for key: ").append(signingKeyAlias).append("\n");
-                        isValid = false;
-                    } else {
-                        PublicKey publicKey = cert.getPublicKey();
-
-                        // Create signature instance
-                        Signature signature = Signature.getInstance("SHA256withRSA");
-                        signature.initVerify(publicKey);
-
-                        // Update with the data to verify
-                        byte[] dataToSign = dataToVerify.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
-                        signature.update(dataToSign);
-
-                        // Verify the signature
-                        byte[] signatureBytes = Base64.getDecoder().decode(signatureValue);
-                        boolean signatureValid = signature.verify(signatureBytes);
-
-                        if (signatureValid) {
-                            validationResults.append("✓ Signature is valid.\n");
-                        } else {
-                            validationResults.append("❌ Signature verification failed.\n");
-                            isValid = false;
-                        }
-                    }
+                    return keyStore.getCertificate(alias);
                 } catch (Exception e) {
-                    validationResults.append("❌ Error verifying signature: ").append(e.getMessage()).append("\n");
-                    isValid = false;
+                    LOG.warn("Error getting certificate for alias: {}", alias, e);
+                    return null;
                 }
-            }
+            };
 
-            // Check for issue date
-            String issueDateStr = Objects.requireNonNullElse(licenseData.get(License.ISSUE_DATE_LICENSE_FIELD), "").toString();
-            LocalDate issueDate = null;
-            try {
-                issueDate = LocalDate.parse(issueDateStr);
-            } catch (DateTimeParseException e) {
-                LOG.warn("Error parsing issue date: {}", issueDateStr, e);
-            }
-
-            if (issueDateStr.isBlank()) {
-                validationResults.append("❌ No issue date field in the license file.\n");
-                isValid = false;
-            } else if (issueDate == null) {
-                validationResults.append("❌ Invalid issue date.\n");
-                isValid = false;
-            } else {
-                validationResults.append("✓ Issue date found.\n");
-            }
-
-            if (issueDate != null && today.isBefore(issueDate)) {
-                validationResults.append("❌ License issue date is in the future: ").append(issueDateStr).append("\n");
-                isValid = false;
-            } else if (issueDate != null) {
-                validationResults.append("✓ License issue date is valid: ").append(issueDateStr).append("\n");
-            }
-
-            // Check for expiration date
-            String expiryDateStr = Objects.requireNonNullElse(licenseData.get(License.EXPIRY_DATE_LICENSE_FIELD), "").toString();
-            LocalDate expiryDate = null;
-            try {
-                expiryDate = LocalDate.parse(expiryDateStr);
-            } catch (DateTimeParseException e) {
-                LOG.warn("Error parsing expiry date: {}", expiryDateStr, e);
-            }
-
-            if (expiryDateStr.isBlank()) {
-                validationResults.append("❌ No expiry field in the license file.\n");
-                isValid = false;
-            } else if (expiryDate == null) {
-                validationResults.append("❌ Invalid Expiry date.\n");
-                isValid = false;
-            } else {
-                validationResults.append("✓ Expiry date found.\n");
-            }
-
-            if (expiryDate != null && today.isAfter(expiryDate)) {
-                validationResults.append("❌ License has expired on ").append(expiryDateStr).append("\n");
-                isValid = false;
-            } else if (expiryDate != null) {
-                validationResults.append("✓ License is valid until ").append(expiryDateStr).append("\n");
-            }
-
-            // Check for license ID
-            String licenseId = Objects.requireNonNullElse(licenseData.get(License.LICENSE_ID_LICENSE_FIELD), "").toString();
-
-            if (licenseId.isBlank()) {
-                validationResults.append("❌ No license ID field in the license file or it is empty.\n");
-                isValid = false;
-            } else {
-                // Check if the license ID is trimmed
-                if (!licenseId.equals(licenseId.trim())) {
-                    validationResults.append("❌ License ID contains leading or trailing whitespace.\n");
-                    isValid = false;
-                }
-
-                // Check if the license ID contains only ASCII characters
-                if (!licenseId.matches("\\A\\p{ASCII}*\\z")) {
-                    validationResults.append("❌ License ID contains non-ASCII characters.\n");
-                    isValid = false;
-                }
-
-                if (licenseId.equals(licenseId.trim()) && licenseId.matches("\\A\\p{ASCII}*\\z")) {
-                    validationResults.append("✓ License ID is valid.\n");
-                }
-            }
+            // Use the License.validate method to validate the license data
+            boolean isValid = License.validate(licenseData, getCertificateForKeyAlias, validationResults);
 
             // Display the validation results
             String title = isValid ? "License is Valid" : "License Validation Failed";

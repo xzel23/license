@@ -45,8 +45,8 @@ public final class LicenseTemplateEditor extends JDialog {
 
     // Required fields that cannot be edited or deleted
     private static final List<String> REQUIRED_FIELDS = List.of(
-            "LICENSE_ISSUE_DATE",
-            "LICENSE_EXPIRY_DATE",
+            "ISSUE_DATE",
+            "EXPIRY_DATE",
             "SIGNING_KEY",
             "SIGNATURE"
     );
@@ -207,21 +207,21 @@ public final class LicenseTemplateEditor extends JDialog {
             });
         }
 
-        // Add LICENSE_ISSUE_DATE field if it doesn't exist
-        if (!existingFields.contains("LICENSE_ISSUE_DATE")) {
+        // Add ISSUE_DATE field if it doesn't exist
+        if (!existingFields.contains("ISSUE_DATE")) {
             tableModel.addRow(new Object[]{
-                "LICENSE_ISSUE_DATE", 
+                "ISSUE_DATE", 
                 "Issue date of the license", 
-                LicenseEditor.$LICENSE_ISSUE_DATE
+                LicenseEditor.$ISSUE_DATE
             });
         }
 
-        // Add LICENSE_EXPIRY_DATE field if it doesn't exist
-        if (!existingFields.contains("LICENSE_EXPIRY_DATE")) {
+        // Add EXPIRY_DATE field if it doesn't exist
+        if (!existingFields.contains("EXPIRY_DATE")) {
             tableModel.addRow(new Object[]{
-                "LICENSE_EXPIRY_DATE", 
+                "EXPIRY_DATE", 
                 "Expiry date of the license", 
-                LicenseEditor.$LICENSE_EXPIRY_DATE
+                LicenseEditor.$EXPIRY_DATE
             });
         }
 
