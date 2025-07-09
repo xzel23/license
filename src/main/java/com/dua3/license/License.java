@@ -67,10 +67,11 @@ public final class License {
     /**
      * Loads a license from an input stream.
      *
-     * @param keyClass the enum class defining the license keys
-     * @param in the input stream containing the license data
-     * @return the license
-     * @throws LicenseException if the license is invalid or cannot be loaded
+     * @param keyClass     the enum class defining the keys used in the license
+     * @param keySupplier  a supplier providing the public key for verifying the license signature
+     * @param in           the input stream from which the license properties are loaded
+     * @return a {@code License} instance created using the provided properties and public key
+     * @throws LicenseException if a problem occurs while loading or processing the license
      */
     public static License load(
             Class<? extends Enum<?>> keyClass,
