@@ -165,7 +165,7 @@ allprojects {
 
     configurations.all {
         resolutionStrategy {
-            cacheChangingModulesFor(5, TimeUnit.MINUTES)
+            cacheChangingModulesFor(0, TimeUnit.SECONDS)
         }
     }
 
