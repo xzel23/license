@@ -474,4 +474,19 @@ public final class License {
         // Use the static validate method to validate the license data
         return validate(licenseData, keyStore, keyStorePassword, validationOutput);
     }
+
+    /**
+     * Calculates the number of valid days remaining until the license expires.
+     * <p>
+     * The method computes the difference in days between the current date and the
+     * expiry date of the license. If the expiry date is in the past, it returns a
+     * number less than or equal to zero.
+     *
+     * @return the number of valid days remaining, or a non-positive number if the license is expired
+     */
+    public int validDays() {
+        LocalDate today = LocalDate.now();
+        LocalDate expiryDate = getExpiryDate();
+        return today.until(expiryDate).getDays();
+    }
 }
