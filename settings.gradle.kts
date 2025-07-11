@@ -25,7 +25,7 @@ dependencyResolutionManagement {
             plugin("forbiddenapis", "de.thetaphi.forbiddenapis").version("3.9")
             plugin("jreleaser", "org.jreleaser").version("1.19.0")
             plugin("sonar", "org.sonarqube").version("6.2.0.5505")
-            plugin("spotbugs", "com.github.spotbugs").version("6.2.0")
+            plugin("spotbugs", "com.github.spotbugs").version("6.2.2")
             plugin("test-logger", "com.adarshr.test-logger").version("4.0.0")
             plugin("versions", "com.github.ben-manes.versions").version("0.52.0")
 
@@ -37,7 +37,7 @@ dependencyResolutionManagement {
             version("spotbugs", "4.9.3")
             version("miglayout", "11.4.2")
             version("bouncycastle", "1.81")
-            version("jackson", "2.17.0")
+            version("jackson", "2.19.1")
 
             library("dua3-utility-bom", "com.dua3.utility", "utility-bom").versionRef("dua3-utility")
             library("dua3-utility", "com.dua3.utility", "utility").withoutVersion()

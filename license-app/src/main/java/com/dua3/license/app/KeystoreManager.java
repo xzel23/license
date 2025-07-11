@@ -50,7 +50,7 @@ public class KeystoreManager {
 
     /**
      * Gets the appropriate logo icon based on the screen resolution.
-     * 
+     *
      * @return the logo icon
      */
     private ImageIcon getLogoIcon() {
@@ -367,15 +367,15 @@ public class KeystoreManager {
             if (!validationResult.valid()) {
                 JOptionPane.showMessageDialog(null,
                         createCenteredLogoPanel(validationResult.errorMessage() + """
-
-
-                                    Password requirements:
-                                    - At least 8 characters
-                                    - Maximum 80 characters
-                                    - Contains digits, uppercase and lowercase letters
-                                    - All characters are valid ASCII
-                                    - At least one special character
-                            """),
+                                
+                                
+                                        Password requirements:
+                                        - At least 8 characters
+                                        - Maximum 80 characters
+                                        - Contains digits, uppercase and lowercase letters
+                                        - All characters are valid ASCII
+                                        - At least one special character
+                                """),
                         "Invalid Password", JOptionPane.PLAIN_MESSAGE, null);
                 return false;
             }
