@@ -257,8 +257,9 @@ public class KeystoreManager {
                         null
                 );
 
-                if (newResult == JOptionPane.OK_OPTION && newPathInput.getPath().isPresent()) {
-                    path = newPathInput.getPath().get();
+                Optional<Path> optionalPath = newPathInput.getPath();
+                if (newResult == JOptionPane.OK_OPTION && optionalPath.isPresent()) {
+                    path = optionalPath.get();
                     LOG.debug("User provided new keystore path: {}", path);
                 } else {
                     LOG.debug("User cancelled keystore creation");
