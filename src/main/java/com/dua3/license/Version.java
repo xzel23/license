@@ -1,5 +1,14 @@
 package com.dua3.license;
 
+/**
+ * Represents a software version with major, minor, patch components and an optional suffix.
+ * This class provides functionality to parse a version string, access version components, and format
+ * the version as a string.
+ * @param major the major version
+ * @param minor the minor version
+ * @param patch the patch level
+ * @param suffix the suffix
+ */
 public record Version(int major, int minor, int patch, String suffix) {
 
     /**

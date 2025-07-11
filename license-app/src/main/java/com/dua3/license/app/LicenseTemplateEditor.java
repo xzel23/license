@@ -59,7 +59,7 @@ public final class LicenseTemplateEditor extends JDialog {
     private final JTextField templateNameField;
     private final JTable propertiesTable;
     private final DefaultTableModel tableModel;
-    private JButton removeButton;
+    private final JButton removeButton;
 
     /**
      * Creates a new LicenseTemplateEditor dialog.

@@ -212,6 +212,11 @@ public final class License {
         };
     }
 
+    /**
+     * Retrieves the license string associated with this instance.
+     *
+     * @return the license string, or null if it is not set
+     */
     public String getLicenseString() {
         return licenseString;
     }

@@ -68,10 +68,22 @@ public class LicenseEditor {
     private static final String SIGNATURE = "signature";
     private static final String GROWX = "growx";
 
-    // placeholder for automatic fields
+    // placeholders for automatic fields
+    /**
+     * A placeholder variable representing the issue date of a license.
+     */
     public static final String $ISSUE_DATE = "${license_issue_date}";
+    /**
+     * Represents the placeholder for the license expiry date within a template or configuration.
+     */
     public static final String $EXPIRY_DATE = "${license_expiry_date}";
+    /**
+     * A placeholder variable representing the signing key used for cryptographic operations.
+     */
     public static final String $SIGNING_KEY = "${signing_key}";
+    /**
+     * Represents a placeholder for the signature field in a license template.
+     */
     public static final String $SIGNATURE = "${signature}";
 
     // instance data

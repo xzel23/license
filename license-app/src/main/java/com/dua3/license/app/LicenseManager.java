@@ -108,7 +108,7 @@ public class LicenseManager {
      */
     public static Path getTemplatesDirectory() {
         try {
-            return IoUtil.ensureApplicationDataDir(LicenseManager.class.getName()).resolve("templates");
+            return IoUtil.getApplicationDataDir(LicenseManager.class.getName()).resolve("templates");
         } catch (IOException e) {
             LOG.error("Failed to create application data directory", e);
             // Fall back to local templates directory
