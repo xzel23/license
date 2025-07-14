@@ -1,6 +1,7 @@
 package com.dua3.license.app;
 
 import com.dua3.license.License;
+import com.dua3.utility.lang.Version;
 import net.miginfocom.swing.MigLayout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,12 +34,12 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.prefs.Preferences;
 
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Class responsible for license editing functionality.
@@ -188,7 +189,7 @@ public class LicenseEditor {
 
         // Validate License button
         JButton validateLicenseButton = new JButton("Validate License");
-        validateLicenseButton.addActionListener(e -> validateLicense()); // Show dialog to validate a license
+        validateLicenseButton.addActionListener(e -> validateLicense(null)); // Show dialog to validate a license
         buttonPanel.add(validateLicenseButton);
 
         // Manage Templates button
@@ -734,7 +735,7 @@ public class LicenseEditor {
      * This method allows the user to select a license file, then validates its signature
      * and checks if the license has expired.
      */
-    private void validateLicense() {
+    private void validateLicense(@Nullable Version currentVersion) {
         try {
             // Create a file chooser
             JFileChooser fileChooser = new JFileChooser();
@@ -763,6 +764,10 @@ public class LicenseEditor {
             ObjectMapper mapper = new ObjectMapper();
             Map<String, Object> licenseData = mapper.readValue(filePath.toFile(), Map.class);
 
+            if (currentVersion == null) {
+                currentVersion = (Version) licenseData.get(License.MAX_VERSION_LICENSE_FIELD);
+            }
+
             // Validation results
             StringBuilder validationResults = new StringBuilder();
 
@@ -771,7 +776,7 @@ public class LicenseEditor {
             try {
                 KeyStore keyStore = keystoreManager.getKeyStore();
                 char[] password = keystoreManager.getPassword();
-                isValid = License.validate(licenseData, keyStore, password, validationResults);
+                isValid = License.validate(licenseData, keyStore, password, currentVersion, validationResults);
             } catch (GeneralSecurityException e) {
                 LOG.warn("Error validating license: {}", e.getMessage(), e);
                 validationResults.append("❌ Error validating license: ").append(e.getMessage()).append("\n");
@@ -795,10 +800,16 @@ public class LicenseEditor {
             // Create a panel for detailed validation results
             JPanel validationPanel = new JPanel(new BorderLayout());
             validationPanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Validation Results"));
-            JLabel validationDetailsLabel = new JLabel(HTML_OPEN +
-                    validationResults.toString().replace("\n", "<br>") +
-                    HTML_CLOSE);
-            validationPanel.add(validationDetailsLabel, BorderLayout.CENTER);
+
+            // Use JTextArea with JScrollPane instead of JLabel for scrollable text
+            javax.swing.JTextArea validationDetailsArea = new javax.swing.JTextArea(validationResults.toString());
+            validationDetailsArea.setEditable(false);
+            validationDetailsArea.setLineWrap(true);
+            validationDetailsArea.setWrapStyleWord(true);
+            javax.swing.JScrollPane validationScrollPane = new javax.swing.JScrollPane(validationDetailsArea);
+            validationScrollPane.setPreferredSize(new java.awt.Dimension(600, 150));
+
+            validationPanel.add(validationScrollPane, BorderLayout.CENTER);
 
             // Create table data for license properties
             String[] columnNames = {"Property", "Value"};
@@ -870,13 +881,25 @@ public class LicenseEditor {
 
             licenseDataPanel.add(splitPane, BorderLayout.CENTER);
 
-            // Show the dialog with the table
-            JOptionPane.showMessageDialog(
-                    parentFrame,
-                    licenseDataPanel,
-                    title,
-                    messageType
-            );
+            // Create a resizable dialog instead of using JOptionPane
+            javax.swing.JDialog dialog = new javax.swing.JDialog(parentFrame, title, true);
+            dialog.setLayout(new BorderLayout());
+            dialog.add(licenseDataPanel, BorderLayout.CENTER);
+
+            // Add a close button at the bottom
+            JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+            JButton closeButton = new JButton("Close");
+            closeButton.addActionListener(e -> dialog.dispose());
+            buttonPanel.add(closeButton);
+            dialog.add(buttonPanel, BorderLayout.SOUTH);
+
+            // Set dialog properties
+            dialog.setSize(650, 600);
+            dialog.setResizable(true);
+            dialog.setLocationRelativeTo(parentFrame);
+
+            // Show the dialog
+            dialog.setVisible(true);
         } catch (IOException e) {
             LOG.error("Error validating license", e);
             JOptionPane.showMessageDialog(

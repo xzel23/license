@@ -3,6 +3,9 @@ package com.dua3.license;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.dua3.utility.lang.Version;
+import org.jspecify.annotations.Nullable;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
@@ -66,6 +69,19 @@ public final class License {
      * in the license.
      */
     public static final String EXPIRY_DATE_LICENSE_FIELD = "EXPIRY_DATE";
+
+    /**
+     * Represents the key for the minimum version required by the license.
+     * This field is used to specify the earliest version of software or system
+     * that the license is compatible with.
+     */
+    public static final String MIN_VERSION_LICENSE_FIELD = "MIN_VERSION";
+    /**
+     * Represents the key for the maximum version supported by the license.
+     * This field is used to specify the last version of software or system
+     * that the license is compatible with.
+     */
+    public static final String MAX_VERSION_LICENSE_FIELD = "MAX_VERSION";
 
     private final Object keyClass;
     private final Map<Object, Object> data;
@@ -284,15 +300,34 @@ public final class License {
     }
 
     /**
+     * Retrieves the minimum version specified in the license data.
+     *
+     * @return the minimum version as a {@code Version} object
+     */
+    public Version getMinVersion() {
+        return (Version) get(toKey(MIN_VERSION_LICENSE_FIELD));
+    }
+
+    /**
+     * Retrieves the maximum version specified in the license data.
+     *
+     * @return the maximum version as a {@code Version} object
+     */
+    public Version getMaxVersion() {
+        return (Version) get(toKey(MAX_VERSION_LICENSE_FIELD));
+    }
+
+    /**
      * Validates a license from license data.
      *
-     * @param licenseData the license data to validate
-     * @param keyStore the keystore containing the certificates
+     * @param licenseData      the license data to validate
+     * @param keyStore         the keystore containing the certificates
      * @param keyStorePassword the password for the keystore
+     * @param currentVersion
      * @param validationOutput appendable to write validation messages to
      * @return true if the license is valid, false otherwise
      */
-    public static boolean validate(Map<String, Object> licenseData, KeyStore keyStore, char[] keyStorePassword, Appendable validationOutput) {
+    public static boolean validate(Map<String, Object> licenseData, KeyStore keyStore, char[] keyStorePassword, @Nullable Version currentVersion, Appendable validationOutput) {
         boolean isValid = true;
 
         try {
@@ -302,7 +337,9 @@ public final class License {
                     SIGNING_KEY_ALIAS_LICENSE_FIELD,
                     SIGNATURE_LICENSE_FIELD,
                     ISSUE_DATE_LICENSE_FIELD,
-                    EXPIRY_DATE_LICENSE_FIELD
+                    EXPIRY_DATE_LICENSE_FIELD,
+                    MIN_VERSION_LICENSE_FIELD,
+                    MAX_VERSION_LICENSE_FIELD
             };
 
             boolean allRequiredFieldsPresent = true;
@@ -376,6 +413,30 @@ public final class License {
                 }
             }
 
+            // Check for license ID
+            String licenseId = Objects.requireNonNullElse(licenseData.get(LICENSE_ID_LICENSE_FIELD), "").toString();
+
+            if (licenseId.isBlank()) {
+                validationOutput.append("❌ No license ID field in the license file or it is empty.\n");
+                isValid = false;
+            } else {
+                // Check if the license ID is trimmed
+                if (!licenseId.equals(licenseId.trim())) {
+                    validationOutput.append("❌ License ID contains leading or trailing whitespace.\n");
+                    isValid = false;
+                }
+
+                // Check if the license ID contains only ASCII characters
+                if (!licenseId.matches("\\A\\p{ASCII}*\\z")) {
+                    validationOutput.append("❌ License ID contains non-ASCII characters.\n");
+                    isValid = false;
+                }
+
+                if (licenseId.equals(licenseId.trim()) && licenseId.matches("\\A\\p{ASCII}*\\z")) {
+                    validationOutput.append("✓ License ID is valid.\n");
+                }
+            }
+
             // Check for issue date
             LocalDate today = LocalDate.now();
             String issueDateStr = Objects.requireNonNullElse(licenseData.get(ISSUE_DATE_LICENSE_FIELD), "").toString();
@@ -429,27 +490,38 @@ public final class License {
                 validationOutput.append("✓ License is valid until ").append(expiryDateStr).append("\n");
             }
 
-            // Check for license ID
-            String licenseId = Objects.requireNonNullElse(licenseData.get(LICENSE_ID_LICENSE_FIELD), "").toString();
+            // Check for minimum version
+            Version minVersion = getAndValidateVersion(licenseData, MIN_VERSION_LICENSE_FIELD);
 
-            if (licenseId.isBlank()) {
-                validationOutput.append("❌ No license ID field in the license file or it is empty.\n");
+            if (minVersion == null) {
+                validationOutput.append("❌ No valid minimum version field in the license file.\n");
                 isValid = false;
             } else {
-                // Check if the license ID is trimmed
-                if (!licenseId.equals(licenseId.trim())) {
-                    validationOutput.append("❌ License ID contains leading or trailing whitespace.\n");
-                    isValid = false;
-                }
+                validationOutput.append("✓ Minimum version found.\n");
+            }
 
-                // Check if the license ID contains only ASCII characters
-                if (!licenseId.matches("\\A\\p{ASCII}*\\z")) {
-                    validationOutput.append("❌ License ID contains non-ASCII characters.\n");
-                    isValid = false;
-                }
+            Version maxVersion = getAndValidateVersion(licenseData, MAX_VERSION_LICENSE_FIELD);
 
-                if (licenseId.equals(licenseId.trim()) && licenseId.matches("\\A\\p{ASCII}*\\z")) {
-                    validationOutput.append("✓ License ID is valid.\n");
+            if (maxVersion == null) {
+                validationOutput.append("❌ No valid maximum version field in the license file.\n");
+                isValid = false;
+            } else {
+                validationOutput.append("✓ Maximum version found.\n");
+            }
+
+            if (minVersion != null && maxVersion != null) {
+                if (minVersion.compareTo(maxVersion) > 0) {
+                    validationOutput.append("❌ Mimimum version is greater than maximum version: " + minVersion + " > " + maxVersion + "\n");
+                } else {
+                    validationOutput.append("✓ Minimum version <= maximum version.\n");
+                }
+            }
+
+            if (minVersion != null && maxVersion != null) {
+                if (!currentVersion.isBetween(minVersion, maxVersion)) {
+                    validationOutput.append("❌ Version is not covered by this license: " + currentVersion + "\n");
+                } else {
+                    validationOutput.append("✓ Version is covered by this license.\n");
                 }
             }
         } catch (IOException e) {
@@ -460,15 +532,27 @@ public final class License {
         return isValid;
     }
 
+    private static @Nullable Version getAndValidateVersion(Map<String, Object> licenseData, String licenseFieldName) {
+        String versionStr = Objects.requireNonNullElse(licenseData.get(licenseFieldName), "").toString();
+        Version version = null;
+        try {
+            version = Version.valueOf(versionStr);
+        } catch (IllegalArgumentException e) {
+            // Error parsing version
+        }
+        return version;
+    }
+
     /**
      * Validates the license data.
      *
-     * @param keyStore the keystore containing the certificates
+     * @param keyStore         the keystore containing the certificates
      * @param keyStorePassword the password for the keystore
+     * @param currentVersion
      * @param validationOutput appendable to write validation messages to
      * @return true if the license is valid, false otherwise
      */
-    public boolean validate(KeyStore keyStore, char[] keyStorePassword, Appendable validationOutput) {
+    public boolean validate(KeyStore keyStore, char[] keyStorePassword, Version currentVersion, Appendable validationOutput) {
         Map<String, Object> licenseData = new LinkedHashMap<>();
 
         // Convert internal data to a map of strings
@@ -477,7 +561,7 @@ public final class License {
         }
 
         // Use the static validate method to validate the license data
-        return validate(licenseData, keyStore, keyStorePassword, validationOutput);
+        return validate(licenseData, keyStore, keyStorePassword, currentVersion, validationOutput);
     }
 
     /**

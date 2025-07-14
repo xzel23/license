@@ -149,6 +149,13 @@ allprojects {
         }
     }
 
+    // make sure snapshot versions are not cached
+    configurations.all {
+        resolutionStrategy {
+            cacheChangingModulesFor(1, TimeUnit.SECONDS)
+        }
+    }
+
     // dependencies
     dependencies {
         // source annotations

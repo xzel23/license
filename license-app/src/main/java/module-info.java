@@ -14,4 +14,5 @@ module dua3.license.license.app.main {
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
     requires com.fasterxml.jackson.annotation;
+    requires org.osgi.annotation.versioning;
 }
