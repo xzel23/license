@@ -37,6 +37,8 @@ public class KeystoreManager {
     private static final Logger LOG = LogManager.getLogger(KeystoreManager.class);
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final String PREF_KEYSTORE_PATH = "keystorePath";
+    private static final String PREF_ENCRYPTION_KEY = "encryptionKey";
+    private static final String PREF_IV = "iv";
     private static final String ENCRYPTION_ALGORITHM = "AES";
     private static final String CIPHER_TRANSFORMATION = "AES/GCM/NoPadding";
     private static final int GCM_IV_LENGTH = 12; // 96 bits
@@ -408,7 +410,12 @@ public class KeystoreManager {
             this.encryptionKey = secretKey.getEncoded();
             this.iv = ivBytes;
 
-            LOG.debug("Password encrypted and stored in memory successfully");
+            // Persist the encryption key and IV in preferences
+            Preferences prefs = Preferences.userNodeForPackage(KeystoreManager.class);
+            prefs.putByteArray(PREF_ENCRYPTION_KEY, encryptionKey);
+            prefs.putByteArray(PREF_IV, iv);
+
+            LOG.debug("Password encrypted and stored successfully");
             return true;
         } catch (Exception e) {
             LOG.error("Error encrypting and storing password", e);
@@ -424,27 +431,59 @@ public class KeystoreManager {
      * @throws GeneralSecurityException if decryption fails
      */
     public char[] getPassword() throws GeneralSecurityException {
-        if (encryptedPassword == null || encryptionKey == null || iv == null) {
-            throw new IllegalStateException("No password stored in memory");
+        // Try to load encryption key and IV from preferences if not available in memory
+        if (encryptionKey == null || iv == null) {
+            Preferences prefs = Preferences.userNodeForPackage(KeystoreManager.class);
+            encryptionKey = prefs.getByteArray(PREF_ENCRYPTION_KEY, null);
+            iv = prefs.getByteArray(PREF_IV, null);
+            
+            if (encryptionKey == null || iv == null) {
+                LOG.warn("Could not retrieve encryption key or IV from preferences");
+                throw new IllegalStateException("No encryption data available");
+            }
+            
+            LOG.debug("Retrieved encryption key and IV from preferences");
+        }
+        
+        // If we don't have the encrypted password in memory, prompt the user to re-enter it
+        if (encryptedPassword == null) {
+            LOG.info("No encrypted password stored in memory, prompting user to re-enter");
+            return promptForPasswordAndStore();
         }
 
-        // Recreate the secret key
-        SecretKey secretKey = new SecretKeySpec(encryptionKey, ENCRYPTION_ALGORITHM);
+        try {
+            // Recreate the secret key
+            SecretKey secretKey = new SecretKeySpec(encryptionKey, ENCRYPTION_ALGORITHM);
 
-        // Decrypt the password using GCM mode
-        Cipher cipher = Cipher.getInstance(CIPHER_TRANSFORMATION);
-        GCMParameterSpec gcmSpec = new GCMParameterSpec(128, iv);
-        cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec);
-        byte[] passwordBytes = cipher.doFinal(encryptedPassword);
+            // Decrypt the password using GCM mode
+            Cipher cipher = Cipher.getInstance(CIPHER_TRANSFORMATION);
+            GCMParameterSpec gcmSpec = new GCMParameterSpec(128, iv);
+            cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec);
+            byte[] passwordBytes = cipher.doFinal(encryptedPassword);
 
-        // Convert bytes back to char array
-        char[] password = new char[passwordBytes.length / 2];
-        for (int i = 0; i < password.length; i++) {
-            password[i] = (char) ((passwordBytes[i * 2] << 8) | (passwordBytes[i * 2 + 1] & 0xFF));
+            // Convert bytes back to char array
+            char[] password = new char[passwordBytes.length / 2];
+            for (int i = 0; i < password.length; i++) {
+                password[i] = (char) ((passwordBytes[i * 2] << 8) | (passwordBytes[i * 2 + 1] & 0xFF));
+            }
+
+            LOG.debug("Password retrieved and decrypted successfully");
+            return password;
+        } catch (GeneralSecurityException e) {
+            LOG.error("Failed to decrypt password", e);
+            
+            // Clear the stored encryption data to force re-entry of password
+            encryptedPassword = null;
+            encryptionKey = null;
+            iv = null;
+            
+            // Clear preferences as well
+            Preferences prefs = Preferences.userNodeForPackage(KeystoreManager.class);
+            prefs.remove(PREF_ENCRYPTION_KEY);
+            prefs.remove(PREF_IV);
+            
+            throw new GeneralSecurityException("Failed to decrypt password. Please re-enter your password.", e);
         }
-
-        LOG.debug("Password retrieved and decrypted successfully from memory");
-        return password;
     }
 
     /**
@@ -574,5 +613,41 @@ public class KeystoreManager {
      */
     public char[] getKeystorePassword() throws GeneralSecurityException {
         return getPassword();
+    }
+    
+    /**
+     * Prompts the user to enter their password and stores it.
+     * This is used when the encrypted password is not available in memory.
+     *
+     * @return the entered password
+     * @throws GeneralSecurityException if there's a security-related error
+     */
+    private char[] promptForPasswordAndStore() throws GeneralSecurityException {
+        JPanel panel = new JPanel(new MigLayout("fillx, wrap 1", "[grow]", "[][]"));
+        JLabel label = new JLabel("Please enter your keystore password:");
+        JPasswordField passwordField = new JPasswordField(20);
+        
+        panel.add(label);
+        panel.add(passwordField, "growx");
+        
+        int result = JOptionPane.showConfirmDialog(
+                null, 
+                createCenteredLogoPanel(panel),
+                "Password Required", 
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.PLAIN_MESSAGE);
+        
+        if (result != JOptionPane.OK_OPTION) {
+            throw new IllegalStateException("Password entry cancelled by user");
+        }
+        
+        char[] password = passwordField.getPassword();
+        
+        // Store the password
+        if (!storePassword(password, DialogMode.LOAD_EXISTING)) {
+            throw new GeneralSecurityException("Failed to store password");
+        }
+        
+        return password;
     }
 }

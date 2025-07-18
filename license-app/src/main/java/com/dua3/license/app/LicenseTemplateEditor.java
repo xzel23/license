@@ -1,7 +1,7 @@
 package com.dua3.license.app;
 
 import com.dua3.license.DynamicEnum;
-import com.dua3.license.app.LicenseEditor;
+import com.dua3.license.License;
 import com.dua3.utility.data.Pair;
 import com.dua3.utility.swing.SwingUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,6 +28,8 @@ import java.util.Set;
 import java.util.Vector;
 import java.util.stream.Stream;
 
+import static com.dua3.license.License.LICENSE_ID_LICENSE_FIELD;
+
 /**
  * A dialog for editing license templates.
  * This allows creating, editing, and saving license templates as DynamicEnum objects.
@@ -43,17 +45,9 @@ public final class LicenseTemplateEditor extends JDialog {
     private static final String NO_VALID_PROPERTIES = "No Valid Properties";
     private static final String NO_PROPERTIES = "No Properties";
 
-    // Required fields that cannot be edited or deleted
-    private static final List<String> REQUIRED_FIELDS = List.of(
-            "ISSUE_DATE",
-            "EXPIRY_DATE",
-            "SIGNING_KEY",
-            "SIGNATURE"
-    );
-
     // Required fields that cannot be deleted but can be edited
     private static final List<String> REQUIRED_EDITABLE_FIELDS = List.of(
-            "LICENSE_ID"
+            LICENSE_ID_LICENSE_FIELD
     );
 
     private final JTextField templateNameField;
@@ -100,7 +94,7 @@ public final class LicenseTemplateEditor extends JDialog {
                 // Check if this is a required field
                 if (row < getRowCount()) {
                     String propertyName = (String) getValueAt(row, 0);
-                    if (REQUIRED_FIELDS.contains(propertyName)) {
+                    if (License.REQUIRED_LICENSE_FIELDS.contains(propertyName)) {
                         return false; // Required fields are not editable
                     }
                     // REQUIRED_EDITABLE_FIELDS can be edited
@@ -179,7 +173,7 @@ public final class LicenseTemplateEditor extends JDialog {
         int selectedRow = propertiesTable.getSelectedRow();
         if (selectedRow != -1) {
             String propertyName = (String) tableModel.getValueAt(selectedRow, 0);
-            removeButton.setEnabled(!REQUIRED_FIELDS.contains(propertyName) && !REQUIRED_EDITABLE_FIELDS.contains(propertyName));
+            removeButton.setEnabled(!License.REQUIRED_LICENSE_FIELDS.contains(propertyName) && !REQUIRED_EDITABLE_FIELDS.contains(propertyName));
         } else {
             removeButton.setEnabled(false); // Disable if no row is selected
         }
@@ -269,7 +263,7 @@ public final class LicenseTemplateEditor extends JDialog {
         if (selectedRow != -1) {
             // Check if this is a required field
             String propertyName = (String) tableModel.getValueAt(selectedRow, 0);
-            if (REQUIRED_FIELDS.contains(propertyName) || REQUIRED_EDITABLE_FIELDS.contains(propertyName)) {
+            if (License.REQUIRED_LICENSE_FIELDS.contains(propertyName) || REQUIRED_EDITABLE_FIELDS.contains(propertyName)) {
                 JOptionPane.showMessageDialog(this,
                         "The field '" + propertyName + "' is required and cannot be removed.",
                         "Required Field",
@@ -296,10 +290,9 @@ public final class LicenseTemplateEditor extends JDialog {
         ).ifPresent(this::loadJsonTemplate);
     }
 
-
     /**
      * Loads a template from a JSON file.
-     * 
+     *
      * @param file the JSON file
      */
     private void loadJsonTemplate(Path file) {

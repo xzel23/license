@@ -1,5 +1,6 @@
 package com.dua3.license.app;
 
+import com.dua3.license.DynamicEnum;
 import com.dua3.license.License;
 import com.dua3.utility.lang.Version;
 import net.miginfocom.swing.MigLayout;
@@ -19,21 +20,22 @@ import java.awt.Color;
 import java.awt.FlowLayout;
 import java.awt.HeadlessException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
-import java.security.PrivateKey;
-import java.security.Signature;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.time.LocalDate;
-import java.util.Base64;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
+import java.util.SequencedMap;
 import java.util.prefs.Preferences;
 
 import javax.swing.JFileChooser;
@@ -447,7 +449,7 @@ public class LicenseEditor {
                     }
                 }
 
-                // Generate the signature
+                // Get the keystore
                 KeyStore keyStore = keystoreManager.getKeyStore();
                 if (keyStore == null) {
                     JOptionPane.showMessageDialog(parentFrame,
@@ -457,32 +459,94 @@ public class LicenseEditor {
                     return;
                 }
 
-                // Get the private key
-                PrivateKey privateKey = (PrivateKey) keyStore.getKey(keyAlias, keystoreManager.getKeystorePassword());
+                // Create a file chooser
+                JFileChooser fileChooser = new JFileChooser();
+                fileChooser.setDialogTitle("Save License");
+                fileChooser.setFileFilter(LICENSE_EXTENSION_FILTER);
 
-                // Create a signature
-                Signature signature = Signature.getInstance("SHA256withRSA");
-                signature.initSign(privateKey);
+                // Set current directory to the stored license directory
+                Path storedDir = getStoredLicenseDirectory();
+                if (Files.exists(storedDir) && Files.isDirectory(storedDir)) {
+                    fileChooser.setCurrentDirectory(storedDir.toFile());
+                }
 
-                // Prepare the data for signing (excluding the signature field)
-                byte[] dataToSign = com.dua3.license.License.prepareSigningData(properties);
-                signature.update(dataToSign);
+                // Set default file name using LICENSE_ID if available
+                String defaultFileName = "license";
+                if (properties.containsKey("LICENSE_ID")) {
+                    defaultFileName = properties.get("LICENSE_ID").toString();
+                }
+                fileChooser.setSelectedFile(new java.io.File(defaultFileName + "." + LICENSE_FILE_EXTENSION));
 
-                // Generate the signature
-                byte[] signatureBytes = signature.sign();
-                String signatureBase64 = Base64.getEncoder().encodeToString(signatureBytes);
+                // Show save dialog
+                int userSelection = fileChooser.showSaveDialog(parentFrame);
 
-                // Add the signature to the properties
-                int signatureIndex = specialFieldIndices.get(SIGNATURE);
-                String signatureFieldName = fields.get(signatureIndex).name();
-                properties.put(signatureFieldName, signatureBase64);
+                if (userSelection == JFileChooser.APPROVE_OPTION) {
+                    Path filePath = fileChooser.getSelectedFile().toPath();
 
-                // Update the signature field in the UI
-                JTextField signatureField = (JTextField) valueComponents[signatureIndex];
-                signatureField.setText(signatureBase64);
+                    // Add extension if not present
+                    if (!filePath.toString().toLowerCase().endsWith("." + LICENSE_FILE_EXTENSION)) {
+                        filePath = Paths.get(filePath.toString() + "." + LICENSE_FILE_EXTENSION);
+                    }
 
-                // Save the license to a file
-                saveLicense(properties);
+                    try (OutputStream out = Files.newOutputStream(filePath)) {
+                        // Get the dynamic enum from the template
+                        DynamicEnum dynamicEnum = template.createDynamicEnum();
+
+                        // Create the license using the dynamic enum
+                        SequencedMap<String, Object> licenseData = License.createLicense(
+                                dynamicEnum,
+                                properties,
+                                () -> keyStore,
+                                () -> {
+                                    try {
+                                        return keystoreManager.getKeystorePassword();
+                                    } catch (GeneralSecurityException e) {
+                                        throw new RuntimeException("Failed to get keystore password", e);
+                                    }
+                                }
+                        );
+
+                        ObjectMapper mapper = new ObjectMapper();
+                        mapper.writeValue(out, licenseData);
+
+                        // Save the directory to preferences
+                        saveLicenseDirectory(filePath.getParent());
+
+                        // Get the signature from the properties
+                        int signatureIndex = specialFieldIndices.get(SIGNATURE);
+                        String signatureFieldName = fields.get(signatureIndex).name();
+                        
+                        // Load the license to get the signature
+                        Properties licenseProps = new Properties();
+                        try (InputStream in = Files.newInputStream(filePath)) {
+                            licenseProps.load(in);
+                        }
+                        
+                        String signatureBase64 = licenseProps.getProperty(signatureFieldName);
+                        
+                        // Update the signature field in the UI
+                        JTextField signatureField = (JTextField) valueComponents[signatureIndex];
+                        signatureField.setText(signatureBase64);
+                        
+                        // Update the properties with the signature
+                        properties.put(signatureFieldName, signatureBase64);
+                        
+                        JOptionPane.showMessageDialog(parentFrame,
+                                "License saved successfully to " + filePath,
+                                "License Saved",
+                                JOptionPane.INFORMATION_MESSAGE);
+                    } catch (IOException | GeneralSecurityException e) {
+                        LOG.error("Error creating license", e);
+                        JOptionPane.showMessageDialog(parentFrame,
+                                "Error creating license: " + e.getMessage(),
+                                ERROR,
+                                JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+                } else {
+                    // User cancelled the save dialog
+                    return;
+                }
 
                 // Create a table to display license properties
                 JPanel licenseDataPanel = new JPanel(new BorderLayout());
@@ -551,7 +615,7 @@ public class LicenseEditor {
                         "License Creation",
                         JOptionPane.INFORMATION_MESSAGE);
 
-            } catch (HeadlessException | GeneralSecurityException e) {
+            } catch (HeadlessException e) {
                 LOG.error("Error creating license", e);
                 JOptionPane.showMessageDialog(parentFrame,
                         "Error creating license: " + e.getMessage(),
@@ -660,7 +724,7 @@ public class LicenseEditor {
             if (userSelection == JFileChooser.APPROVE_OPTION) {
                 Path filePath = fileChooser.getSelectedFile().toPath();
 
-                // Add .json extension if not present
+                // Add extension if not present
                 if (!filePath.toString().toLowerCase().endsWith("." + LICENSE_FILE_EXTENSION)) {
                     filePath = Paths.get(filePath.toString() + "." + LICENSE_FILE_EXTENSION);
                 }

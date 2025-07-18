@@ -11,6 +11,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.dua3.license.License.REQUIRED_LICENSE_FIELDS;
+
 /**
  * Represents a license template that consists of a name, a file path,
  * and a collection of fields. Each field provides metadata and default values
@@ -52,17 +54,6 @@ public class LicenseTemplate {
     }
 
     /**
-     * Required fields that must be present in every license template.
-     */
-    private static final String[] REQUIRED_FIELDS = {
-        "LICENSE_ID",
-        "ISSUE_DATE",
-        "EXPIRY_DATE",
-        "SIGNING_KEY_ALIAS",
-        "SIGNATURE"
-    };
-
-    /**
      * Loads a DynamicEnum from a JSON file.
      *
      * @param path the JSON file
@@ -74,7 +65,7 @@ public class LicenseTemplate {
         List<LicenseField> fields = mapper.readValue(path.toFile(), new TypeReference<List<LicenseField>>() {});
 
         // Validate that all required fields are present
-        for (String requiredField : REQUIRED_FIELDS) {
+        for (String requiredField : REQUIRED_LICENSE_FIELDS) {
             boolean found = false;
             for (LicenseField field : fields) {
                 if (requiredField.equals(field.name())) {
