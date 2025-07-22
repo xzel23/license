@@ -840,7 +840,7 @@ public class LicenseEditor {
             try {
                 KeyStore keyStore = keystoreManager.getKeyStore();
                 char[] password = keystoreManager.getPassword();
-                isValid = License.validate(licenseData, keyStore, password, currentVersion, validationResults);
+                isValid = License.validate(licenseData, keyStore, currentVersion, validationResults);
             } catch (GeneralSecurityException e) {
                 LOG.warn("Error validating license: {}", e.getMessage(), e);
                 validationResults.append("❌ Error validating license: ").append(e.getMessage()).append("\n");
@@ -848,7 +848,6 @@ public class LicenseEditor {
 
             // Display the validation results
             String title = isValid ? "License is Valid" : "License Validation Failed";
-            int messageType = isValid ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE;
 
             // Create a panel to display validation results and license data
             JPanel licenseDataPanel = new JPanel(new BorderLayout());

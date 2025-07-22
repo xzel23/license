@@ -454,7 +454,7 @@ public final class License {
         }
 
         // Use the static validate method to validate the license data
-        return validate(licenseData, keyStore, keyStorePassword, currentVersion, validationOutput);
+        return validate(licenseData, keyStore, currentVersion, validationOutput);
     }
 
     /**
@@ -462,12 +462,11 @@ public final class License {
      *
      * @param licenseData      the license data to validate
      * @param keyStore         the keystore containing the certificates
-     * @param keyStorePassword the password for the keystore
      * @param currentVersion
      * @param validationOutput appendable to write validation messages to
      * @return true if the license is valid, false otherwise
      */
-    public static boolean validate(Map<String, Object> licenseData, KeyStore keyStore, char[] keyStorePassword, @Nullable Version currentVersion, Appendable validationOutput) {
+    public static boolean validate(Map<String, Object> licenseData, KeyStore keyStore, @Nullable Version currentVersion, Appendable validationOutput) {
         boolean isValid = true;
 
         try {

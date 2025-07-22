@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
-import java.security.GeneralSecurityException;
 import java.util.prefs.Preferences;
 
 import static org.junit.jupiter.api.Assertions.*;
