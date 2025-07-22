@@ -147,8 +147,8 @@ tasks.register("showTaskIO") {
 // Aggregate all subprojects for JaCoCo report aggregation
 
 dependencies {
-    jacocoAggregation(project(":license"))
-    jacocoAggregation(project(":license-app"))
+    jacocoAggregation(project("license"))
+    jacocoAggregation(project("license:license-app"))
 }
 
 tasks.named<JacocoReport>("testCodeCoverageReport") {
