@@ -1,7 +1,6 @@
 package com.dua3.license.app;
 
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -15,15 +14,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class KeystoreManagerTest {
 
-    private KeystoreManager keystoreManager;
-    
     @TempDir
     Path tempDir;
-    
-    @BeforeEach
-    void setUp() {
-        keystoreManager = new KeystoreManager();
-    }
     
     @AfterEach
     void tearDown() {
