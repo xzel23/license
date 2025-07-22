@@ -68,7 +68,10 @@ public final class License {
      * in the license.
      */
     public static final String EXPIRY_DATE_LICENSE_FIELD = "EXPIRY_DATE";
-    // Required fields that cannot be edited or deleted
+
+    /**
+     * Define the list of fields that have to be present in every license.
+     */
     public static final List<String> REQUIRED_LICENSE_FIELDS = List.of(
             LICENSE_ID_LICENSE_FIELD,
             ISSUE_DATE_LICENSE_FIELD,
