@@ -8,10 +8,14 @@
 import com.adarshr.gradle.testlogger.theme.ThemeType
 import com.dua3.cabe.processor.Configuration
 import com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask
+import org.gradle.api.tasks.SourceSetContainer
+import org.gradle.api.tasks.javadoc.Javadoc
+import org.gradle.external.javadoc.StandardJavadocDocletOptions
 import org.gradle.internal.extensions.stdlib.toDefaultLowerCase
 
 plugins {
     id("java-library")
+    id("jvm-test-suite")
     id("version-catalog")
     id("signing")
     id("idea")
@@ -46,10 +50,104 @@ object Meta {
 // Root project configuration
 /////////////////////////////////////////////////////////////////////////////
 
+project.version = libs.versions.projectVersion.get()
 project.description = Meta.DESCRIPTION
 
+tasks.register("printVersion") {
+    description = "Print the project version to stdout."
+    group = HelpTasksPlugin.HELP_GROUP
+    doLast { println(project.version) }
+}
+
+// Task to display inputs and outputs of a specified task
+tasks.register("showTaskIO") {
+    description = "Shows the inputs and outputs of a specified Gradle task."
+    group = HelpTasksPlugin.HELP_GROUP
+
+    // Define a property for the task name
+    val taskName = project.findProperty("taskName") as String? ?: "help"
+
+    doLast {
+        val task = project.tasks.findByName(taskName)
+        if (task == null) {
+            println("Task '$taskName' not found. Available tasks:")
+            project.tasks.names.sorted().forEach { println("  $it") }
+            return@doLast
+        }
+
+        println("\n=== Task: ${task.path} ===")
+
+        // Display task inputs
+        println("\nINPUTS:")
+        if (task.inputs.hasInputs) {
+            // Safely access properties
+            try {
+                val properties = task.inputs.properties
+                if (properties.isNotEmpty()) {
+                    properties.entries.forEach { entry ->
+                        println("  ${entry.key}: ${entry.value}")
+                    }
+                } else {
+                    println("  No input properties.")
+                }
+            } catch (e: Exception) {
+                println("  Error accessing input properties: ${e.message}")
+            }
+
+            println("\n  Input Files:")
+            try {
+                val files = task.inputs.files.files
+                if (files.isNotEmpty()) {
+                    files.forEach { file ->
+                        println("    ${file.absolutePath} (exists: ${file.exists()})")
+                    }
+                } else {
+                    println("    No input files.")
+                }
+            } catch (e: Exception) {
+                println("  Error accessing input files: ${e.message}")
+            }
+        } else {
+            println("  No declared inputs.")
+        }
+
+        // Display task outputs
+        println("\nOUTPUTS:")
+        if (task.outputs.hasOutput) {
+            println("  Output Files:")
+            try {
+                val files = task.outputs.files.files
+                if (files.isNotEmpty()) {
+                    files.filter { !it.isDirectory }.forEach { file ->
+                        println("    ${file.absolutePath} (exists: ${file.exists()})")
+                    }
+                } else {
+                    println("    No output files.")
+                }
+
+                println("\n  Output Directories:")
+                if (files.any { it.isDirectory }) {
+                    files.filter { it.isDirectory }.forEach { dir ->
+                        println("    ${dir.absolutePath} (exists: ${dir.exists()})")
+                    }
+                } else {
+                    println("    No output directories.")
+                }
+            } catch (e: Exception) {
+                println("  Error accessing output files: ${e.message}")
+            }
+        } else {
+            println("  No declared outputs.")
+        }
+
+        println("\n=== End of Task Info ===\n")
+    }
+}
+
+// Aggregate all subprojects for JaCoCo report aggregation
+
 dependencies {
-    // Aggregate all subprojects for JaCoCo report aggregation
+    jacocoAggregation(project(":license"))
     jacocoAggregation(project(":license-app"))
 }
 
@@ -68,77 +166,75 @@ sonar {
     }
 }
 
-subprojects {
-    // Task to publish to staging directory per subproject
-    val publishToStagingDirectory by tasks.registering {
-        group = "publishing"
-        description = "Publish artifacts to root staging directory for JReleaser"
-
-        dependsOn(tasks.withType<PublishToMavenRepository>().matching {
-            it.repository.name == "stagingDirectory"
-        })
-    }
+fun isDevelopmentVersion(versionString: String): Boolean {
+    val v = versionString.toDefaultLowerCase()
+    val markers = listOf("snapshot", "alpha", "beta")
+    return markers.any { marker -> v.contains("-$marker") || v.contains(".$marker") }
 }
 
+val isReleaseVersion = !isDevelopmentVersion(project.version.toString())
+val isSnapshot = project.version.toString().toDefaultLowerCase().contains("snapshot")
+
 /////////////////////////////////////////////////////////////////////////////
-// Common configuration for all projects
+// Subprojects configuration
 /////////////////////////////////////////////////////////////////////////////
-allprojects {
+
+subprojects {
 
     // Set project version from root libs.versions
     project.version = rootProject.libs.versions.projectVersion.get()
-
-    fun isDevelopmentVersion(versionString: String): Boolean {
-        val v = versionString.toDefaultLowerCase()
-        val markers = listOf("snapshot", "alpha", "beta")
-        return markers.any { marker -> v.contains("-$marker") || v.contains(".$marker") }
-    }
-
-    val isReleaseVersion = !isDevelopmentVersion(project.version.toString())
-    val isSnapshot = project.version.toString().toDefaultLowerCase().contains("snapshot")
 
     // Apply common plugins
     apply(plugin = "maven-publish")
     apply(plugin = "version-catalog")
     apply(plugin = "signing")
     apply(plugin = "idea")
-    apply(plugin = "jacoco")
-    apply(plugin = "java-library")
+    apply(plugin = rootProject.libs.plugins.versions.get().pluginId)
     apply(plugin = rootProject.libs.plugins.test.logger.get().pluginId)
-    apply(plugin = rootProject.libs.plugins.spotbugs.get().pluginId)
-    apply(plugin = rootProject.libs.plugins.cabe.get().pluginId)
-    apply(plugin = rootProject.libs.plugins.forbiddenapis.get().pluginId)
 
-    java {
-        toolchain {
-            languageVersion.set(JavaLanguageVersion.of(21))
-        }
-        targetCompatibility = JavaVersion.VERSION_21
-        sourceCompatibility = targetCompatibility
-
-        withJavadocJar()
-        withSourcesJar()
+    // Skip some plugins for BOM project
+    if (!project.name.endsWith("-bom")) {
+        apply(plugin = "jacoco")
+        apply(plugin = "java-library")
+        apply(plugin = "jvm-test-suite")
+        apply(plugin = rootProject.libs.plugins.spotbugs.get().pluginId)
+        apply(plugin = rootProject.libs.plugins.cabe.get().pluginId)
+        apply(plugin = rootProject.libs.plugins.forbiddenapis.get().pluginId)
     }
 
-    cabe {
-        if (isReleaseVersion) {
-            config.set(Configuration.parse("publicApi=THROW_IAE:privateApi=ASSERT"))
-        } else {
-            config.set(Configuration.DEVELOPMENT)
-        }
-    }
+    // Java configuration for non-BOM projects
+    if (!project.name.endsWith("-bom")) {
+        java {
+            toolchain {
+                languageVersion.set(JavaLanguageVersion.of(21))
+            }
+            targetCompatibility = JavaVersion.VERSION_21
+            sourceCompatibility = targetCompatibility
 
-    // JaCoCo
-    tasks.withType<JacocoReport> {
-        reports {
-            xml.required.set(true)
-            html.required.set(false)
+            withJavadocJar()
+            withSourcesJar()
         }
-    }
 
-    tasks.withType<Test> {
-        useJUnitPlatform()
-        finalizedBy(tasks.jacocoTestReport)
+        cabe {
+            if (isReleaseVersion) {
+                config.set(Configuration.parse("publicApi=THROW_IAE:privateApi=ASSERT"))
+            } else {
+                config.set(Configuration.DEVELOPMENT)
+            }
+        }
+
+        // JaCoCo
+        tasks.withType<JacocoReport> {
+            reports {
+                xml.required.set(true)
+                html.required.set(false)
+            }
+        }
+
+        tasks.withType<Test> {
+            useJUnitPlatform()
+            finalizedBy(tasks.jacocoTestReport)
+        }
     }
 
     // SonarQube properties
@@ -149,57 +245,42 @@ allprojects {
         }
     }
 
-    // make sure snapshot versions are not cached
-    configurations.all {
-        resolutionStrategy {
-            cacheChangingModulesFor(1, TimeUnit.SECONDS)
+    // Dependencies for non-BOM projects
+    if (!project.name.endsWith("-bom")) {
+        dependencies {
+            implementation(rootProject.libs.jspecify)
+            implementation(platform(rootProject.libs.log4j.bom))
+            implementation(rootProject.libs.log4j.api)
         }
-    }
 
-    // dependencies
-    dependencies {
-        // source annotations
-        implementation(rootProject.libs.jspecify)
-
-        // LOG4J
-        implementation(platform(rootProject.libs.log4j.bom))
-        implementation(rootProject.libs.log4j.api)
-
-        // other
-        implementation(platform(rootProject.libs.dua3.utility.bom))
-        implementation(rootProject.libs.dua3.utility)
-    }
-
-    configurations.all {
-        resolutionStrategy {
-            cacheChangingModulesFor(0, TimeUnit.SECONDS)
+        idea {
+            module {
+                inheritOutputDirs = false
+                outputDir = project.layout.buildDirectory.file("classes/java/main/").get().asFile
+                testOutputDir = project.layout.buildDirectory.file("classes/java/test/").get().asFile
+            }
         }
-    }
 
-    idea {
-        module {
-            inheritOutputDirs = false
-            outputDir = project.layout.buildDirectory.file("classes/java/main/").get().asFile
-            testOutputDir = project.layout.buildDirectory.file("classes/java/test/").get().asFile
-        }
-    }
-
-    testing {
-        suites {
-            val test by getting(JvmTestSuite::class) {
-                useJUnitJupiter()
-
-                dependencies {
-                    implementation(rootProject.libs.log4j.core)
-                }
-                targets {
-                    all {
-                        testTask {
-                            // enable assertions and use headless mode for AWT in unit tests
-                            jvmArgs(
-                                "-ea",
-                                "-Djava.awt.headless=true"
-                            )
+        testing {
+            suites {
+                val test by getting(JvmTestSuite::class) {
+                    useJUnitJupiter()
+                    dependencies {
+                        implementation(rootProject.libs.log4j.core)
+                    }
+                    targets {
+                        all {
+                            testTask {
+                                // enable assertions and use headless mode for AWT in unit tests
+                                jvmArgs(
+                                    "-ea",
+                                    "-Djava.awt.headless=true",
+                                    "-Dprism.order=sw",
+                                    "-Dsun.java2d.d3d=false",
+                                    "-Dsun.java2d.opengl=false",
+                                    "-Dsun.java2d.pmoffscreen=false"
+                                )
+                            }
                         }
                     }
                 }
@@ -211,46 +292,55 @@ allprojects {
         theme = ThemeType.MOCHA_PARALLEL
     }
 
-    tasks.compileJava {
-        options.encoding = "UTF-8"
-        options.compilerArgs.addAll(listOf("-Xlint:deprecation", "-Xlint:-module"))
-        options.javaModuleVersion.set(provider { project.version as String })
-        options.release.set(java.targetCompatibility.majorVersion.toInt())
-    }
-    tasks.compileTestJava {
-        options.encoding = "UTF-8"
-    }
-    tasks.javadoc {
-        (options as StandardJavadocDocletOptions).apply {
-            encoding = "UTF-8"
-            addStringOption("Xdoclint:all,-missing/private")
+    // Java compilation and Javadoc config for non-BOM projects
+    if (!project.name.endsWith("-bom")) {
+        tasks.compileJava {
+            options.encoding = "UTF-8"
+            options.compilerArgs.addAll(listOf("-Xlint:deprecation", "-Xlint:-module"))
+            options.javaModuleVersion.set(provider { project.version as String })
+            options.release.set(java.targetCompatibility.majorVersion.toInt())
+        }
+        tasks.compileTestJava {
+            options.encoding = "UTF-8"
+        }
+        tasks.javadoc {
+            (options as StandardJavadocDocletOptions).apply {
+                encoding = "UTF-8"
+                addStringOption("Xdoclint:all,-missing/private")
+                locale = "en_US"
+            }
         }
     }
 
-    // === FORBIDDEN APIS ===
-    forbiddenApis {
-        bundledSignatures = setOf("jdk-internal", "jdk-deprecated")
-        ignoreFailures = false
+    // Forbidden APIs and SpotBugs for non-BOM projects
+    if (!project.name.endsWith("-bom")) {
+        // === FORBIDDEN APIS ===
+        forbiddenApis {
+            bundledSignatures = setOf("jdk-internal", "jdk-deprecated")
+            ignoreFailures = false
+        }
+
+        // === SPOTBUGS ===
+        spotbugs.toolVersion.set(rootProject.libs.versions.spotbugs)
+        spotbugs.excludeFilter.set(rootProject.file("spotbugs-exclude.xml"))
+        tasks.withType<com.github.spotbugs.snom.SpotBugsTask> {
+            reports.create("html") {
+                required.set(true)
+                outputLocation = project.layout.buildDirectory.file("reports/spotbugs.html").get().asFile
+                setStylesheet("fancy-hist.xsl")
+            }
+            reports.create("xml") {
+                required.set(true)
+                outputLocation = project.layout.buildDirectory.file("reports/spotbugs.xml").get().asFile
+            }
+        }
     }
 
-    // === SPOTBUGS ===
-    spotbugs.toolVersion.set(rootProject.libs.versions.spotbugs)
-    spotbugs.excludeFilter.set(rootProject.file("spotbugs-exclude.xml"))
-    tasks.withType<com.github.spotbugs.snom.SpotBugsTask> {
-        reports.create("html") {
-            required.set(true)
-            outputLocation = project.layout.buildDirectory.file("reports/spotbugs.html").get().asFile
-            setStylesheet("fancy-hist.xsl")
+    // Jar duplicates strategy for non-BOM projects
+    if (!project.name.endsWith("-bom")) {
+        tasks.withType<Jar> {
+            duplicatesStrategy = DuplicatesStrategy.INCLUDE
         }
-        reports.create("xml") {
-            required.set(true)
-            outputLocation = project.layout.buildDirectory.file("reports/spotbugs.xml").get().asFile
-        }
-    }
-
-    // Jar duplicates strategy
-    tasks.withType<Jar> {
-        duplicatesStrategy = DuplicatesStrategy.INCLUDE
     }
 
     // --- PUBLISHING ---
@@ -278,48 +368,61 @@ allprojects {
         }
 
         // Publications for non-BOM projects
-        publications {
-            create<MavenPublication>("mavenJava") {
-                from(components["java"])
+        if (!project.name.endsWith("-bom")) {
+            publications {
+                create<MavenPublication>("mavenJava") {
+                    from(components["java"])
 
-                groupId = Meta.GROUP
-                artifactId = project.name
-                version = project.version.toString()
+                    groupId = Meta.GROUP
+                    artifactId = project.name
+                    version = project.version.toString()
 
-                pom {
-                    name.set(project.name)
-                    url.set(Meta.SCM)
-
-                    licenses {
-                        license {
-                            name.set(Meta.LICENSE_NAME)
-                            url.set(Meta.LICENSE_URL)
-                        }
-                    }
-
-                    developers {
-                        developer {
-                            id.set(Meta.DEVELOPER_ID)
-                            name.set(Meta.DEVELOPER_NAME)
-                            email.set(Meta.DEVELOPER_EMAIL)
-                            organization.set(Meta.ORGANIZATION_NAME)
-                            organizationUrl.set(Meta.ORGANIZATION_URL)
-                        }
-                    }
-
-                    scm {
-                        connection.set("scm:git:${Meta.SCM}")
-                        developerConnection.set("scm:git:${Meta.SCM}")
+                    pom {
+                        name.set(project.name)
+                        description.set(project.description)
                         url.set(Meta.SCM)
-                    }
 
-                    withXml {
-                        val root = asNode()
-                        root.appendNode("inceptionYear", "2019")
+                        licenses {
+                            license {
+                                name.set(Meta.LICENSE_NAME)
+                                url.set(Meta.LICENSE_URL)
+                            }
+                        }
+
+                        developers {
+                            developer {
+                                id.set(Meta.DEVELOPER_ID)
+                                name.set(Meta.DEVELOPER_NAME)
+                                email.set(Meta.DEVELOPER_EMAIL)
+                                organization.set(Meta.ORGANIZATION_NAME)
+                                organizationUrl.set(Meta.ORGANIZATION_URL)
+                            }
+                        }
+
+                        scm {
+                            connection.set("scm:git:${Meta.SCM}")
+                            developerConnection.set("scm:git:${Meta.SCM}")
+                            url.set(Meta.SCM)
+                        }
+
+                        withXml {
+                            val root = asNode()
+                            root.appendNode("inceptionYear", "2019")
+                        }
                     }
                 }
             }
         }
+    }
+
+    // Task to publish to staging directory per subproject
+    val publishToStagingDirectory by tasks.registering {
+        group = "publishing"
+        description = "Publish artifacts to root staging directory for JReleaser"
+
+        dependsOn(tasks.withType<PublishToMavenRepository>().matching {
+            it.repository.name == "stagingDirectory"
+        })
     }
 
     // Signing configuration deferred until after evaluation
@@ -366,12 +469,64 @@ tasks.register("publishToStagingDirectory") {
     description = "Publish all subprojects' artifacts to root staging directory for JReleaser"
 
     dependsOn(subprojects.mapNotNull { it.tasks.findByName("publishToStagingDirectory") })
-    dependsOn("publishMavenJavaPublicationToStagingDirectoryRepository")
 }
 
-// Make jreleaserDeploy depend on the root-level publishToStagingDirectory task
-tasks.named("jreleaserDeploy") {
-    dependsOn("publishToStagingDirectory")
+// add a task to create aggregate javadoc in the root projects build/docs/javadoc folder
+tasks.register<Javadoc>("aggregateJavadoc") {
+    group = "documentation"
+    description = "Generates aggregated Javadoc for all subprojects"
+
+    setDestinationDir(layout.buildDirectory.dir("docs/javadoc").get().asFile)
+    setTitle("${rootProject.name} ${project.version} API")
+
+    // Disable module path inference
+    modularity.inferModulePath.set(false)
+
+    // Configure the task to depend on all subprojects' javadoc tasks
+    val filteredProjects = subprojects.filter {
+        !it.name.endsWith("-bom") && !it.name.contains("samples")
+    }
+
+    dependsOn(filteredProjects.map { it.tasks.named("javadoc") })
+
+    // Collect all Java source directories from subprojects, excluding module-info.java files
+    source(filteredProjects.flatMap { project ->
+        val sourceSets = project.extensions.getByType(SourceSetContainer::class.java)
+        val main = sourceSets.findByName("main")
+        main?.allJava?.filter { file ->
+            !file.name.equals("module-info.java")
+        } ?: files()
+    })
+
+    // Collect all classpaths from subprojects
+    classpath = files(filteredProjects.flatMap { project ->
+        val sourceSets = project.extensions.getByType(SourceSetContainer::class.java)
+        val main = sourceSets.findByName("main")
+        main?.compileClasspath ?: files()
+    })
+
+    // Add runtime classpath to ensure all dependencies are available
+    classpath += files(filteredProjects.flatMap { project ->
+        val sourceSets = project.extensions.getByType(SourceSetContainer::class.java)
+        val main = sourceSets.findByName("main")
+        main?.runtimeClasspath ?: files()
+    })
+
+    // Apply the same Javadoc options as in subprojects
+    (options as StandardJavadocDocletOptions).apply {
+        encoding = "UTF-8"
+        addStringOption("Xdoclint:all,-missing/private")
+        links("https://docs.oracle.com/en/java/javase/21/docs/api/")
+        use(true)
+        noTimestamp(true)
+        windowTitle = "${rootProject.name} ${project.version} API"
+        docTitle = "${rootProject.name} ${project.version} API"
+        header = "${rootProject.name} ${project.version} API"
+        // Set locale to English to ensure consistent language in generated documentation
+        locale = "en_US"
+        // Disable module path to avoid module-related errors
+        addBooleanOption("module-path", false)
+    }
 }
 
 jreleaser {
@@ -398,52 +553,33 @@ jreleaser {
 
     deploy {
         maven {
-            mavenCentral {
-                create("release-deploy") {
-                    active.set(org.jreleaser.model.Active.RELEASE)
-                    url.set("https://central.sonatype.com/api/v1/publisher")
-                    stagingRepositories.add("build/staging-deploy")
-                    username.set(System.getenv("SONATYPE_USERNAME"))
-                    password.set(System.getenv("SONATYPE_PASSWORD"))
+            if (!isSnapshot) {
+                println("adding release-deploy")
+                mavenCentral {
+                    create("release-deploy") {
+                        active.set(org.jreleaser.model.Active.RELEASE)
+                        url.set("https://central.sonatype.com/api/v1/publisher")
+                        stagingRepositories.add("build/staging-deploy")
+                        username.set(System.getenv("SONATYPE_USERNAME"))
+                        password.set(System.getenv("SONATYPE_PASSWORD"))
+                    }
+                }
+            } else {
+                println("adding snapshot-deploy")
+                nexus2 {
+                    create("snapshot-deploy") {
+                        active.set(org.jreleaser.model.Active.SNAPSHOT)
+                        snapshotUrl.set("https://central.sonatype.com/repository/maven-snapshots/")
+                        applyMavenCentralRules.set(true)
+                        snapshotSupported.set(true)
+                        closeRepository.set(true)
+                        releaseRepository.set(true)
+                        stagingRepositories.add("build/staging-deploy")
+                        username.set(System.getenv("SONATYPE_USERNAME"))
+                        password.set(System.getenv("SONATYPE_PASSWORD"))
+                    }
                 }
             }
-            nexus2 {
-                create("snapshot-deploy") {
-                    active.set(org.jreleaser.model.Active.SNAPSHOT)
-                    snapshotUrl.set("https://central.sonatype.com/repository/maven-snapshots/")
-                    applyMavenCentralRules.set(true)
-                    verifyPom.set(false)
-                    snapshotSupported.set(true)
-                    closeRepository.set(true)
-                    releaseRepository.set(true)
-                    stagingRepositories.add("build/staging-deploy")
-                    username.set(System.getenv("SONATYPE_USERNAME"))
-                    password.set(System.getenv("SONATYPE_PASSWORD"))
-                }
-            }
-        }
-    }
-}
-
-/////////////////////////////////////////////////////////////////////////////
-// Utility tasks
-/////////////////////////////////////////////////////////////////////////////
-
-// Task to generate JReleaser configuration file for reference
-tasks.register("generateJReleaserConfig") {
-    description = "Generates JReleaser configuration file for reference"
-    group = "documentation"
-
-    doLast {
-        val process = ProcessBuilder("./gradlew", "jreleaserConfig", "-PconfigFile=jreleaser-config.yml")
-            .directory(project.rootDir)
-            .inheritIO()
-            .start()
-        val exitCode = process.waitFor()
-        if (exitCode == 0) {
-            println("JReleaser configuration file generated at: jreleaser-config.yml")
-        } else {
-            println("Failed to generate JReleaser configuration file. Exit code: $exitCode")
         }
     }
 }
