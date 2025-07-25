@@ -474,12 +474,79 @@ subprojects {
 // Root project tasks and JReleaser configuration
 /////////////////////////////////////////////////////////////////////////////
 
+// Set up publishing for the root project
+configure<PublishingExtension> {
+    // Repository for publishing to staging directory
+    repositories {
+        maven {
+            name = "stagingDirectory"
+            url = layout.buildDirectory.dir("staging-deploy").get().asFile.toURI()
+        }
+    }
+
+    // Publication for the root project
+    publications {
+        create<MavenPublication>("mavenJava") {
+            from(components["java"])
+
+            groupId = Meta.GROUP
+            artifactId = rootProject.name
+            version = project.version.toString()
+
+            pom {
+                name.set(rootProject.name)
+                description.set(rootProject.description)
+                url.set(Meta.SCM)
+
+                licenses {
+                    license {
+                        name.set(Meta.LICENSE_NAME)
+                        url.set(Meta.LICENSE_URL)
+                    }
+                }
+
+                developers {
+                    developer {
+                        id.set(Meta.DEVELOPER_ID)
+                        name.set(Meta.DEVELOPER_NAME)
+                        email.set(Meta.DEVELOPER_EMAIL)
+                        organization.set(Meta.ORGANIZATION_NAME)
+                        organizationUrl.set(Meta.ORGANIZATION_URL)
+                    }
+                }
+
+                scm {
+                    connection.set("scm:git:${Meta.SCM}")
+                    developerConnection.set("scm:git:${Meta.SCM}")
+                    url.set(Meta.SCM)
+                }
+
+                withXml {
+                    val root = asNode()
+                    root.appendNode("inceptionYear", "2019")
+                }
+            }
+        }
+    }
+}
+
+// Task to publish root project to staging directory
+val publishRootToStagingDirectory by tasks.registering {
+    group = "publishing"
+    description = "Publish root project artifacts to staging directory for JReleaser"
+
+    dependsOn(tasks.withType<PublishToMavenRepository>().matching {
+        it.repository.name == "stagingDirectory"
+    })
+}
+
 // Aggregate all subprojects' publishToStagingDirectory tasks into a root-level task
 tasks.register("publishToStagingDirectory") {
     group = "publishing"
     description = "Publish all subprojects' artifacts to root staging directory for JReleaser"
 
     dependsOn(subprojects.mapNotNull { it.tasks.findByName("publishToStagingDirectory") })
+    dependsOn(tasks.named("publishRootToStagingDirectory"))
 }
 
 // add a task to create aggregate javadoc in the root projects build/docs/javadoc folder
