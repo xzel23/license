@@ -195,45 +195,45 @@ public final class LicenseTemplateEditor extends JDialog {
         // Add LICENSE_ID field if it doesn't exist (can be edited but not deleted)
         if (!existingFields.contains("LICENSE_ID")) {
             tableModel.addRow(new Object[]{
-                "LICENSE_ID", 
-                "Unique identifier for the license", 
-                ""
+                    "LICENSE_ID",
+                    "Unique identifier for the license",
+                    ""
             });
         }
 
         // Add ISSUE_DATE field if it doesn't exist
         if (!existingFields.contains("ISSUE_DATE")) {
             tableModel.addRow(new Object[]{
-                "ISSUE_DATE", 
-                "Issue date of the license", 
-                LicenseEditor.$ISSUE_DATE
+                    "ISSUE_DATE",
+                    "Issue date of the license",
+                    LicenseEditor.$ISSUE_DATE
             });
         }
 
         // Add EXPIRY_DATE field if it doesn't exist
         if (!existingFields.contains("EXPIRY_DATE")) {
             tableModel.addRow(new Object[]{
-                "EXPIRY_DATE", 
-                "Expiry date of the license", 
-                LicenseEditor.$EXPIRY_DATE
+                    "EXPIRY_DATE",
+                    "Expiry date of the license",
+                    LicenseEditor.$EXPIRY_DATE
             });
         }
 
         // Add SIGNING_KEY field if it doesn't exist
         if (!existingFields.contains("SIGNING_KEY")) {
             tableModel.addRow(new Object[]{
-                "SIGNING_KEY", 
-                "Key used to sign the license", 
-                LicenseEditor.$SIGNING_KEY
+                    "SIGNING_KEY",
+                    "Key used to sign the license",
+                    LicenseEditor.$SIGNING_KEY
             });
         }
 
         // Add SIGNATURE field if it doesn't exist
         if (!existingFields.contains("SIGNATURE")) {
             tableModel.addRow(new Object[]{
-                "SIGNATURE", 
-                "Digital signature of the license", 
-                LicenseEditor.$SIGNATURE
+                    "SIGNATURE",
+                    "Digital signature of the license",
+                    LicenseEditor.$SIGNATURE
             });
         }
     }

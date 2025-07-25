@@ -607,8 +607,8 @@ public class LicenseManager {
         // Show a file save dialog with the current keystore directory as the initial directory
         Path initialDir = keystoreManager.getKeystorePath().getParent();
         Optional<Path> selectedPath = SwingUtil.showFileSaveDialog(
-                mainFrame, 
-                initialDir, 
+                mainFrame,
+                initialDir,
                 Pair.of("Java Keystore File", new String[]{"jks"})
         );
 
@@ -664,8 +664,8 @@ public class LicenseManager {
             // Save the new keystore
             KeyStoreUtil.saveKeyStoreToFile(newKeyStore, path, password);
 
-            JOptionPane.showMessageDialog(mainFrame, 
-                    "Public key and certificate exported successfully to:\n" + path, 
+            JOptionPane.showMessageDialog(mainFrame,
+                    "Public key and certificate exported successfully to:\n" + path,
                     "Export Successful", JOptionPane.INFORMATION_MESSAGE);
         } finally {
             // Clear passwords from memory

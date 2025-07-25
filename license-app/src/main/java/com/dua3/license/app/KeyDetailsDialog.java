@@ -310,7 +310,7 @@ public class KeyDetailsDialog {
 
     /**
      * Exports the certificate for the current key alias to a file.
-     * 
+     *
      * @throws GeneralSecurityException if there is an error accessing the certificate
      * @throws IOException if there is an error writing the certificate to a file
      */
@@ -362,11 +362,11 @@ public class KeyDetailsDialog {
         boolean usePemFormat = true; // Default to PEM
         if (fileChooser.getFileFilter() == derFilter) {
             usePemFormat = false;
-        } else if (!filePath.toString().toLowerCase().endsWith(".pem") && 
-                   !filePath.toString().toLowerCase().endsWith(".crt") && 
-                   !filePath.toString().toLowerCase().endsWith(".cer")) {
+        } else if (!filePath.toString().toLowerCase().endsWith(".pem") &&
+                !filePath.toString().toLowerCase().endsWith(".crt") &&
+                !filePath.toString().toLowerCase().endsWith(".cer")) {
             // If PEM filter is selected but file doesn't have PEM extension, add .pem
-            filePath = Path.of(filePath.toString() + ".pem");
+            filePath = Path.of(filePath + ".pem");
         }
 
         // Export the certificate
@@ -391,15 +391,15 @@ public class KeyDetailsDialog {
             }
         }
 
-        JOptionPane.showMessageDialog(mainFrame, 
-                "Certificate exported successfully to:\n" + filePath, 
+        JOptionPane.showMessageDialog(mainFrame,
+                "Certificate exported successfully to:\n" + filePath,
                 "Export Successful", JOptionPane.INFORMATION_MESSAGE);
     }
 
     /**
      * Exports only the public key and certificate to a new keystore instance for distribution.
      * This creates a keystore that can be used to verify licenses signed with this key.
-     * 
+     *
      * @throws GeneralSecurityException if there is an error accessing the keystore
      * @throws IOException if there is an error saving the keystore
      */
@@ -420,8 +420,8 @@ public class KeyDetailsDialog {
 
         // Show a file save dialog with the current keystore directory as the initial directory
         Optional<Path> selectedPath = SwingUtil.showFileSaveDialog(
-                mainFrame, 
-                keystorePath.getParent(), 
+                mainFrame,
+                keystorePath.getParent(),
                 Pair.of("Java Keystore File", new String[]{"jks"})
         );
 
@@ -477,8 +477,8 @@ public class KeyDetailsDialog {
             // Save the new keystore
             KeyStoreUtil.saveKeyStoreToFile(newKeyStore, path, password);
 
-            JOptionPane.showMessageDialog(mainFrame, 
-                    "Public key and certificate exported successfully to:\n" + path, 
+            JOptionPane.showMessageDialog(mainFrame,
+                    "Public key and certificate exported successfully to:\n" + path,
                     "Export Successful", JOptionPane.INFORMATION_MESSAGE);
         } finally {
             // Clear passwords from memory

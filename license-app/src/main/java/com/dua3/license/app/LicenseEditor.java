@@ -144,7 +144,7 @@ public class LicenseEditor {
      *
      * @return the stored license directory or a default path
      */
-    private Path getStoredLicenseDirectory() {
+    private Path getLicenseDirectory() {
         Preferences prefs = Preferences.userNodeForPackage(LicenseEditor.class);
         String storedPath = prefs.get(PREF_LICENSE_DIRECTORY, null);
         return storedPath != null ? Paths.get(storedPath) : Paths.get(".");
@@ -465,7 +465,7 @@ public class LicenseEditor {
                 fileChooser.setFileFilter(LICENSE_EXTENSION_FILTER);
 
                 // Set current directory to the stored license directory
-                Path storedDir = getStoredLicenseDirectory();
+                Path storedDir = getLicenseDirectory();
                 if (Files.exists(storedDir) && Files.isDirectory(storedDir)) {
                     fileChooser.setCurrentDirectory(storedDir.toFile());
                 }
@@ -650,7 +650,7 @@ public class LicenseEditor {
             fileChooser.setFileFilter(LICENSE_DRAFT_EXTENSION_FILTER);
 
             // Set current directory to the stored license directory
-            Path storedDir = getStoredLicenseDirectory();
+            Path storedDir = getLicenseDirectory();
             if (Files.exists(storedDir) && Files.isDirectory(storedDir)) {
                 fileChooser.setCurrentDirectory(storedDir.toFile());
             }
@@ -706,7 +706,7 @@ public class LicenseEditor {
             fileChooser.setFileFilter(LICENSE_EXTENSION_FILTER);
 
             // Set current directory to the stored license directory
-            Path storedDir = getStoredLicenseDirectory();
+            Path storedDir = getLicenseDirectory();
             if (Files.exists(storedDir) && Files.isDirectory(storedDir)) {
                 fileChooser.setCurrentDirectory(storedDir.toFile());
             }
@@ -763,7 +763,7 @@ public class LicenseEditor {
             fileChooser.setFileFilter(LICENSE_DRAFT_EXTENSION_FILTER);
 
             // Set current directory to the stored license directory
-            Path storedDir = getStoredLicenseDirectory();
+            Path storedDir = getLicenseDirectory();
             if (Files.exists(storedDir) && Files.isDirectory(storedDir)) {
                 fileChooser.setCurrentDirectory(storedDir.toFile());
             }
@@ -807,7 +807,7 @@ public class LicenseEditor {
             fileChooser.setFileFilter(LICENSE_EXTENSION_FILTER);
 
             // Set current directory to the stored license directory
-            Path storedDir = getStoredLicenseDirectory();
+            Path storedDir = getLicenseDirectory();
             if (Files.exists(storedDir) && Files.isDirectory(storedDir)) {
                 fileChooser.setCurrentDirectory(storedDir.toFile());
             }

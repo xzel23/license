@@ -1,11 +1,14 @@
 package com.dua3.license;
 
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
 
-import java.util.Properties;
 import java.util.Arrays;
+import java.util.Properties;
 import java.util.stream.Collectors;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DynamicEnumTest {
 
@@ -81,7 +84,7 @@ class DynamicEnumTest {
             DynamicEnum.fromProperties(emptyProps);
         });
 
-        assertTrue(exception.getMessage().contains("cannot be empty"), 
+        assertTrue(exception.getMessage().contains("cannot be empty"),
                 "Exception message should mention that properties cannot be empty");
     }
 
@@ -95,7 +98,7 @@ class DynamicEnumTest {
             DynamicEnum.fromPropertiesWithValues(emptyProps);
         });
 
-        assertTrue(exception.getMessage().contains("cannot be empty"), 
+        assertTrue(exception.getMessage().contains("cannot be empty"),
                 "Exception message should mention that properties cannot be empty");
     }
 

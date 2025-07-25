@@ -83,7 +83,7 @@ public class KeystoreManager {
 
     /**
      * Creates a panel with the logo icon centered horizontally and the specified message below it.
-     * 
+     *
      * @param message the message to display below the icon, can be a string or a component
      * @return a panel with the centered logo icon and message
      */
@@ -436,15 +436,15 @@ public class KeystoreManager {
             Preferences prefs = Preferences.userNodeForPackage(KeystoreManager.class);
             encryptionKey = prefs.getByteArray(PREF_ENCRYPTION_KEY, null);
             iv = prefs.getByteArray(PREF_IV, null);
-            
+
             if (encryptionKey == null || iv == null) {
                 LOG.warn("Could not retrieve encryption key or IV from preferences");
                 throw new IllegalStateException("No encryption data available");
             }
-            
+
             LOG.debug("Retrieved encryption key and IV from preferences");
         }
-        
+
         // If we don't have the encrypted password in memory, prompt the user to re-enter it
         if (encryptedPassword == null) {
             LOG.info("No encrypted password stored in memory, prompting user to re-enter");
@@ -471,17 +471,17 @@ public class KeystoreManager {
             return password;
         } catch (GeneralSecurityException e) {
             LOG.error("Failed to decrypt password", e);
-            
+
             // Clear the stored encryption data to force re-entry of password
             encryptedPassword = null;
             encryptionKey = null;
             iv = null;
-            
+
             // Clear preferences as well
             Preferences prefs = Preferences.userNodeForPackage(KeystoreManager.class);
             prefs.remove(PREF_ENCRYPTION_KEY);
             prefs.remove(PREF_IV);
-            
+
             throw new GeneralSecurityException("Failed to decrypt password. Please re-enter your password.", e);
         }
     }
@@ -511,7 +511,7 @@ public class KeystoreManager {
 
     /**
      * Validates a password against security requirements.
-     * 
+     *
      * @param password the password to validate
      * @return a validation result containing success status and error message if any
      */
@@ -575,8 +575,8 @@ public class KeystoreManager {
      * Helper method to check if a character is a punctuation symbol.
      */
     private static boolean isPunctuation(char c) {
-        return (c >= 33 && c <= 47) || (c >= 58 && c <= 64) || 
-               (c >= 91 && c <= 96) || (c >= 123 && c <= 126);
+        return (c >= 33 && c <= 47) || (c >= 58 && c <= 64) ||
+                (c >= 91 && c <= 96) || (c >= 123 && c <= 126);
     }
 
     /**
@@ -614,7 +614,7 @@ public class KeystoreManager {
     public char[] getKeystorePassword() throws GeneralSecurityException {
         return getPassword();
     }
-    
+
     /**
      * Prompts the user to enter their password and stores it.
      * This is used when the encrypted password is not available in memory.
@@ -626,28 +626,28 @@ public class KeystoreManager {
         JPanel panel = new JPanel(new MigLayout("fillx, wrap 1", "[grow]", "[][]"));
         JLabel label = new JLabel("Please enter your keystore password:");
         JPasswordField passwordField = new JPasswordField(20);
-        
+
         panel.add(label);
         panel.add(passwordField, "growx");
-        
+
         int result = JOptionPane.showConfirmDialog(
-                null, 
+                null,
                 createCenteredLogoPanel(panel),
-                "Password Required", 
+                "Password Required",
                 JOptionPane.OK_CANCEL_OPTION,
                 JOptionPane.PLAIN_MESSAGE);
-        
+
         if (result != JOptionPane.OK_OPTION) {
             throw new IllegalStateException("Password entry cancelled by user");
         }
-        
+
         char[] password = passwordField.getPassword();
-        
+
         // Store the password
         if (!storePassword(password, DialogMode.LOAD_EXISTING)) {
             throw new GeneralSecurityException("Failed to store password");
         }
-        
+
         return password;
     }
 }
