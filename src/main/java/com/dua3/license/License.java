@@ -437,15 +437,16 @@ public final class License {
     }
 
     /**
-     * Validates the license data.
+     * Validates the license using the provided keystore, password, and version information.
+     * The method checks the license data against the keystore and writes any validation
+     * messages to the provided output.
      *
-     * @param keyStore         the keystore containing the certificates
-     * @param keyStorePassword the password for the keystore
-     * @param currentVersion
-     * @param validationOutput appendable to write validation messages to
+     * @param keyStore         the keystore containing the certificates for validation
+     * @param currentVersion   the current version of the application for version compatibility checks
+     * @param validationOutput an appendable instance to which validation messages will be written
      * @return true if the license is valid, false otherwise
      */
-    public boolean validate(KeyStore keyStore, char[] keyStorePassword, Version currentVersion, Appendable validationOutput) {
+    public boolean validate(KeyStore keyStore, Version currentVersion, Appendable validationOutput) {
         Map<String, Object> licenseData = new LinkedHashMap<>();
 
         // Convert internal data to a map of strings
@@ -462,7 +463,7 @@ public final class License {
      *
      * @param licenseData      the license data to validate
      * @param keyStore         the keystore containing the certificates
-     * @param currentVersion
+     * @param currentVersion    the current version of the application for version compatibility checks
      * @param validationOutput appendable to write validation messages to
      * @return true if the license is valid, false otherwise
      */
