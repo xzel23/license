@@ -295,7 +295,7 @@ public final class License {
     }
 
     /**
-     * Loads a license from an input stream.
+     * Loads a license from a sequenced map containing the license data.
      *
      * @param keyClass    the enum class defining the keys used in the license
      * @param keySupplier a supplier providing the public key for verifying the license signature
