@@ -176,10 +176,10 @@ val isReleaseVersion = !isDevelopmentVersion(project.version.toString())
 val isSnapshot = project.version.toString().toDefaultLowerCase().contains("snapshot")
 
 /////////////////////////////////////////////////////////////////////////////
-// Subprojects configuration
+// allprojects configuration
 /////////////////////////////////////////////////////////////////////////////
 
-subprojects {
+allprojects {
 
     // Set project version from root libs.versions
     project.version = rootProject.libs.versions.projectVersion.get()
@@ -251,6 +251,8 @@ subprojects {
             implementation(rootProject.libs.jspecify)
             implementation(platform(rootProject.libs.log4j.bom))
             implementation(rootProject.libs.log4j.api)
+            implementation(platform(rootProject.libs.dua3.utility.bom))
+            implementation(rootProject.libs.dua3.utility)
         }
 
         idea {
@@ -342,9 +344,13 @@ subprojects {
             duplicatesStrategy = DuplicatesStrategy.INCLUDE
         }
     }
+}
 
-    // --- PUBLISHING ---
+/////////////////////////////////////////////////////////////////////////////
+// PUBLISHING
+/////////////////////////////////////////////////////////////////////////////
 
+subprojects {
     configure<PublishingExtension> {
         // Repositories for publishing
         repositories {

@@ -21,7 +21,7 @@ dependencyResolutionManagement {
         create("libs") {
             version("projectVersion", projectVersion)
 
-            plugin("cabe", "com.dua3.cabe").version("3.2.0")
+            plugin("cabe", "com.dua3.cabe").version("3.3.0")
             plugin("forbiddenapis", "de.thetaphi.forbiddenapis").version("3.9")
             plugin("jreleaser", "org.jreleaser").version("1.19.0")
             plugin("sonar", "org.sonarqube").version("6.2.0.5505")
@@ -29,7 +29,7 @@ dependencyResolutionManagement {
             plugin("test-logger", "com.adarshr.test-logger").version("4.0.0")
             plugin("versions", "com.github.ben-manes.versions").version("0.52.0")
 
-            version("dua3-utility", "20.0.0-beta4-SNAPSHOT")
+            version("dua3-utility", "20.0.0-beta4")
             version("jspecify", "1.0.0")
             version("log4j-bom", "2.25.1")
             version("spotbugs", "4.9.3")
