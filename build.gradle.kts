@@ -540,6 +540,10 @@ tasks.register<Javadoc>("aggregateJavadoc") {
     }
 }
 
+tasks.named("javadocJar") {
+    dependsOn("aggregateJavadoc")
+}
+
 jreleaser {
     project {
         name.set(rootProject.name)
