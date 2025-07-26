@@ -7,6 +7,7 @@ rootProject.name = "license"
 val projectVersion = "0.1.0-beta4-SNAPSHOT"
 
 include("license-app")
+include("license-plugin")
 
 plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
@@ -29,7 +30,7 @@ dependencyResolutionManagement {
             plugin("test-logger", "com.adarshr.test-logger").version("4.0.0")
             plugin("versions", "com.github.ben-manes.versions").version("0.52.0")
 
-            version("dua3-utility", "20.0.0-beta4")
+            version("dua3-utility", "20.0.0-beta5-SNAPSHOT")
             version("jspecify", "1.0.0")
             version("log4j-bom", "2.25.1")
             version("spotbugs", "4.9.3")

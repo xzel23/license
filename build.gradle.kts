@@ -198,8 +198,19 @@ allprojects {
         apply(plugin = "java-library")
         apply(plugin = "jvm-test-suite")
         apply(plugin = rootProject.libs.plugins.spotbugs.get().pluginId)
-        apply(plugin = rootProject.libs.plugins.cabe.get().pluginId)
         apply(plugin = rootProject.libs.plugins.forbiddenapis.get().pluginId)
+        if (project.name != "license-plugin") {
+            apply(plugin = rootProject.libs.plugins.cabe.get().pluginId)
+
+            cabe {
+                if (isReleaseVersion) {
+                    config.set(Configuration.parse("publicApi=THROW_IAE:privateApi=ASSERT"))
+                } else {
+                    config.set(Configuration.DEVELOPMENT)
+                }
+            }
+
+        }
     }
 
     // Java configuration for non-BOM projects
@@ -213,14 +224,6 @@ allprojects {
 
             withJavadocJar()
             withSourcesJar()
-        }
-
-        cabe {
-            if (isReleaseVersion) {
-                config.set(Configuration.parse("publicApi=THROW_IAE:privateApi=ASSERT"))
-            } else {
-                config.set(Configuration.DEVELOPMENT)
-            }
         }
 
         // JaCoCo
