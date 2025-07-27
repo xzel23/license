@@ -72,6 +72,7 @@ public class LicenseManager {
     @Nullable private JTabbedPane tabbedPane;
     @Nullable private JPanel keysPanel;
     @Nullable private JPanel licensesPanel;
+    @Nullable private JPanel certificatesPanel;
     @Nullable private LicenseEditor licenseEditor;
 
 
@@ -80,6 +81,10 @@ public class LicenseManager {
     // Table for displaying keys
     private javax.swing.JTable keysTable;
     private javax.swing.table.DefaultTableModel keysTableModel;
+    
+    // Table for displaying certificates
+    private javax.swing.JTable certificatesTable;
+    private javax.swing.table.DefaultTableModel certificatesTableModel;
 
     /**
      * The main method serves as the entry point for the License Manager application.
@@ -143,10 +148,12 @@ public class LicenseManager {
         // Create panels for each tab
         createKeysPanel();
         createLicensesPanel();
+        createCertificatesPanel();
 
         // Add the new tabs as required
         tabbedPane.addTab("Keys", keysPanel);
         tabbedPane.addTab("Licenses", licensesPanel);
+        tabbedPane.addTab("Certificates", certificatesPanel);
 
         mainFrame.getContentPane().add(tabbedPane, BorderLayout.CENTER);
 
@@ -509,6 +516,275 @@ public class LicenseManager {
     private void createLicensesPanel() {
         // Use the LicenseEditor to create the licenses panel
         licensesPanel = licenseEditor.createLicensesPanel();
+    }
+
+    /**
+     * Creates the Certificates panel with a table showing certificate information.
+     */
+    private void createCertificatesPanel() {
+        certificatesPanel = new JPanel(new BorderLayout(10, 10));
+        certificatesPanel.setBorder(javax.swing.BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        // Create table model with columns for certificate information
+        String[] columnNames = {"Alias", "Subject", "Issuer", "Valid From", "Valid To"};
+        certificatesTableModel = new javax.swing.table.DefaultTableModel(columnNames, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                // No columns are editable
+                return false;
+            }
+        };
+
+        // Create table
+        certificatesTable = new javax.swing.JTable(certificatesTableModel);
+        certificatesTable.setFillsViewportHeight(true);
+        certificatesTable.setRowHeight(25);
+
+        // Set column widths
+        certificatesTable.getColumnModel().getColumn(0).setPreferredWidth(100); // Alias
+        certificatesTable.getColumnModel().getColumn(1).setPreferredWidth(200); // Subject
+        certificatesTable.getColumnModel().getColumn(2).setPreferredWidth(200); // Issuer
+        certificatesTable.getColumnModel().getColumn(3).setPreferredWidth(100); // Valid From
+        certificatesTable.getColumnModel().getColumn(4).setPreferredWidth(100); // Valid To
+
+        // Add tooltips to show full text when it doesn't fit
+        certificatesTable.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
+            @Override
+            public void mouseMoved(java.awt.event.MouseEvent e) {
+                int row = certificatesTable.rowAtPoint(e.getPoint());
+                int col = certificatesTable.columnAtPoint(e.getPoint());
+                if (row >= 0 && col >= 0) {
+                    Object value = certificatesTable.getValueAt(row, col);
+                    if (value != null) {
+                        certificatesTable.setToolTipText(value.toString());
+                    } else {
+                        certificatesTable.setToolTipText(null);
+                    }
+                }
+            }
+        });
+
+        // Add table to scroll pane
+        JScrollPane scrollPane = new JScrollPane(certificatesTable);
+        certificatesPanel.add(scrollPane, BorderLayout.CENTER);
+
+        // Add buttons
+        JButton refreshButton = new JButton("Refresh Certificates");
+        refreshButton.addActionListener(e -> updateCertificatesTable());
+
+        JButton addCertificateButton = new JButton("Import from File");
+        addCertificateButton.addActionListener(e -> {
+            KeyStore keyStore = keystoreManager.getKeyStore();
+            if (keyStore == null) {
+                JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", ERROR, JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            // Show a file open dialog to select a certificate file
+            Path initialDir = keystoreManager.getKeystorePath().getParent();
+            Optional<Path> selectedPath = SwingUtil.showFileOpenDialog(
+                    mainFrame,
+                    initialDir,
+                    Pair.of("Certificate Files", new String[]{"cer", "crt", "pem", "der"})
+            );
+
+            if (selectedPath.isEmpty()) {
+                return;
+            }
+
+            // Show a dialog to get the alias
+            String alias = JOptionPane.showInputDialog(mainFrame, "Enter an alias for this certificate:", "Add Certificate", JOptionPane.PLAIN_MESSAGE);
+            if (alias == null || alias.trim().isEmpty()) {
+                return;
+            }
+
+            try {
+                // Load the certificate
+                java.security.cert.CertificateFactory cf = java.security.cert.CertificateFactory.getInstance("X.509");
+                java.security.cert.Certificate cert;
+                
+                try (java.io.FileInputStream fis = new java.io.FileInputStream(selectedPath.get().toFile())) {
+                    cert = cf.generateCertificate(fis);
+                }
+                
+                // Add to keystore
+                keyStore.setCertificateEntry(alias.trim(), cert);
+                
+                // Save keystore
+                Path keystorePath = keystoreManager.getKeystorePath();
+                backupKeystoreFile(keystorePath);
+                KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, keystoreManager.getPassword());
+                
+                // Update the table
+                updateCertificatesTable();
+                
+                JOptionPane.showMessageDialog(mainFrame, "Certificate added successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception ex) {
+                LOG.warn("Error adding certificate", ex);
+                JOptionPane.showMessageDialog(mainFrame, "Error adding certificate: " + ex.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        JButton removeCertificateButton = new JButton("Remove Certificate");
+        removeCertificateButton.addActionListener(e -> {
+            KeyStore keyStore = keystoreManager.getKeyStore();
+            if (keyStore == null) {
+                JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", ERROR, JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            int row = certificatesTable.getSelectedRow();
+            if (row < 0) {
+                JOptionPane.showMessageDialog(mainFrame, "Please select a certificate to remove.", ERROR, JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            String alias = (String) certificatesTable.getValueAt(row, 0);
+
+            // Confirm deletion
+            int confirm = JOptionPane.showConfirmDialog(mainFrame, 
+                "Are you sure you want to remove the certificate with alias: " + alias + "?", 
+                "Confirm Removal", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+            
+            if (confirm == JOptionPane.YES_OPTION) {
+                try {
+                    // Remove from keystore
+                    keyStore.deleteEntry(alias);
+                    
+                    // Save keystore
+                    Path keystorePath = keystoreManager.getKeystorePath();
+                    backupKeystoreFile(keystorePath);
+                    KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, keystoreManager.getPassword());
+                    
+                    // Update the table
+                    updateCertificatesTable();
+                    
+                    JOptionPane.showMessageDialog(mainFrame, "Certificate removed successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                } catch (Exception ex) {
+                    LOG.warn("Error removing certificate", ex);
+                    JOptionPane.showMessageDialog(mainFrame, "Error removing certificate: " + ex.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+
+        JButton importCertificateButton = new JButton("Import as Text");
+        importCertificateButton.addActionListener(e -> {
+            KeyStore keyStore = keystoreManager.getKeyStore();
+            if (keyStore == null) {
+                JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", ERROR, JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            // Show a text input dialog for pasting certificate content
+            JTextField aliasField = new JTextField(20);
+            JTextField certificateField = new JTextField(40);
+            
+            JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]5[]"));
+            
+            addLabeledFieldWithTooltip(panel, "Certificate Alias:",
+                    "A unique identifier for this certificate in the keystore", aliasField);
+            
+            addLabeledFieldWithTooltip(panel, "Certificate Content (Base64):",
+                    "The Base64-encoded certificate content", certificateField);
+            
+            int result = JOptionPane.showConfirmDialog(mainFrame, panel, "Import Certificate", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+            
+            if (result == JOptionPane.OK_OPTION) {
+                String alias = aliasField.getText().trim();
+                String certificateContent = certificateField.getText().trim();
+                
+                if (alias.isEmpty()) {
+                    JOptionPane.showMessageDialog(mainFrame, "Please specify a certificate alias.", ERROR, JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                
+                if (certificateContent.isEmpty()) {
+                    JOptionPane.showMessageDialog(mainFrame, "Please provide certificate content.", ERROR, JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                
+                try {
+                    // Decode and import the certificate
+                    byte[] certBytes = Base64.getDecoder().decode(certificateContent);
+                    java.security.cert.CertificateFactory cf = java.security.cert.CertificateFactory.getInstance("X.509");
+                    java.security.cert.Certificate cert = cf.generateCertificate(new java.io.ByteArrayInputStream(certBytes));
+                    
+                    // Add to keystore
+                    keyStore.setCertificateEntry(alias, cert);
+                    
+                    // Save keystore
+                    Path keystorePath = keystoreManager.getKeystorePath();
+                    backupKeystoreFile(keystorePath);
+                    KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, keystoreManager.getPassword());
+                    
+                    // Update the table
+                    updateCertificatesTable();
+                    
+                    JOptionPane.showMessageDialog(mainFrame, "Certificate imported successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                } catch (Exception ex) {
+                    LOG.warn("Error importing certificate", ex);
+                    JOptionPane.showMessageDialog(mainFrame, "Error importing certificate: " + ex.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        buttonPanel.add(addCertificateButton);
+        buttonPanel.add(removeCertificateButton);
+        buttonPanel.add(importCertificateButton);
+        buttonPanel.add(refreshButton);
+        certificatesPanel.add(buttonPanel, BorderLayout.SOUTH);
+
+        // Initial population of the table
+        updateCertificatesTable();
+    }
+
+    /**
+     * Updates the certificates table with the current keystore information.
+     */
+    private void updateCertificatesTable() {
+        KeyStore keyStore = keystoreManager.getKeyStore();
+
+        // Clear the table
+        certificatesTableModel.setRowCount(0);
+
+        if (keyStore == null) {
+            return;
+        }
+
+        try {
+            keyStore.aliases().asIterator().forEachRemaining(alias -> {
+                try {
+                    // Only process certificate entries
+                    if (keyStore.isCertificateEntry(alias)) {
+                        // Get certificate information
+                        java.security.cert.Certificate cert = keyStore.getCertificate(alias);
+                        
+                        if (cert instanceof java.security.cert.X509Certificate x509Cert) {
+                            String subject = x509Cert.getSubjectX500Principal().getName();
+                            String issuer = x509Cert.getIssuerX500Principal().getName();
+                            String validFrom = x509Cert.getNotBefore().toString();
+                            String validTo = x509Cert.getNotAfter().toString();
+                            
+                            certificatesTableModel.addRow(new Object[]{
+                                alias, subject, issuer, validFrom, validTo
+                            });
+                        } else {
+                            // Non-X509 certificate
+                            certificatesTableModel.addRow(new Object[]{
+                                alias, "Non-X509 Certificate", "Unknown", "Unknown", "Unknown"
+                            });
+                        }
+                    }
+                } catch (Exception e) {
+                    // Skip this alias if there's an error
+                    LOG.warn("Error processing certificate alias: {}", alias, e);
+                }
+            });
+        } catch (Exception e) {
+            LOG.warn("Error loading certificate information", e);
+            JOptionPane.showMessageDialog(mainFrame, "Error loading certificate information: " + e.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
+        }
     }
 
 

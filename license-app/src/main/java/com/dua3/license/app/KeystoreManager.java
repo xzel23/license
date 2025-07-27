@@ -156,7 +156,7 @@ public class KeystoreManager {
             JPanel panel = createCenteredLogoPanel(messagePanel);
 
             // Only show "Load Keystore" and "New Keystore" buttons
-            String[] options = new String[]{"Load Keystore", "New Keystore"};
+            String[] options = {"Load Keystore", "New Keystore"};
             String defaultOption = "Load Keystore";
 
             int option = JOptionPane.showOptionDialog(
