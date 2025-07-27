@@ -569,174 +569,304 @@ public class LicenseManager {
         certificatesPanel.add(scrollPane, BorderLayout.CENTER);
 
         // Add buttons
-        JButton refreshButton = new JButton("Refresh Certificates");
-        refreshButton.addActionListener(e -> updateCertificatesTable());
-
-        JButton addCertificateButton = new JButton("Import from File");
-        addCertificateButton.addActionListener(e -> {
-            KeyStore keyStore = keystoreManager.getKeyStore();
-            if (keyStore == null) {
-                JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", ERROR, JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
-            // Show a file open dialog to select a certificate file
-            Path initialDir = keystoreManager.getKeystorePath().getParent();
-            Optional<Path> selectedPath = SwingUtil.showFileOpenDialog(
-                    mainFrame,
-                    initialDir,
-                    Pair.of("Certificate Files", new String[]{"cer", "crt", "pem", "der"})
-            );
-
-            if (selectedPath.isEmpty()) {
-                return;
-            }
-
-            // Show a dialog to get the alias
-            String alias = JOptionPane.showInputDialog(mainFrame, "Enter an alias for this certificate:", "Add Certificate", JOptionPane.PLAIN_MESSAGE);
-            if (alias == null || alias.trim().isEmpty()) {
-                return;
-            }
-
-            try {
-                // Load the certificate
-                java.security.cert.CertificateFactory cf = java.security.cert.CertificateFactory.getInstance("X.509");
-                java.security.cert.Certificate cert;
-                
-                try (java.io.FileInputStream fis = new java.io.FileInputStream(selectedPath.get().toFile())) {
-                    cert = cf.generateCertificate(fis);
-                }
-                
-                // Add to keystore
-                keyStore.setCertificateEntry(alias.trim(), cert);
-                
-                // Save keystore
-                Path keystorePath = keystoreManager.getKeystorePath();
-                backupKeystoreFile(keystorePath);
-                KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, keystoreManager.getPassword());
-                
-                // Update the table
-                updateCertificatesTable();
-                
-                JOptionPane.showMessageDialog(mainFrame, "Certificate added successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
-            } catch (Exception ex) {
-                LOG.warn("Error adding certificate", ex);
-                JOptionPane.showMessageDialog(mainFrame, "Error adding certificate: " + ex.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
-            }
-        });
-
-        JButton removeCertificateButton = new JButton("Remove Certificate");
-        removeCertificateButton.addActionListener(e -> {
-            KeyStore keyStore = keystoreManager.getKeyStore();
-            if (keyStore == null) {
-                JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", ERROR, JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
-            int row = certificatesTable.getSelectedRow();
-            if (row < 0) {
-                JOptionPane.showMessageDialog(mainFrame, "Please select a certificate to remove.", ERROR, JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
-            String alias = (String) certificatesTable.getValueAt(row, 0);
-
-            // Confirm deletion
-            int confirm = JOptionPane.showConfirmDialog(mainFrame, 
-                "Are you sure you want to remove the certificate with alias: " + alias + "?", 
-                "Confirm Removal", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-            
-            if (confirm == JOptionPane.YES_OPTION) {
-                try {
-                    // Remove from keystore
-                    keyStore.deleteEntry(alias);
-                    
-                    // Save keystore
-                    Path keystorePath = keystoreManager.getKeystorePath();
-                    backupKeystoreFile(keystorePath);
-                    KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, keystoreManager.getPassword());
-                    
-                    // Update the table
-                    updateCertificatesTable();
-                    
-                    JOptionPane.showMessageDialog(mainFrame, "Certificate removed successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
-                } catch (Exception ex) {
-                    LOG.warn("Error removing certificate", ex);
-                    JOptionPane.showMessageDialog(mainFrame, "Error removing certificate: " + ex.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
-                }
-            }
-        });
-
-        JButton importCertificateButton = new JButton("Import as Text");
-        importCertificateButton.addActionListener(e -> {
-            KeyStore keyStore = keystoreManager.getKeyStore();
-            if (keyStore == null) {
-                JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", ERROR, JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
-            // Show a text input dialog for pasting certificate content
-            JTextField aliasField = new JTextField(20);
-            JTextField certificateField = new JTextField(40);
-            
-            JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]5[]"));
-            
-            addLabeledFieldWithTooltip(panel, "Certificate Alias:",
-                    "A unique identifier for this certificate in the keystore", aliasField);
-            
-            addLabeledFieldWithTooltip(panel, "Certificate Content (Base64):",
-                    "The Base64-encoded certificate content", certificateField);
-            
-            int result = JOptionPane.showConfirmDialog(mainFrame, panel, "Import Certificate", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-            
-            if (result == JOptionPane.OK_OPTION) {
-                String alias = aliasField.getText().trim();
-                String certificateContent = certificateField.getText().trim();
-                
-                if (alias.isEmpty()) {
-                    JOptionPane.showMessageDialog(mainFrame, "Please specify a certificate alias.", ERROR, JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-                
-                if (certificateContent.isEmpty()) {
-                    JOptionPane.showMessageDialog(mainFrame, "Please provide certificate content.", ERROR, JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-                
-                try {
-                    // Decode and import the certificate
-                    byte[] certBytes = Base64.getDecoder().decode(certificateContent);
-                    java.security.cert.CertificateFactory cf = java.security.cert.CertificateFactory.getInstance("X.509");
-                    java.security.cert.Certificate cert = cf.generateCertificate(new java.io.ByteArrayInputStream(certBytes));
-                    
-                    // Add to keystore
-                    keyStore.setCertificateEntry(alias, cert);
-                    
-                    // Save keystore
-                    Path keystorePath = keystoreManager.getKeystorePath();
-                    backupKeystoreFile(keystorePath);
-                    KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, keystoreManager.getPassword());
-                    
-                    // Update the table
-                    updateCertificatesTable();
-                    
-                    JOptionPane.showMessageDialog(mainFrame, "Certificate imported successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
-                } catch (Exception ex) {
-                    LOG.warn("Error importing certificate", ex);
-                    JOptionPane.showMessageDialog(mainFrame, "Error importing certificate: " + ex.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
-                }
-            }
-        });
-
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        buttonPanel.add(addCertificateButton);
-        buttonPanel.add(removeCertificateButton);
-        buttonPanel.add(importCertificateButton);
-        buttonPanel.add(refreshButton);
+        buttonPanel.add(new JButton(SwingUtil.createAction("New Certificate", this::newCertificate)));
+        buttonPanel.add(new JButton(SwingUtil.createAction("Import from File", this::importCertificateFile)));
+        buttonPanel.add(new JButton(SwingUtil.createAction("Import as Text", this::importCertificateFomText)));
+        buttonPanel.add(new JButton(SwingUtil.createAction("Remove Certificate", this::removeCertificate)));
+        buttonPanel.add(new JButton(SwingUtil.createAction("Refresh Certificates", this::updateCertificatesTable)));
         certificatesPanel.add(buttonPanel, BorderLayout.SOUTH);
 
         // Initial population of the table
         updateCertificatesTable();
+    }
+
+    private void importCertificateFile() {
+        KeyStore keyStore = keystoreManager.getKeyStore();
+
+        // Show a file open dialog to select a certificate file
+        Path initialDir = keystoreManager.getKeystorePath().getParent();
+        Optional<Path> selectedPath = SwingUtil.showFileOpenDialog(
+                mainFrame,
+                initialDir,
+                Pair.of("Certificate Files", new String[]{"cer", "crt", "pem", "der"})
+        );
+
+        if (selectedPath.isEmpty()) {
+            return;
+        }
+
+        // Show a dialog to get the alias
+        String alias = JOptionPane.showInputDialog(mainFrame, "Enter an alias for this certificate:", "Add Certificate", JOptionPane.PLAIN_MESSAGE);
+        if (alias == null || alias.trim().isEmpty()) {
+            return;
+        }
+
+        try {
+            // Load the certificate
+            java.security.cert.CertificateFactory cf = java.security.cert.CertificateFactory.getInstance("X.509");
+            Certificate cert;
+
+            try (java.io.FileInputStream fis = new java.io.FileInputStream(selectedPath.get().toFile())) {
+                cert = cf.generateCertificate(fis);
+            }
+
+            // Add to keystore
+            keyStore.setCertificateEntry(alias.trim(), cert);
+
+            // Save keystore
+            Path keystorePath = keystoreManager.getKeystorePath();
+            backupKeystoreFile(keystorePath);
+            KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, keystoreManager.getPassword());
+
+            // Update the table
+            updateCertificatesTable();
+
+            JOptionPane.showMessageDialog(mainFrame, "Certificate added successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception ex) {
+            LOG.warn("Error adding certificate", ex);
+            JOptionPane.showMessageDialog(mainFrame, "Error adding certificate: " + ex.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void importCertificateFomText() {
+        KeyStore keyStore = keystoreManager.getKeyStore();
+        if (keyStore == null) {
+            JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", ERROR, JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        // Show a text input dialog for pasting certificate content
+        JTextField aliasField = new JTextField(20);
+        JTextField certificateField = new JTextField(40);
+
+        JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]5[]"));
+
+        addLabeledFieldWithTooltip(panel, "Certificate Alias:",
+                "A unique identifier for this certificate in the keystore", aliasField);
+
+        addLabeledFieldWithTooltip(panel, "Certificate Content (Base64):",
+                "The Base64-encoded certificate content", certificateField);
+
+        int result = JOptionPane.showConfirmDialog(mainFrame, panel, "Import Certificate", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+
+        if (result == JOptionPane.OK_OPTION) {
+            String alias = aliasField.getText().trim();
+            String certificateContent = certificateField.getText().trim();
+
+            if (alias.isEmpty()) {
+                JOptionPane.showMessageDialog(mainFrame, "Please specify a certificate alias.", ERROR, JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            if (certificateContent.isEmpty()) {
+                JOptionPane.showMessageDialog(mainFrame, "Please provide certificate content.", ERROR, JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            try {
+                // Decode and import the certificate
+                byte[] certBytes = Base64.getDecoder().decode(certificateContent);
+                java.security.cert.CertificateFactory cf = java.security.cert.CertificateFactory.getInstance("X.509");
+                Certificate cert = cf.generateCertificate(new java.io.ByteArrayInputStream(certBytes));
+
+                // Add to keystore
+                keyStore.setCertificateEntry(alias, cert);
+
+                // Save keystore
+                Path keystorePath = keystoreManager.getKeystorePath();
+                backupKeystoreFile(keystorePath);
+                KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, keystoreManager.getPassword());
+
+                // Update the table
+                updateCertificatesTable();
+
+                JOptionPane.showMessageDialog(mainFrame, "Certificate imported successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception ex) {
+                LOG.warn("Error importing certificate", ex);
+                JOptionPane.showMessageDialog(mainFrame, "Error importing certificate: " + ex.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void newCertificate() {
+        KeyStore keyStore = keystoreManager.getKeyStore();
+        if (keyStore == null) {
+            JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", ERROR, JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        // Show a dialog to get certificate information
+        JTextField aliasField = new JTextField(20);
+        JTextField cnField = new JTextField("Certificate", 20);
+        JTextField oField = new JTextField("Your Organization", 20);
+        JTextField ouField = new JTextField("", 20);
+        JTextField cField = new JTextField("US", 2);
+        JTextField stField = new JTextField("", 20);
+        JTextField lField = new JTextField("", 20);
+        JTextField emailField = new JTextField("", 20);
+        JTextField validDaysField = new JTextField("3650", 5);
+
+        // Create a panel for the dialog
+        JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]5[]5[]5[]5[]5[]5[]5[]5[]"));
+
+        // Add field with label, info icon, and tooltip
+        addLabeledFieldWithTooltip(panel, "Certificate Alias:",
+                "A unique identifier for this certificate in the keystore", aliasField);
+
+        // Add subject fields with required fields marked
+        addLabeledFieldWithTooltip(panel, "CN - Common Name: *",
+                "The name of the entity this certificate represents (required)", cnField);
+
+        addLabeledFieldWithTooltip(panel, "O - Organization:",
+                "The organization to which the entity belongs", oField);
+
+        addLabeledFieldWithTooltip(panel, "OU - Organizational Unit:",
+                "The department or division within the organization", ouField);
+
+        addLabeledFieldWithTooltip(panel, "C - Country: *",
+                "The two-letter country code (e.g., US, UK, DE) (required)", cField);
+
+        addLabeledFieldWithTooltip(panel, "ST - State/Province:",
+                "The state or province where the organization is located", stField);
+
+        addLabeledFieldWithTooltip(panel, "L - Locality (City):",
+                "The city where the organization is located", lField);
+
+        addLabeledFieldWithTooltip(panel, "Email Address:",
+                "Contact email address for the certificate owner", emailField);
+
+        addLabeledFieldWithTooltip(panel, "Valid Days:",
+                "Number of days the certificate will be valid from creation date", validDaysField);
+
+        int result = JOptionPane.showConfirmDialog(mainFrame, panel, "Create New Certificate", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+
+        if (result == JOptionPane.OK_OPTION) {
+            String alias = aliasField.getText().trim();
+            String cn = cnField.getText().trim();
+            String o = oField.getText().trim();
+            String ou = ouField.getText().trim();
+            String c = cField.getText().trim();
+            String st = stField.getText().trim();
+            String l = lField.getText().trim();
+            String email = emailField.getText().trim();
+            String validDaysStr = validDaysField.getText().trim();
+
+            if (alias.isEmpty()) {
+                JOptionPane.showMessageDialog(mainFrame, "Please specify a certificate alias.", ERROR, JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            // Validate required fields
+            if (cn.isEmpty()) {
+                JOptionPane.showMessageDialog(mainFrame, "Common Name (CN) is required.", ERROR, JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            if (c.isEmpty()) {
+                JOptionPane.showMessageDialog(mainFrame, "Country (C) is required.", ERROR, JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            // Build the subject string in X.500 Distinguished Name format
+            StringBuilder subjectBuilder = new StringBuilder();
+            subjectBuilder.append("CN=").append(cn);
+
+            if (!o.isEmpty()) {
+                subjectBuilder.append(", O=").append(o);
+            }
+
+            if (!ou.isEmpty()) {
+                subjectBuilder.append(", OU=").append(ou);
+            }
+
+            subjectBuilder.append(", C=").append(c);
+
+            if (!st.isEmpty()) {
+                subjectBuilder.append(", ST=").append(st);
+            }
+
+            if (!l.isEmpty()) {
+                subjectBuilder.append(", L=").append(l);
+            }
+
+            if (!email.isEmpty()) {
+                subjectBuilder.append(", EMAILADDRESS=").append(email);
+            }
+
+            String subject = subjectBuilder.toString();
+
+            int validDays;
+            try {
+                validDays = Integer.parseInt(validDaysStr);
+                if (validDays <= 0) {
+                    throw new NumberFormatException("Valid days must be positive");
+                }
+            } catch (NumberFormatException e1) {
+                JOptionPane.showMessageDialog(mainFrame, "Please enter a valid number of days.", ERROR, JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            try {
+                // Generate a self-signed certificate
+                KeyStoreUtil.generateAndStoreKeyPairWithX509Certificate(keyStore, alias, AsymmetricAlgorithm.RSA, 2048, keystoreManager.getPassword(), subject, validDays);
+
+                // Backup the keystore file before saving
+                Path keystorePath = keystoreManager.getKeystorePath();
+                backupKeystoreFile(keystorePath);
+
+                KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, keystoreManager.getPassword());
+
+                // Update the certificates table
+                updateCertificatesTable();
+
+                JOptionPane.showMessageDialog(mainFrame, "Certificate generated and stored successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } catch (GeneralSecurityException | IOException ex) {
+                LOG.warn("Error generating certificate", ex);
+                JOptionPane.showMessageDialog(mainFrame, "Error generating certificate: " + ex.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void removeCertificate() {
+        KeyStore keyStore = keystoreManager.getKeyStore();
+
+        int row = certificatesTable.getSelectedRow();
+        if (row < 0) {
+            JOptionPane.showMessageDialog(mainFrame, "Please select a certificate to remove.", ERROR, JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        String alias = (String) certificatesTable.getValueAt(row, 0);
+
+        // Confirm deletion
+        int confirm = JOptionPane.showConfirmDialog(mainFrame,
+            "Are you sure you want to remove the certificate with alias: " + alias + "?",
+            "Confirm Removal", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+
+        if (confirm == JOptionPane.YES_OPTION) {
+            removeFromKeyStore(keyStore, alias);
+        }
+    }
+
+    private void removeFromKeyStore(KeyStore keyStore, String alias) {
+        try {
+            // Remove from keystore
+            keyStore.deleteEntry(alias);
+
+            // Save keystore
+            Path keystorePath = keystoreManager.getKeystorePath();
+            backupKeystoreFile(keystorePath);
+            KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, keystoreManager.getPassword());
+
+            // Update the table
+            updateCertificatesTable();
+
+            JOptionPane.showMessageDialog(mainFrame, "Certificate removed successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception ex) {
+            LOG.warn("Error removing certificate", ex);
+            JOptionPane.showMessageDialog(mainFrame, "Error removing certificate: " + ex.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     /**
