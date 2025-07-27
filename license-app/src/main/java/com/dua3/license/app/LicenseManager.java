@@ -1,7 +1,9 @@
 package com.dua3.license.app;
 
 import com.dua3.utility.crypt.AsymmetricAlgorithm;
+import com.dua3.utility.crypt.CertificateUtil;
 import com.dua3.utility.crypt.KeyStoreUtil;
+import com.dua3.utility.crypt.KeyUtil;
 import com.dua3.utility.data.Pair;
 import com.dua3.utility.io.IoUtil;
 import com.dua3.utility.swing.SwingUtil;
@@ -11,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -31,10 +34,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
+import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.PublicKey;
 import java.security.Security;
 import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.Optional;
@@ -48,15 +53,14 @@ import java.util.Optional;
 public class LicenseManager {
 
     private static final Logger LOG = LogManager.getLogger(LicenseManager.class);
-    private static final String APP_NAME = LicenseManager.class.getSimpleName();
-    private static final String ERROR = "Error";
-
     /**
      * A constant string representing an information symbol "ⓘ".
      * <p>
      * This symbol is used to add tooltips to input elements in the user interface.
      */
     public static final String INFO_SYMBOL = "ⓘ";
+    private static final String APP_NAME = LicenseManager.class.getSimpleName();
+    private static final String ERROR = "Error";
 
     static {
         try {
@@ -67,24 +71,31 @@ public class LicenseManager {
     }
 
     private final KeystoreManager keystoreManager = new KeystoreManager();
-
-    @Nullable private JFrame mainFrame;
-    @Nullable private JTabbedPane tabbedPane;
-    @Nullable private JPanel keysPanel;
-    @Nullable private JPanel licensesPanel;
-    @Nullable private JPanel certificatesPanel;
-    @Nullable private LicenseEditor licenseEditor;
-
-
     private final JComboBox<String> licenseKeyAliasComboBox = new JComboBox<>();
-
+    @Nullable
+    private JFrame mainFrame;
+    @Nullable
+    private JTabbedPane tabbedPane;
+    @Nullable
+    private JPanel keysPanel;
+    @Nullable
+    private JPanel licensesPanel;
+    @Nullable
+    private JPanel certificatesPanel;
+    @Nullable
+    private LicenseEditor licenseEditor;
     // Table for displaying keys
     private javax.swing.JTable keysTable;
     private javax.swing.table.DefaultTableModel keysTableModel;
-    
+
     // Table for displaying certificates
     private javax.swing.JTable certificatesTable;
     private javax.swing.table.DefaultTableModel certificatesTableModel;
+
+    /**
+     * Constructs a new instance of the LicenseManager class.
+     */
+    public LicenseManager() { /* nothing to do */ }
 
     /**
      * The main method serves as the entry point for the License Manager application.
@@ -99,26 +110,6 @@ public class LicenseManager {
             LicenseManager app = new LicenseManager();
             app.createAndShowGUI();
         });
-    }
-
-    /**
-     * Constructs a new instance of the LicenseManager class.
-     */
-    public LicenseManager() { /* nothing to do */ }
-
-    /**
-     * Retrieves the path to the templates directory.
-     *
-     * @return the path to the directory named "templates" in the application data directory
-     */
-    public static Path getTemplatesDirectory() {
-        try {
-            return IoUtil.getApplicationDataDir(LicenseManager.class.getName()).resolve("templates");
-        } catch (IOException e) {
-            LOG.error("Failed to create application data directory", e);
-            // Fall back to local templates directory
-            return Paths.get("templates");
-        }
     }
 
     /**
@@ -151,9 +142,9 @@ public class LicenseManager {
         createCertificatesPanel();
 
         // Add the new tabs as required
+        tabbedPane.addTab("Certificates", certificatesPanel);
         tabbedPane.addTab("Keys", keysPanel);
         tabbedPane.addTab("Licenses", licensesPanel);
-        tabbedPane.addTab("Certificates", certificatesPanel);
 
         mainFrame.getContentPane().add(tabbedPane, BorderLayout.CENTER);
 
@@ -445,6 +436,91 @@ public class LicenseManager {
     }
 
     /**
+     * Creates the Licenses panel with buttons for creating and validating licenses.
+     */
+    private void createLicensesPanel() {
+        // Use the LicenseEditor to create the licenses panel
+        licensesPanel = licenseEditor.createLicensesPanel();
+    }
+
+    /**
+     * Creates the Certificates panel with a table showing certificate information.
+     */
+    private void createCertificatesPanel() {
+        certificatesPanel = new JPanel(new BorderLayout(10, 10));
+        certificatesPanel.setBorder(javax.swing.BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        // Create table model with columns for certificate information
+        String[] columnNames = {"Alias", "Subject", "Issuer", "Valid From", "Valid To"};
+        certificatesTableModel = new javax.swing.table.DefaultTableModel(columnNames, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                // No columns are editable
+                return false;
+            }
+        };
+
+        // Create table
+        certificatesTable = new javax.swing.JTable(certificatesTableModel);
+        certificatesTable.setFillsViewportHeight(true);
+        certificatesTable.setRowHeight(25);
+
+        // Set column widths
+        certificatesTable.getColumnModel().getColumn(0).setPreferredWidth(100); // Alias
+        certificatesTable.getColumnModel().getColumn(1).setPreferredWidth(200); // Subject
+        certificatesTable.getColumnModel().getColumn(2).setPreferredWidth(200); // Issuer
+        certificatesTable.getColumnModel().getColumn(3).setPreferredWidth(100); // Valid From
+        certificatesTable.getColumnModel().getColumn(4).setPreferredWidth(100); // Valid To
+
+        // Add tooltips to show full text when it doesn't fit
+        certificatesTable.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
+            @Override
+            public void mouseMoved(java.awt.event.MouseEvent e) {
+                int row = certificatesTable.rowAtPoint(e.getPoint());
+                int col = certificatesTable.columnAtPoint(e.getPoint());
+                if (row >= 0 && col >= 0) {
+                    Object value = certificatesTable.getValueAt(row, col);
+                    if (value != null) {
+                        certificatesTable.setToolTipText(value.toString());
+                    } else {
+                        certificatesTable.setToolTipText(null);
+                    }
+                }
+            }
+        });
+
+        // Add mouse listener for double-click to show certificate details
+        certificatesTable.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    int row = certificatesTable.rowAtPoint(e.getPoint());
+                    if (row >= 0) {
+                        String alias = (String) certificatesTable.getValueAt(row, 0);
+                        new CertificateDetailsDialog(mainFrame, keystoreManager.getKeyStore(), alias, keystoreManager.getKeystorePath()).showDialog();
+                    }
+                }
+            }
+        });
+
+        // Add table to scroll pane
+        JScrollPane scrollPane = new JScrollPane(certificatesTable);
+        certificatesPanel.add(scrollPane, BorderLayout.CENTER);
+
+        // Add buttons
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        buttonPanel.add(new JButton(SwingUtil.createAction("New Certificate", this::newCertificate)));
+        buttonPanel.add(new JButton(SwingUtil.createAction("Import from File", this::importCertificateFile)));
+        buttonPanel.add(new JButton(SwingUtil.createAction("Import as Text", this::importCertificateFomText)));
+        buttonPanel.add(new JButton(SwingUtil.createAction("Remove Certificate", this::removeCertificate)));
+        buttonPanel.add(new JButton(SwingUtil.createAction("Refresh Certificates", this::updateCertificatesTable)));
+        certificatesPanel.add(buttonPanel, BorderLayout.SOUTH);
+
+        // Initial population of the table
+        updateCertificatesTable();
+    }
+
+    /**
      * Updates the keys table with the current keystore information.
      */
     private void updateKeysTable() {
@@ -509,76 +585,337 @@ public class LicenseManager {
         }
     }
 
-
     /**
-     * Creates the Licenses panel with buttons for creating and validating licenses.
+     * Adds a labeled field with an information icon that shows a tooltip with the field's description.
+     *
+     * @param panel       The panel to add the components to
+     * @param labelText   The text for the label
+     * @param description The description to show in the tooltip
+     * @param field       The text field to add
      */
-    private void createLicensesPanel() {
-        // Use the LicenseEditor to create the licenses panel
-        licensesPanel = licenseEditor.createLicensesPanel();
+    private void addLabeledFieldWithTooltip(JPanel panel, String labelText, String description, JTextField field) {
+        // Create and add the label
+        JLabel label = new JLabel(labelText);
+        panel.add(label);
+
+        // Add the label panel and field to the main panel
+        panel.add(field, "grow x");
+
+        // Create the info icon with tooltip
+        JLabel infoIcon = new JLabel(INFO_SYMBOL);
+        infoIcon.setToolTipText(description);
+        panel.add(infoIcon, "wrap");
     }
 
     /**
-     * Creates the Certificates panel with a table showing certificate information.
+     * Backs up the keystore file before it is updated.
+     * The backup file is named with a timestamp in the format yyyymmddhhmmssss.
+     *
+     * @param keystorePath the path to the keystore file
+     * @throws IOException if there's an I/O error
      */
-    private void createCertificatesPanel() {
-        certificatesPanel = new JPanel(new BorderLayout(10, 10));
-        certificatesPanel.setBorder(javax.swing.BorderFactory.createEmptyBorder(10, 10, 10, 10));
+    private static void backupKeystoreFile(Path keystorePath) throws IOException {
+        if (keystorePath == null || !Files.exists(keystorePath)) {
+            return; // Nothing to backup
+        }
 
-        // Create table model with columns for certificate information
-        String[] columnNames = {"Alias", "Subject", "Issuer", "Valid From", "Valid To"};
-        certificatesTableModel = new javax.swing.table.DefaultTableModel(columnNames, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                // No columns are editable
-                return false;
-            }
-        };
+        // Create timestamp in format yyyymmddhhmmssss where ssss is seconds with decimal precision
+        LocalDateTime now = LocalDateTime.now();
+        String timestamp = String.format("%04d%02d%02d%02d%02d%04d", now.getYear(), now.getMonthValue(), now.getDayOfMonth(), now.getHour(), now.getMinute(), now.getSecond() * 100 + now.getNano() / 10_000_000); // Convert to seconds.hundredths
 
-        // Create table
-        certificatesTable = new javax.swing.JTable(certificatesTableModel);
-        certificatesTable.setFillsViewportHeight(true);
-        certificatesTable.setRowHeight(25);
+        // Create backup file path
+        String fileName = String.valueOf(keystorePath.getFileName());
+        int dotIndex = fileName.lastIndexOf('.');
+        String baseName = (dotIndex > 0) ? fileName.substring(0, dotIndex) : fileName;
+        String extension = (dotIndex > 0) ? fileName.substring(dotIndex) : "";
+        Path backupPath = keystorePath.resolveSibling(baseName + "-" + timestamp + extension);
 
-        // Set column widths
-        certificatesTable.getColumnModel().getColumn(0).setPreferredWidth(100); // Alias
-        certificatesTable.getColumnModel().getColumn(1).setPreferredWidth(200); // Subject
-        certificatesTable.getColumnModel().getColumn(2).setPreferredWidth(200); // Issuer
-        certificatesTable.getColumnModel().getColumn(3).setPreferredWidth(100); // Valid From
-        certificatesTable.getColumnModel().getColumn(4).setPreferredWidth(100); // Valid To
+        // Copy the file
+        Files.copy(keystorePath, backupPath);
+        LOG.debug("Created keystore backup at: {}", backupPath);
+    }
 
-        // Add tooltips to show full text when it doesn't fit
-        certificatesTable.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
-            @Override
-            public void mouseMoved(java.awt.event.MouseEvent e) {
-                int row = certificatesTable.rowAtPoint(e.getPoint());
-                int col = certificatesTable.columnAtPoint(e.getPoint());
-                if (row >= 0 && col >= 0) {
-                    Object value = certificatesTable.getValueAt(row, col);
-                    if (value != null) {
-                        certificatesTable.setToolTipText(value.toString());
-                    } else {
-                        certificatesTable.setToolTipText(null);
+    private void updateKeyAliasComboBox() {
+        KeyStore keyStore = keystoreManager.getKeyStore();
+        if (keyStore == null) {
+            LOG.debug("No keystore loaded, skipping key alias update");
+            return;
+        }
+
+        LOG.debug("Updating key alias combo box");
+        licenseKeyAliasComboBox.removeAllItems();
+
+        try {
+            keyStore.aliases().asIterator().forEachRemaining(alias -> {
+                try {
+                    // Include both key entries and certificate entries
+                    if (keyStore.isKeyEntry(alias) || keyStore.isCertificateEntry(alias)) {
+                        licenseKeyAliasComboBox.addItem(alias);
                     }
+                } catch (Exception e) {
+                    // Skip this alias if there's an error
+                    LOG.warn("Error processing key alias for combo box: {}", alias, e);
                 }
+            });
+        } catch (Exception e) {
+            LOG.warn("Error loading key aliases", e);
+            JOptionPane.showMessageDialog(mainFrame, "Error loading key aliases: " + e.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
+        }
+
+        // Update the keys table as well
+        updateKeysTable();
+    }
+
+    private void deleteKey(String alias) throws GeneralSecurityException, IOException {
+        KeyStore keyStore = keystoreManager.getKeyStore();
+        if (keyStore == null) {
+            throw new IllegalStateException("No keystore loaded");
+        }
+
+        keyStore.deleteEntry(alias);
+        Path keystorePath = keystoreManager.getKeystorePath();
+        backupKeystoreFile(keystorePath);
+        KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, keystoreManager.getPassword());
+        updateKeyAliasComboBox();
+    }
+
+    /**
+     * Exports only the public key and certificate to a new keystore instance.
+     *
+     * @param alias the alias of the key to export
+     * @throws GeneralSecurityException if there is an error accessing the keystore
+     * @throws IOException              if there is an error saving the keystore
+     */
+    private void exportKeystore(String alias) throws GeneralSecurityException, IOException {
+        KeyStore sourceKeyStore = keystoreManager.getKeyStore();
+        if (sourceKeyStore == null) {
+            throw new IllegalStateException("No keystore loaded");
+        }
+
+        // Get the certificate from the keystore
+        Certificate cert = sourceKeyStore.getCertificate(alias);
+        if (cert == null) {
+            JOptionPane.showMessageDialog(mainFrame, "No certificate found for alias: " + alias, ERROR, JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        // Show a file save dialog with the current keystore directory as the initial directory
+        Path initialDir = keystoreManager.getKeystorePath().getParent();
+        Optional<Path> selectedPath = SwingUtil.showFileSaveDialog(
+                mainFrame,
+                initialDir,
+                Pair.of("Java Keystore File", new String[]{"jks"})
+        );
+
+        // Check if a path was selected
+        if (selectedPath.isEmpty()) {
+            return;
+        }
+
+        Path path = selectedPath.get();
+
+        // Show password dialog
+        JPanel passwordPanel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[][]"));
+        passwordPanel.add(new JLabel("New Keystore Password:"));
+        JPasswordField passwordField = new JPasswordField(20);
+        passwordPanel.add(passwordField, "growx, wrap");
+
+        passwordPanel.add(new JLabel("Confirm Password:"));
+        JPasswordField confirmPasswordField = new JPasswordField(20);
+        passwordPanel.add(confirmPasswordField, "growx");
+
+        int result = JOptionPane.showConfirmDialog(
+                mainFrame,
+                passwordPanel,
+                "Create Keystore Password",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.PLAIN_MESSAGE
+        );
+
+        if (result != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        // Verify passwords match
+        char[] password = passwordField.getPassword();
+        char[] confirmPassword = confirmPasswordField.getPassword();
+
+        if (!java.util.Arrays.equals(password, confirmPassword)) {
+            JOptionPane.showMessageDialog(mainFrame,
+                    "Passwords do not match. Please try again.",
+                    "Password Mismatch",
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        try {
+            // Create a new KeyStore instance
+            KeyStore newKeyStore = KeyStore.getInstance("PKCS12");
+            newKeyStore.load(null, password);
+
+            // Add the certificate to the new keystore
+            newKeyStore.setCertificateEntry(alias, cert);
+
+            // Save the new keystore
+            KeyStoreUtil.saveKeyStoreToFile(newKeyStore, path, password);
+
+            JOptionPane.showMessageDialog(mainFrame,
+                    "Public key and certificate exported successfully to:\n" + path,
+                    "Export Successful", JOptionPane.INFORMATION_MESSAGE);
+        } finally {
+            // Clear passwords from memory
+            java.util.Arrays.fill(password, '\0');
+            java.util.Arrays.fill(confirmPassword, '\0');
+        }
+    }
+
+    private void newCertificate() {
+        KeyStore keyStore = keystoreManager.getKeyStore();
+        if (keyStore == null) {
+            JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", ERROR, JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        // Show a dialog to get certificate information
+        JTextField aliasField = new JTextField(20);
+        JTextField cnField = new JTextField("Certificate", 20);
+        JTextField oField = new JTextField("Your Organization", 20);
+        JTextField ouField = new JTextField("", 20);
+        JTextField cField = new JTextField("US", 2);
+        JTextField stField = new JTextField("", 20);
+        JTextField lField = new JTextField("", 20);
+        JTextField emailField = new JTextField("", 20);
+        JTextField validDaysField = new JTextField("3650", 5);
+        JCheckBox enableCACheckbox = new JCheckBox("Allow signing other certificates");
+        enableCACheckbox.setToolTipText("When checked, this certificate can be used to sign other certificates");
+
+        // Create a panel for the dialog
+        JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]5[]5[]5[]5[]5[]5[]5[]5[]5[]"));
+
+        // Add field with label, info icon, and tooltip
+        addLabeledFieldWithTooltip(panel, "Certificate Alias:",
+                "A unique identifier for this certificate in the keystore", aliasField);
+
+        // Add subject fields with required fields marked
+        addLabeledFieldWithTooltip(panel, "CN - Common Name: *",
+                "The name of the entity this certificate represents (required)", cnField);
+
+        addLabeledFieldWithTooltip(panel, "O - Organization:",
+                "The organization to which the entity belongs", oField);
+
+        addLabeledFieldWithTooltip(panel, "OU - Organizational Unit:",
+                "The department or division within the organization", ouField);
+
+        addLabeledFieldWithTooltip(panel, "C - Country: *",
+                "The two-letter country code (e.g., US, UK, DE) (required)", cField);
+
+        addLabeledFieldWithTooltip(panel, "ST - State/Province:",
+                "The state or province where the organization is located", stField);
+
+        addLabeledFieldWithTooltip(panel, "L - Locality (City):",
+                "The city where the organization is located", lField);
+
+        addLabeledFieldWithTooltip(panel, "Email Address:",
+                "Contact email address for the certificate owner", emailField);
+
+        addLabeledFieldWithTooltip(panel, "Valid Days:",
+                "Number of days the certificate will be valid from creation date", validDaysField);
+
+        // Add CA checkbox
+        JLabel caLabel = new JLabel("CA:");
+        panel.add(caLabel);
+        panel.add(enableCACheckbox, "span 2, wrap");
+
+        int result = JOptionPane.showConfirmDialog(mainFrame, panel, "Create New Certificate", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+
+        if (result == JOptionPane.OK_OPTION) {
+            String alias = aliasField.getText().trim();
+            String cn = cnField.getText().trim();
+            String o = oField.getText().trim();
+            String ou = ouField.getText().trim();
+            String c = cField.getText().trim();
+            String st = stField.getText().trim();
+            String l = lField.getText().trim();
+            String email = emailField.getText().trim();
+            String validDaysStr = validDaysField.getText().trim();
+
+            if (alias.isEmpty()) {
+                JOptionPane.showMessageDialog(mainFrame, "Please specify a certificate alias.", ERROR, JOptionPane.ERROR_MESSAGE);
+                return;
             }
-        });
 
-        // Add table to scroll pane
-        JScrollPane scrollPane = new JScrollPane(certificatesTable);
-        certificatesPanel.add(scrollPane, BorderLayout.CENTER);
+            // Validate required fields
+            if (cn.isEmpty()) {
+                JOptionPane.showMessageDialog(mainFrame, "Common Name (CN) is required.", ERROR, JOptionPane.ERROR_MESSAGE);
+                return;
+            }
 
-        // Add buttons
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        buttonPanel.add(new JButton(SwingUtil.createAction("New Certificate", this::newCertificate)));
-        buttonPanel.add(new JButton(SwingUtil.createAction("Import from File", this::importCertificateFile)));
-        buttonPanel.add(new JButton(SwingUtil.createAction("Import as Text", this::importCertificateFomText)));
-        buttonPanel.add(new JButton(SwingUtil.createAction("Remove Certificate", this::removeCertificate)));
-        buttonPanel.add(new JButton(SwingUtil.createAction("Refresh Certificates", this::updateCertificatesTable)));
-        certificatesPanel.add(buttonPanel, BorderLayout.SOUTH);
+            if (c.isEmpty()) {
+                JOptionPane.showMessageDialog(mainFrame, "Country (C) is required.", ERROR, JOptionPane.ERROR_MESSAGE);
+                return;
+            }
 
-        // Initial population of the table
-        updateCertificatesTable();
+            // Build the subject string in X.500 Distinguished Name format
+            StringBuilder subjectBuilder = new StringBuilder();
+            subjectBuilder.append("CN=").append(cn);
+
+            if (!o.isEmpty()) {
+                subjectBuilder.append(", O=").append(o);
+            }
+
+            if (!ou.isEmpty()) {
+                subjectBuilder.append(", OU=").append(ou);
+            }
+
+            subjectBuilder.append(", C=").append(c);
+
+            if (!st.isEmpty()) {
+                subjectBuilder.append(", ST=").append(st);
+            }
+
+            if (!l.isEmpty()) {
+                subjectBuilder.append(", L=").append(l);
+            }
+
+            if (!email.isEmpty()) {
+                subjectBuilder.append(", EMAILADDRESS=").append(email);
+            }
+
+            String subject = subjectBuilder.toString();
+
+            int validDays;
+            try {
+                validDays = Integer.parseInt(validDaysStr);
+                if (validDays <= 0) {
+                    throw new NumberFormatException("Valid days must be positive");
+                }
+            } catch (NumberFormatException e1) {
+                JOptionPane.showMessageDialog(mainFrame, "Please enter a valid number of days.", ERROR, JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            try {
+                // Generate a self-signed certificate
+                boolean enableCA = enableCACheckbox.isSelected();
+                KeyPair keyPair = KeyUtil.generateKeyPair(AsymmetricAlgorithm.RSA, 2048);
+                X509Certificate[] certificate = CertificateUtil.createSelfSignedX509Certificate(keyPair, subject, validDays, enableCA);
+                keyStore.setCertificateEntry(alias, certificate[0]);
+
+                // Backup the keystore file before saving
+                Path keystorePath = keystoreManager.getKeystorePath();
+                backupKeystoreFile(keystorePath);
+
+                KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, keystoreManager.getPassword());
+
+                // Update the certificates table
+                updateCertificatesTable();
+
+                JOptionPane.showMessageDialog(mainFrame, "Certificate generated and stored successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } catch (GeneralSecurityException | IOException ex) {
+                LOG.warn("Error generating certificate", ex);
+                JOptionPane.showMessageDialog(mainFrame, "Error generating certificate: " + ex.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
+            }
+        }
     }
 
     private void importCertificateFile() {
@@ -689,145 +1026,6 @@ public class LicenseManager {
         }
     }
 
-    private void newCertificate() {
-        KeyStore keyStore = keystoreManager.getKeyStore();
-        if (keyStore == null) {
-            JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", ERROR, JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        // Show a dialog to get certificate information
-        JTextField aliasField = new JTextField(20);
-        JTextField cnField = new JTextField("Certificate", 20);
-        JTextField oField = new JTextField("Your Organization", 20);
-        JTextField ouField = new JTextField("", 20);
-        JTextField cField = new JTextField("US", 2);
-        JTextField stField = new JTextField("", 20);
-        JTextField lField = new JTextField("", 20);
-        JTextField emailField = new JTextField("", 20);
-        JTextField validDaysField = new JTextField("3650", 5);
-
-        // Create a panel for the dialog
-        JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]5[]5[]5[]5[]5[]5[]5[]5[]"));
-
-        // Add field with label, info icon, and tooltip
-        addLabeledFieldWithTooltip(panel, "Certificate Alias:",
-                "A unique identifier for this certificate in the keystore", aliasField);
-
-        // Add subject fields with required fields marked
-        addLabeledFieldWithTooltip(panel, "CN - Common Name: *",
-                "The name of the entity this certificate represents (required)", cnField);
-
-        addLabeledFieldWithTooltip(panel, "O - Organization:",
-                "The organization to which the entity belongs", oField);
-
-        addLabeledFieldWithTooltip(panel, "OU - Organizational Unit:",
-                "The department or division within the organization", ouField);
-
-        addLabeledFieldWithTooltip(panel, "C - Country: *",
-                "The two-letter country code (e.g., US, UK, DE) (required)", cField);
-
-        addLabeledFieldWithTooltip(panel, "ST - State/Province:",
-                "The state or province where the organization is located", stField);
-
-        addLabeledFieldWithTooltip(panel, "L - Locality (City):",
-                "The city where the organization is located", lField);
-
-        addLabeledFieldWithTooltip(panel, "Email Address:",
-                "Contact email address for the certificate owner", emailField);
-
-        addLabeledFieldWithTooltip(panel, "Valid Days:",
-                "Number of days the certificate will be valid from creation date", validDaysField);
-
-        int result = JOptionPane.showConfirmDialog(mainFrame, panel, "Create New Certificate", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-
-        if (result == JOptionPane.OK_OPTION) {
-            String alias = aliasField.getText().trim();
-            String cn = cnField.getText().trim();
-            String o = oField.getText().trim();
-            String ou = ouField.getText().trim();
-            String c = cField.getText().trim();
-            String st = stField.getText().trim();
-            String l = lField.getText().trim();
-            String email = emailField.getText().trim();
-            String validDaysStr = validDaysField.getText().trim();
-
-            if (alias.isEmpty()) {
-                JOptionPane.showMessageDialog(mainFrame, "Please specify a certificate alias.", ERROR, JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
-            // Validate required fields
-            if (cn.isEmpty()) {
-                JOptionPane.showMessageDialog(mainFrame, "Common Name (CN) is required.", ERROR, JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
-            if (c.isEmpty()) {
-                JOptionPane.showMessageDialog(mainFrame, "Country (C) is required.", ERROR, JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
-            // Build the subject string in X.500 Distinguished Name format
-            StringBuilder subjectBuilder = new StringBuilder();
-            subjectBuilder.append("CN=").append(cn);
-
-            if (!o.isEmpty()) {
-                subjectBuilder.append(", O=").append(o);
-            }
-
-            if (!ou.isEmpty()) {
-                subjectBuilder.append(", OU=").append(ou);
-            }
-
-            subjectBuilder.append(", C=").append(c);
-
-            if (!st.isEmpty()) {
-                subjectBuilder.append(", ST=").append(st);
-            }
-
-            if (!l.isEmpty()) {
-                subjectBuilder.append(", L=").append(l);
-            }
-
-            if (!email.isEmpty()) {
-                subjectBuilder.append(", EMAILADDRESS=").append(email);
-            }
-
-            String subject = subjectBuilder.toString();
-
-            int validDays;
-            try {
-                validDays = Integer.parseInt(validDaysStr);
-                if (validDays <= 0) {
-                    throw new NumberFormatException("Valid days must be positive");
-                }
-            } catch (NumberFormatException e1) {
-                JOptionPane.showMessageDialog(mainFrame, "Please enter a valid number of days.", ERROR, JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
-            try {
-                // Generate a self-signed certificate
-                KeyStoreUtil.generateAndStoreKeyPairWithX509Certificate(keyStore, alias, AsymmetricAlgorithm.RSA, 2048, keystoreManager.getPassword(), subject, validDays);
-
-                // Backup the keystore file before saving
-                Path keystorePath = keystoreManager.getKeystorePath();
-                backupKeystoreFile(keystorePath);
-
-                KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, keystoreManager.getPassword());
-
-                // Update the certificates table
-                updateCertificatesTable();
-
-                JOptionPane.showMessageDialog(mainFrame, "Certificate generated and stored successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
-            } catch (GeneralSecurityException | IOException ex) {
-                LOG.warn("Error generating certificate", ex);
-                JOptionPane.showMessageDialog(mainFrame, "Error generating certificate: " + ex.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
-            }
-        }
-    }
-
     private void removeCertificate() {
         KeyStore keyStore = keystoreManager.getKeyStore();
 
@@ -841,11 +1039,59 @@ public class LicenseManager {
 
         // Confirm deletion
         int confirm = JOptionPane.showConfirmDialog(mainFrame,
-            "Are you sure you want to remove the certificate with alias: " + alias + "?",
-            "Confirm Removal", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+                "Are you sure you want to remove the certificate with alias: " + alias + "?",
+                "Confirm Removal", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
 
         if (confirm == JOptionPane.YES_OPTION) {
             removeFromKeyStore(keyStore, alias);
+        }
+    }
+
+    /**
+     * Updates the certificates table with the current keystore information.
+     */
+    private void updateCertificatesTable() {
+        KeyStore keyStore = keystoreManager.getKeyStore();
+
+        // Clear the table
+        certificatesTableModel.setRowCount(0);
+
+        if (keyStore == null) {
+            return;
+        }
+
+        try {
+            keyStore.aliases().asIterator().forEachRemaining(alias -> {
+                try {
+                    // Only process certificate entries
+                    if (keyStore.isCertificateEntry(alias)) {
+                        // Get certificate information
+                        java.security.cert.Certificate cert = keyStore.getCertificate(alias);
+
+                        if (cert instanceof java.security.cert.X509Certificate x509Cert) {
+                            String subject = x509Cert.getSubjectX500Principal().getName();
+                            String issuer = x509Cert.getIssuerX500Principal().getName();
+                            String validFrom = x509Cert.getNotBefore().toString();
+                            String validTo = x509Cert.getNotAfter().toString();
+
+                            certificatesTableModel.addRow(new Object[]{
+                                    alias, subject, issuer, validFrom, validTo
+                            });
+                        } else {
+                            // Non-X509 certificate
+                            certificatesTableModel.addRow(new Object[]{
+                                    alias, "Non-X509 Certificate", "Unknown", "Unknown", "Unknown"
+                            });
+                        }
+                    }
+                } catch (Exception e) {
+                    // Skip this alias if there's an error
+                    LOG.warn("Error processing certificate alias: {}", alias, e);
+                }
+            });
+        } catch (Exception e) {
+            LOG.warn("Error loading certificate information", e);
+            JOptionPane.showMessageDialog(mainFrame, "Error loading certificate information: " + e.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -870,236 +1116,18 @@ public class LicenseManager {
     }
 
     /**
-     * Updates the certificates table with the current keystore information.
-     */
-    private void updateCertificatesTable() {
-        KeyStore keyStore = keystoreManager.getKeyStore();
-
-        // Clear the table
-        certificatesTableModel.setRowCount(0);
-
-        if (keyStore == null) {
-            return;
-        }
-
-        try {
-            keyStore.aliases().asIterator().forEachRemaining(alias -> {
-                try {
-                    // Only process certificate entries
-                    if (keyStore.isCertificateEntry(alias)) {
-                        // Get certificate information
-                        java.security.cert.Certificate cert = keyStore.getCertificate(alias);
-                        
-                        if (cert instanceof java.security.cert.X509Certificate x509Cert) {
-                            String subject = x509Cert.getSubjectX500Principal().getName();
-                            String issuer = x509Cert.getIssuerX500Principal().getName();
-                            String validFrom = x509Cert.getNotBefore().toString();
-                            String validTo = x509Cert.getNotAfter().toString();
-                            
-                            certificatesTableModel.addRow(new Object[]{
-                                alias, subject, issuer, validFrom, validTo
-                            });
-                        } else {
-                            // Non-X509 certificate
-                            certificatesTableModel.addRow(new Object[]{
-                                alias, "Non-X509 Certificate", "Unknown", "Unknown", "Unknown"
-                            });
-                        }
-                    }
-                } catch (Exception e) {
-                    // Skip this alias if there's an error
-                    LOG.warn("Error processing certificate alias: {}", alias, e);
-                }
-            });
-        } catch (Exception e) {
-            LOG.warn("Error loading certificate information", e);
-            JOptionPane.showMessageDialog(mainFrame, "Error loading certificate information: " + e.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-
-    private void updateKeyAliasComboBox() {
-        KeyStore keyStore = keystoreManager.getKeyStore();
-        if (keyStore == null) {
-            LOG.debug("No keystore loaded, skipping key alias update");
-            return;
-        }
-
-        LOG.debug("Updating key alias combo box");
-        licenseKeyAliasComboBox.removeAllItems();
-
-        try {
-            keyStore.aliases().asIterator().forEachRemaining(alias -> {
-                try {
-                    // Include both key entries and certificate entries
-                    if (keyStore.isKeyEntry(alias) || keyStore.isCertificateEntry(alias)) {
-                        licenseKeyAliasComboBox.addItem(alias);
-                    }
-                } catch (Exception e) {
-                    // Skip this alias if there's an error
-                    LOG.warn("Error processing key alias for combo box: {}", alias, e);
-                }
-            });
-        } catch (Exception e) {
-            LOG.warn("Error loading key aliases", e);
-            JOptionPane.showMessageDialog(mainFrame, "Error loading key aliases: " + e.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
-        }
-
-        // Update the keys table as well
-        updateKeysTable();
-    }
-
-    /**
-     * Backs up the keystore file before it is updated.
-     * The backup file is named with a timestamp in the format yyyymmddhhmmssss.
+     * Retrieves the path to the templates directory.
      *
-     * @param keystorePath the path to the keystore file
-     * @throws IOException if there's an I/O error
+     * @return the path to the directory named "templates" in the application data directory
      */
-    private static void backupKeystoreFile(Path keystorePath) throws IOException {
-        if (keystorePath == null || !Files.exists(keystorePath)) {
-            return; // Nothing to backup
-        }
-
-        // Create timestamp in format yyyymmddhhmmssss where ssss is seconds with decimal precision
-        LocalDateTime now = LocalDateTime.now();
-        String timestamp = String.format("%04d%02d%02d%02d%02d%04d", now.getYear(), now.getMonthValue(), now.getDayOfMonth(), now.getHour(), now.getMinute(), now.getSecond() * 100 + now.getNano() / 10_000_000); // Convert to seconds.hundredths
-
-        // Create backup file path
-        String fileName = String.valueOf(keystorePath.getFileName());
-        int dotIndex = fileName.lastIndexOf('.');
-        String baseName = (dotIndex > 0) ? fileName.substring(0, dotIndex) : fileName;
-        String extension = (dotIndex > 0) ? fileName.substring(dotIndex) : "";
-        Path backupPath = keystorePath.resolveSibling(baseName + "-" + timestamp + extension);
-
-        // Copy the file
-        Files.copy(keystorePath, backupPath);
-        LOG.debug("Created keystore backup at: {}", backupPath);
-    }
-
-    private void deleteKey(String alias) throws GeneralSecurityException, IOException {
-        KeyStore keyStore = keystoreManager.getKeyStore();
-        if (keyStore == null) {
-            throw new IllegalStateException("No keystore loaded");
-        }
-
-        keyStore.deleteEntry(alias);
-        Path keystorePath = keystoreManager.getKeystorePath();
-        backupKeystoreFile(keystorePath);
-        KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, keystoreManager.getPassword());
-        updateKeyAliasComboBox();
-    }
-
-    /**
-     * Exports only the public key and certificate to a new keystore instance.
-     *
-     * @param alias the alias of the key to export
-     * @throws GeneralSecurityException if there is an error accessing the keystore
-     * @throws IOException if there is an error saving the keystore
-     */
-    private void exportKeystore(String alias) throws GeneralSecurityException, IOException {
-        KeyStore sourceKeyStore = keystoreManager.getKeyStore();
-        if (sourceKeyStore == null) {
-            throw new IllegalStateException("No keystore loaded");
-        }
-
-        // Get the certificate from the keystore
-        Certificate cert = sourceKeyStore.getCertificate(alias);
-        if (cert == null) {
-            JOptionPane.showMessageDialog(mainFrame, "No certificate found for alias: " + alias, ERROR, JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        // Show a file save dialog with the current keystore directory as the initial directory
-        Path initialDir = keystoreManager.getKeystorePath().getParent();
-        Optional<Path> selectedPath = SwingUtil.showFileSaveDialog(
-                mainFrame,
-                initialDir,
-                Pair.of("Java Keystore File", new String[]{"jks"})
-        );
-
-        // Check if a path was selected
-        if (selectedPath.isEmpty()) {
-            return;
-        }
-
-        Path path = selectedPath.get();
-
-        // Show password dialog
-        JPanel passwordPanel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[][]"));
-        passwordPanel.add(new JLabel("New Keystore Password:"));
-        JPasswordField passwordField = new JPasswordField(20);
-        passwordPanel.add(passwordField, "growx, wrap");
-
-        passwordPanel.add(new JLabel("Confirm Password:"));
-        JPasswordField confirmPasswordField = new JPasswordField(20);
-        passwordPanel.add(confirmPasswordField, "growx");
-
-        int result = JOptionPane.showConfirmDialog(
-                mainFrame,
-                passwordPanel,
-                "Create Keystore Password",
-                JOptionPane.OK_CANCEL_OPTION,
-                JOptionPane.PLAIN_MESSAGE
-        );
-
-        if (result != JOptionPane.OK_OPTION) {
-            return;
-        }
-
-        // Verify passwords match
-        char[] password = passwordField.getPassword();
-        char[] confirmPassword = confirmPasswordField.getPassword();
-
-        if (!java.util.Arrays.equals(password, confirmPassword)) {
-            JOptionPane.showMessageDialog(mainFrame,
-                    "Passwords do not match. Please try again.",
-                    "Password Mismatch",
-                    JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
+    public static Path getTemplatesDirectory() {
         try {
-            // Create a new KeyStore instance
-            KeyStore newKeyStore = KeyStore.getInstance("PKCS12");
-            newKeyStore.load(null, password);
-
-            // Add the certificate to the new keystore
-            newKeyStore.setCertificateEntry(alias, cert);
-
-            // Save the new keystore
-            KeyStoreUtil.saveKeyStoreToFile(newKeyStore, path, password);
-
-            JOptionPane.showMessageDialog(mainFrame,
-                    "Public key and certificate exported successfully to:\n" + path,
-                    "Export Successful", JOptionPane.INFORMATION_MESSAGE);
-        } finally {
-            // Clear passwords from memory
-            java.util.Arrays.fill(password, '\0');
-            java.util.Arrays.fill(confirmPassword, '\0');
+            return IoUtil.getApplicationDataDir(LicenseManager.class.getName()).resolve("templates");
+        } catch (IOException e) {
+            LOG.error("Failed to create application data directory", e);
+            // Fall back to local templates directory
+            return Paths.get("templates");
         }
-    }
-
-    /**
-     * Adds a labeled field with an information icon that shows a tooltip with the field's description.
-     *
-     * @param panel The panel to add the components to
-     * @param labelText The text for the label
-     * @param description The description to show in the tooltip
-     * @param field The text field to add
-     */
-    private void addLabeledFieldWithTooltip(JPanel panel, String labelText, String description, JTextField field) {
-        // Create and add the label
-        JLabel label = new JLabel(labelText);
-        panel.add(label);
-
-        // Add the label panel and field to the main panel
-        panel.add(field, "grow x");
-
-        // Create the info icon with tooltip
-        JLabel infoIcon = new JLabel(INFO_SYMBOL);
-        infoIcon.setToolTipText(description);
-        panel.add(infoIcon, "wrap");
     }
 
 }
