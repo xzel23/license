@@ -536,8 +536,8 @@ public class LicenseManager {
         try {
             keyStore.aliases().asIterator().forEachRemaining(alias -> {
                 try {
-                    // Process both key entries and certificate entries
-                    if (keyStore.isKeyEntry(alias) || keyStore.isCertificateEntry(alias)) {
+                    // Process only key entries
+                    if (keyStore.isKeyEntry(alias)) {
                         // Get certificate information
                         java.security.cert.Certificate cert = keyStore.getCertificate(alias);
                         String algorithm = "N/A";
