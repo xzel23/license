@@ -247,10 +247,71 @@ public class LicenseManager {
             JTextField lField = new JTextField("", 20);
             JTextField emailField = new JTextField("", 20);
             JTextField validDaysField = new JTextField("3650", 5);
+            
+            // Create a combobox for certificate selection
+            JComboBox<String> certComboBox = new JComboBox<>();
+            certComboBox.addItem("-- Create new certificate --");
+            
+            // Populate the combobox with available certificates
+            try {
+                keyStore.aliases().asIterator().forEachRemaining(certAlias -> {
+                    try {
+                        // Only process certificate entries
+                        if (keyStore.isCertificateEntry(certAlias)) {
+                            // Get certificate information
+                            java.security.cert.Certificate cert = keyStore.getCertificate(certAlias);
+                            
+                            if (cert instanceof java.security.cert.X509Certificate x509Cert) {
+                                String subject = x509Cert.getSubjectX500Principal().getName();
+                                certComboBox.addItem(certAlias + " - " + subject);
+                            }
+                        }
+                    } catch (Exception ex) {
+                        // Skip this alias if there's an error
+                        LOG.warn("Error processing certificate alias: {}", certAlias, ex);
+                    }
+                });
+            } catch (Exception ex) {
+                LOG.warn("Error loading certificate information", ex);
+            }
+            
+            // Add listener to update fields when a certificate is selected
+            certComboBox.addActionListener(evt -> {
+                int selectedIndex = certComboBox.getSelectedIndex();
+                if (selectedIndex > 0) { // Not "Create new certificate"
+                    String selectedItem = (String) certComboBox.getSelectedItem();
+                    String certAlias = selectedItem.substring(0, selectedItem.indexOf(" - "));
+                    
+                    try {
+                        java.security.cert.Certificate cert = keyStore.getCertificate(certAlias);
+                        if (cert instanceof java.security.cert.X509Certificate x509Cert) {
+                            String subject = x509Cert.getSubjectX500Principal().getName();
+                            
+                            // Parse the subject DN and update the fields
+                            parseSubjectDN(subject, cnField, oField, ouField, cField, stField, lField, emailField);
+                        }
+                    } catch (Exception ex) {
+                        LOG.warn("Error getting certificate information", ex);
+                    }
+                } else {
+                    // Reset to default values
+                    cnField.setText("License Key");
+                    oField.setText("Your Organization");
+                    ouField.setText("");
+                    cField.setText("US");
+                    stField.setText("");
+                    lField.setText("");
+                    emailField.setText("");
+                }
+            });
 
             // Create a helper method to add a label with info icon and tooltip
-            JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]5[]5[]5[]5[]5[]5[]5[]5[]"));
-
+            JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]5[]5[]5[]5[]5[]5[]5[]5[]5[]"));
+            
+            // Add certificate selection combobox
+            addLabeledComboBoxWithTooltip(panel, "Certificate:",
+                    "Select an existing certificate or create a new one", certComboBox);
+            
             // Add field with label, info icon, and tooltip
             addLabeledFieldWithTooltip(panel, "Key Alias:",
                     "A unique identifier for this key in the keystore", aliasField);
@@ -605,6 +666,73 @@ public class LicenseManager {
         JLabel infoIcon = new JLabel(INFO_SYMBOL);
         infoIcon.setToolTipText(description);
         panel.add(infoIcon, "wrap");
+    }
+    
+    /**
+     * Adds a labeled combobox with an information icon that shows a tooltip with the combobox's description.
+     *
+     * @param panel       The panel to add the components to
+     * @param labelText   The text for the label
+     * @param description The description to show in the tooltip
+     * @param comboBox    The combobox to add
+     */
+    private void addLabeledComboBoxWithTooltip(JPanel panel, String labelText, String description, JComboBox<?> comboBox) {
+        // Create and add the label
+        JLabel label = new JLabel(labelText);
+        panel.add(label);
+
+        // Add the label panel and combobox to the main panel
+        panel.add(comboBox, "grow x");
+
+        // Create the info icon with tooltip
+        JLabel infoIcon = new JLabel(INFO_SYMBOL);
+        infoIcon.setToolTipText(description);
+        panel.add(infoIcon, "wrap");
+    }
+    
+    /**
+     * Parses a subject Distinguished Name (DN) and extracts its components into the provided text fields.
+     *
+     * @param subjectDN   The subject DN to parse
+     * @param cnField     The field for Common Name (CN)
+     * @param oField      The field for Organization (O)
+     * @param ouField     The field for Organizational Unit (OU)
+     * @param cField      The field for Country (C)
+     * @param stField     The field for State/Province (ST)
+     * @param lField      The field for Locality (L)
+     * @param emailField  The field for Email Address
+     */
+    private void parseSubjectDN(String subjectDN, JTextField cnField, JTextField oField, JTextField ouField, 
+                               JTextField cField, JTextField stField, JTextField lField, JTextField emailField) {
+        // Reset all fields
+        cnField.setText("");
+        oField.setText("");
+        ouField.setText("");
+        cField.setText("");
+        stField.setText("");
+        lField.setText("");
+        emailField.setText("");
+        
+        // Split the DN into components
+        String[] parts = subjectDN.split(",");
+        for (String part : parts) {
+            part = part.trim();
+            int equalsIndex = part.indexOf('=');
+            if (equalsIndex > 0) {
+                String key = part.substring(0, equalsIndex).trim();
+                String value = part.substring(equalsIndex + 1).trim();
+                
+                switch (key) {
+                    case "CN" -> cnField.setText(value);
+                    case "O" -> oField.setText(value);
+                    case "OU" -> ouField.setText(value);
+                    case "C" -> cField.setText(value);
+                    case "ST" -> stField.setText(value);
+                    case "L" -> lField.setText(value);
+                    case "EMAILADDRESS" -> emailField.setText(value);
+                }
+            }
+        }
     }
 
     /**
