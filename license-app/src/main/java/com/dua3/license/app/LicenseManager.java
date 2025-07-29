@@ -37,6 +37,7 @@ import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
+import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Security;
 import java.security.cert.Certificate;
@@ -62,6 +63,7 @@ public class LicenseManager {
     public static final String INFO_SYMBOL = "ⓘ";
     private static final String APP_NAME = LicenseManager.class.getSimpleName();
     private static final String ERROR = "Error";
+    private static final String PRIVATEKEY_SUFFIX = "-privatekey";
 
     static {
         try {
@@ -85,6 +87,7 @@ public class LicenseManager {
     private JPanel certificatesPanel;
     @Nullable
     private LicenseEditor licenseEditor;
+
     // Table for displaying keys
     private javax.swing.JTable keysTable;
     private javax.swing.table.DefaultTableModel keysTableModel;
@@ -919,12 +922,52 @@ public class LicenseManager {
         JCheckBox enableCACheckbox = new JCheckBox("Allow signing other certificates");
         enableCACheckbox.setToolTipText("When checked, this certificate can be used to sign other certificates");
 
+        // Create a combobox for parent certificate selection
+        JComboBox<String> parentCertComboBox = new JComboBox<>();
+        parentCertComboBox.addItem("standalone (no parent)");
+        
+        // Populate the combobox with CA certificates
+        try {
+            keyStore.aliases().asIterator().forEachRemaining(alias -> {
+                try {
+                    // Only process certificate entries
+                    if (keyStore.isCertificateEntry(alias)) {
+                        // Get certificate information
+                        java.security.cert.Certificate cert = keyStore.getCertificate(alias);
+
+                        if (cert instanceof java.security.cert.X509Certificate x509Cert) {
+                            // Check if this is a CA certificate
+                            boolean[] keyUsage = x509Cert.getKeyUsage();
+                            boolean isCA = false;
+                            if (keyUsage != null && keyUsage.length > 5) {
+                                // Key usage bit 5 is for keyCertSign
+                                isCA = keyUsage[5];
+                            }
+
+                            if (isCA) {
+                                parentCertComboBox.addItem(alias);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    // Skip this alias if there's an error
+                    LOG.warn("Error processing certificate alias: {}", alias, e);
+                }
+            });
+        } catch (Exception e) {
+            LOG.warn("Error loading CA certificates", e);
+        }
+
         // Create a panel for the dialog
-        JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]5[]5[]5[]5[]5[]5[]5[]5[]5[]"));
+        JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]5[]5[]5[]5[]5[]5[]5[]5[]5[]5[]"));
 
         // Add field with label, info icon, and tooltip
         addLabeledFieldWithTooltip(panel, "Certificate Alias:",
                 "A unique identifier for this certificate in the keystore", aliasField);
+
+        // Add parent certificate combobox
+        addLabeledComboBoxWithTooltip(panel, "Parent Certificate:",
+                "Select a parent certificate or 'standalone (no parent)' for a self-signed certificate", parentCertComboBox);
 
         // Add subject fields with required fields marked
         addLabeledFieldWithTooltip(panel, "CN - Common Name: *",
@@ -1025,10 +1068,51 @@ public class LicenseManager {
             }
 
             try {
-                // Generate a self-signed certificate
+                // Get the selected parent certificate (for logging purposes only)
+                Optional<String> parentCertificateAlias = switch(parentCertComboBox.getSelectedItem()) {
+                    case String s when !s.equals("standalone (no parent)") -> Optional.of(s);
+                    default -> Optional.empty();
+                };
+                X509Certificate[] parentCertificateChain = parentCertificateAlias
+                        .map(alias1 -> {
+                            try {
+                                return keyStore.getCertificateChain(alias1);
+                            } catch (KeyStoreException e) {
+                                throw new IllegalStateException(e);
+                            }
+                        })
+                        .map(X509Certificate[].class::cast)
+                        .orElse(new X509Certificate[]{});
+
+                // Generate certificate
                 boolean enableCA = enableCACheckbox.isSelected();
                 KeyPair keyPair = KeyUtil.generateKeyPair(AsymmetricAlgorithm.RSA, 2048);
-                X509Certificate[] certificate = CertificateUtil.createSelfSignedX509Certificate(keyPair, subject, validDays, enableCA);
+                X509Certificate[] certificate;
+                if (parentCertificateChain.length == 0) {
+                    // self-signed
+                    certificate = CertificateUtil.createSelfSignedX509Certificate(keyPair, subject, validDays, enableCA);
+                } else {
+                    // with parent
+                    PrivateKey parentPrivateKey = (PrivateKey) keyStore.getKey(
+                            parentCertificateAlias.orElseThrow() + PRIVATEKEY_SUFFIX,
+                            keystoreManager.getPassword()
+                    );
+                    certificate = CertificateUtil.createX509Certificate(
+                            keyPair,
+                            subject,
+                            validDays,
+                            enableCA,
+                            parentPrivateKey,
+                            parentCertificateChain
+                    );
+                }
+
+                keyStore.setKeyEntry(
+                        alias + PRIVATEKEY_SUFFIX,
+                        keyPair.getPrivate(),
+                        keystoreManager.getPassword(),
+                        certificate
+                );
                 keyStore.setCertificateEntry(alias, certificate[0]);
 
                 // Backup the keystore file before saving
