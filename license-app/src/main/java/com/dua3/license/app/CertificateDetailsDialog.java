@@ -13,12 +13,14 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
+import java.awt.HeadlessException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
 import java.security.PublicKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
@@ -89,31 +91,31 @@ public class CertificateDetailsDialog {
             JPanel panel = new JPanel();
             panel.setLayout(new javax.swing.BoxLayout(panel, javax.swing.BoxLayout.Y_AXIS));
             panel.setBorder(javax.swing.BorderFactory.createEmptyBorder(10, 10, 10, 10));
-            
+
             // Check if this certificate contains private keys or sensitive data
             boolean containsPrivateKey = keyStore.isKeyEntry(alias);
             if (containsPrivateKey) {
                 // Create warning panel
                 JPanel warningPanel = new JPanel(new BorderLayout(5, 5));
                 warningPanel.setBorder(javax.swing.BorderFactory.createCompoundBorder(
-                    javax.swing.BorderFactory.createLineBorder(java.awt.Color.RED, 1),
-                    javax.swing.BorderFactory.createEmptyBorder(10, 10, 10, 10)
+                        javax.swing.BorderFactory.createLineBorder(java.awt.Color.RED, 1),
+                        javax.swing.BorderFactory.createEmptyBorder(10, 10, 10, 10)
                 ));
-                
+
                 // Create warning icon and label
                 JLabel warningIcon = new JLabel(javax.swing.UIManager.getIcon("OptionPane.warningIcon"));
                 JLabel warningText = new JLabel("This certificate contains private keys or sensitive data that should not be distributed.");
                 warningText.setForeground(java.awt.Color.RED);
                 warningText.setFont(new java.awt.Font(DIALOG, java.awt.Font.BOLD, 12));
-                
+
                 // Add components to warning panel
                 JPanel textPanel = new JPanel(new BorderLayout());
                 textPanel.setOpaque(false);
                 textPanel.add(warningText, BorderLayout.CENTER);
-                
+
                 warningPanel.add(warningIcon, BorderLayout.WEST);
                 warningPanel.add(textPanel, BorderLayout.CENTER);
-                
+
                 // Add warning panel to main panel
                 panel.add(warningPanel);
                 panel.add(javax.swing.Box.createVerticalStrut(10)); // Add some space after the warning
@@ -266,7 +268,7 @@ public class CertificateDetailsDialog {
             // Show dialog
             JOptionPane.showMessageDialog(mainFrame, panel, "Certificate Details for " + alias, JOptionPane.INFORMATION_MESSAGE);
 
-        } catch (Exception e) {
+        } catch (RuntimeException | KeyStoreException e) {
             LOG.warn("Error retrieving certificate details for alias: {}", alias, e);
             JOptionPane.showMessageDialog(mainFrame, "Error retrieving certificate details: " + e.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
         }

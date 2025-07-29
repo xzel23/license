@@ -36,6 +36,7 @@ import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
 import java.security.PublicKey;
 import java.security.Security;
 import java.security.cert.Certificate;
@@ -247,11 +248,11 @@ public class LicenseManager {
             JTextField lField = new JTextField("", 20);
             JTextField emailField = new JTextField("", 20);
             JTextField validDaysField = new JTextField("3650", 5);
-            
+
             // Create a combobox for certificate selection
             JComboBox<String> certComboBox = new JComboBox<>();
             certComboBox.addItem("-- Create new certificate --");
-            
+
             // Populate the combobox with available certificates
             try {
                 keyStore.aliases().asIterator().forEachRemaining(certAlias -> {
@@ -260,13 +261,13 @@ public class LicenseManager {
                         if (keyStore.isCertificateEntry(certAlias)) {
                             // Get certificate information
                             java.security.cert.Certificate cert = keyStore.getCertificate(certAlias);
-                            
+
                             if (cert instanceof java.security.cert.X509Certificate x509Cert) {
                                 String subject = x509Cert.getSubjectX500Principal().getName();
                                 certComboBox.addItem(certAlias + " - " + subject);
                             }
                         }
-                    } catch (Exception ex) {
+                    } catch (KeyStoreException ex) {
                         // Skip this alias if there's an error
                         LOG.warn("Error processing certificate alias: {}", certAlias, ex);
                     }
@@ -274,19 +275,19 @@ public class LicenseManager {
             } catch (Exception ex) {
                 LOG.warn("Error loading certificate information", ex);
             }
-            
+
             // Add listener to update fields when a certificate is selected
             certComboBox.addActionListener(evt -> {
                 int selectedIndex = certComboBox.getSelectedIndex();
                 if (selectedIndex > 0) { // Not "Create new certificate"
                     String selectedItem = (String) certComboBox.getSelectedItem();
                     String certAlias = selectedItem.substring(0, selectedItem.indexOf(" - "));
-                    
+
                     try {
                         java.security.cert.Certificate cert = keyStore.getCertificate(certAlias);
                         if (cert instanceof java.security.cert.X509Certificate x509Cert) {
                             String subject = x509Cert.getSubjectX500Principal().getName();
-                            
+
                             // Parse the subject DN and update the fields
                             parseSubjectDN(subject, cnField, oField, ouField, cField, stField, lField, emailField);
                         }
@@ -307,11 +308,11 @@ public class LicenseManager {
 
             // Create a helper method to add a label with info icon and tooltip
             JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]5[]5[]5[]5[]5[]5[]5[]5[]5[]"));
-            
+
             // Add certificate selection combobox
             addLabeledComboBoxWithTooltip(panel, "Certificate:",
                     "Select an existing certificate or create a new one", certComboBox);
-            
+
             // Add field with label, info icon, and tooltip
             addLabeledFieldWithTooltip(panel, "Key Alias:",
                     "A unique identifier for this key in the keystore", aliasField);
@@ -712,7 +713,7 @@ public class LicenseManager {
         stField.setText("");
         lField.setText("");
         emailField.setText("");
-        
+
         // Split the DN into components
         String[] parts = subjectDN.split(",");
         for (String part : parts) {
@@ -721,7 +722,7 @@ public class LicenseManager {
             if (equalsIndex > 0) {
                 String key = part.substring(0, equalsIndex).trim();
                 String value = part.substring(equalsIndex + 1).trim();
-                
+
                 switch (key) {
                     case "CN" -> cnField.setText(value);
                     case "O" -> oField.setText(value);
@@ -730,6 +731,7 @@ public class LicenseManager {
                     case "ST" -> stField.setText(value);
                     case "L" -> lField.setText(value);
                     case "EMAILADDRESS" -> emailField.setText(value);
+                    default -> LOG.warn("Unknown subject DN key: {}", key);
                 }
             }
         }
