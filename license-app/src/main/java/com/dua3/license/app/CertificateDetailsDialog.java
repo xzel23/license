@@ -230,6 +230,38 @@ public class CertificateDetailsDialog {
                 JOptionPane.showMessageDialog(mainFrame, "Public key copied to clipboard.", "Success", JOptionPane.INFORMATION_MESSAGE);
             });
 
+            JButton copyPemButton = new JButton("Copy PEM to Clipboard");
+            copyPemButton.addActionListener(e -> {
+                try {
+                    // Get the certificate from the keystore
+                    Certificate certForPem = keyStore.getCertificate(alias);
+                    if (certForPem == null) {
+                        JOptionPane.showMessageDialog(mainFrame, "No certificate found for alias: " + alias, ERROR, JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+
+                    // Format certificate in PEM format
+                    byte[] certBytes = certForPem.getEncoded();
+                    String encoded = Base64.getEncoder().encodeToString(certBytes);
+
+                    // Split the Base64 string into lines of 64 characters
+                    StringBuilder pemBuilder = new StringBuilder();
+                    pemBuilder.append("-----BEGIN CERTIFICATE-----\n");
+                    for (int i = 0; i < encoded.length(); i += 64) {
+                        pemBuilder.append(encoded, i, Math.min(i + 64, encoded.length())).append('\n');
+                    }
+                    pemBuilder.append("-----END CERTIFICATE-----\n");
+
+                    // Copy to clipboard
+                    java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                            new java.awt.datatransfer.StringSelection(pemBuilder.toString()), null);
+                    JOptionPane.showMessageDialog(mainFrame, "Certificate PEM copied to clipboard.", "Success", JOptionPane.INFORMATION_MESSAGE);
+                } catch (Exception ex) {
+                    LOG.warn("Error copying certificate PEM to clipboard for alias: {}", alias, ex);
+                    JOptionPane.showMessageDialog(mainFrame, "Error copying certificate PEM: " + ex.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
+                }
+            });
+
             JButton exportCertButton = new JButton("Export Certificate");
             exportCertButton.addActionListener(e -> {
                 try {
@@ -253,6 +285,7 @@ public class CertificateDetailsDialog {
             JPanel publicKeyButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
             publicKeyButtonPanel.add(exportForDistributionButton);
             publicKeyButtonPanel.add(exportCertButton);
+            publicKeyButtonPanel.add(copyPemButton);
             publicKeyButtonPanel.add(copyPublicKeyButton);
             publicKeyPanel.add(publicKeyButtonPanel, BorderLayout.SOUTH);
 
