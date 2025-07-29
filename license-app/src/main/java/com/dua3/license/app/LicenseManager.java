@@ -137,6 +137,8 @@ public class LicenseManager {
 
         // Initialize the license editor
         licenseEditor = new LicenseEditor(mainFrame, keystoreManager);
+        // Register callback to refresh keys table when a license is created
+        licenseEditor.setLicenseCreationCallback(this::updateKeysTable);
 
         tabbedPane = new JTabbedPane();
 
@@ -162,6 +164,71 @@ public class LicenseManager {
 
         mainFrame.setLocationRelativeTo(null);
         mainFrame.setVisible(true);
+    }
+
+    /**
+     * Updates the keys table with the current keystore information.
+     */
+    private void updateKeysTable() {
+        KeyStore keyStore = keystoreManager.getKeyStore();
+
+        // Clear the table
+        keysTableModel.setRowCount(0);
+
+        if (keyStore == null) {
+            return;
+        }
+
+        try {
+            keyStore.aliases().asIterator().forEachRemaining(alias -> {
+                try {
+                    // Process only key entries
+                    if (keyStore.isKeyEntry(alias)) {
+                        // Get certificate information
+                        java.security.cert.Certificate cert = keyStore.getCertificate(alias);
+                        String algorithm = "N/A";
+                        int keySize = 0;
+                        String subject = "N/A";
+                        String publicKeyString = "N/A";
+
+                        if (cert != null) {
+                            PublicKey publicKey = cert.getPublicKey();
+                            algorithm = publicKey.getAlgorithm();
+
+                            // Estimate key size
+                            if (publicKey instanceof java.security.interfaces.RSAKey rsaKey) {
+                                keySize = rsaKey.getModulus().bitLength();
+                            } else if (publicKey instanceof java.security.interfaces.DSAKey dsaKey) {
+                                keySize = dsaKey.getParams().getP().bitLength();
+                            } else if (publicKey instanceof java.security.interfaces.ECKey ecKey) {
+                                keySize = ecKey.getParams().getCurve().getField().getFieldSize();
+                            }
+
+                            // Get subject from X509Certificate
+                            if (cert instanceof java.security.cert.X509Certificate x509Certificate) {
+                                subject = x509Certificate.getSubjectX500Principal().getName();
+                            }
+
+                            // Format public key as Base64
+                            publicKeyString = Base64.getEncoder().encodeToString(publicKey.getEncoded());
+                            if (publicKeyString.length() > 30) {
+                                publicKeyString = publicKeyString.substring(0, 27) + "...";
+                            }
+                        }
+
+                        // Add row to table
+                        keysTableModel.addRow(new Object[]{alias, algorithm, keySize > 0 ? String.valueOf(keySize) : "N/A", subject, publicKeyString
+                        });
+                    }
+                } catch (Exception e) {
+                    // Skip this alias if there's an error
+                    LOG.warn("Error processing key alias: {}", alias, e);
+                }
+            });
+        } catch (Exception e) {
+            LOG.warn("Error loading key information", e);
+            JOptionPane.showMessageDialog(mainFrame, "Error loading key information: " + e.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     /**
@@ -586,128 +653,19 @@ public class LicenseManager {
     }
 
     /**
-     * Updates the keys table with the current keystore information.
-     */
-    private void updateKeysTable() {
-        KeyStore keyStore = keystoreManager.getKeyStore();
-
-        // Clear the table
-        keysTableModel.setRowCount(0);
-
-        if (keyStore == null) {
-            return;
-        }
-
-        try {
-            keyStore.aliases().asIterator().forEachRemaining(alias -> {
-                try {
-                    // Process only key entries
-                    if (keyStore.isKeyEntry(alias)) {
-                        // Get certificate information
-                        java.security.cert.Certificate cert = keyStore.getCertificate(alias);
-                        String algorithm = "N/A";
-                        int keySize = 0;
-                        String subject = "N/A";
-                        String publicKeyString = "N/A";
-
-                        if (cert != null) {
-                            PublicKey publicKey = cert.getPublicKey();
-                            algorithm = publicKey.getAlgorithm();
-
-                            // Estimate key size
-                            if (publicKey instanceof java.security.interfaces.RSAKey rsaKey) {
-                                keySize = rsaKey.getModulus().bitLength();
-                            } else if (publicKey instanceof java.security.interfaces.DSAKey dsaKey) {
-                                keySize = dsaKey.getParams().getP().bitLength();
-                            } else if (publicKey instanceof java.security.interfaces.ECKey ecKey) {
-                                keySize = ecKey.getParams().getCurve().getField().getFieldSize();
-                            }
-
-                            // Get subject from X509Certificate
-                            if (cert instanceof java.security.cert.X509Certificate x509Certificate) {
-                                subject = x509Certificate.getSubjectX500Principal().getName();
-                            }
-
-                            // Format public key as Base64
-                            publicKeyString = Base64.getEncoder().encodeToString(publicKey.getEncoded());
-                            if (publicKeyString.length() > 30) {
-                                publicKeyString = publicKeyString.substring(0, 27) + "...";
-                            }
-                        }
-
-                        // Add row to table
-                        keysTableModel.addRow(new Object[]{alias, algorithm, keySize > 0 ? String.valueOf(keySize) : "N/A", subject, publicKeyString
-                        });
-                    }
-                } catch (Exception e) {
-                    // Skip this alias if there's an error
-                    LOG.warn("Error processing key alias: {}", alias, e);
-                }
-            });
-        } catch (Exception e) {
-            LOG.warn("Error loading key information", e);
-            JOptionPane.showMessageDialog(mainFrame, "Error loading key information: " + e.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    /**
-     * Adds a labeled field with an information icon that shows a tooltip with the field's description.
-     *
-     * @param panel       The panel to add the components to
-     * @param labelText   The text for the label
-     * @param description The description to show in the tooltip
-     * @param field       The text field to add
-     */
-    private void addLabeledFieldWithTooltip(JPanel panel, String labelText, String description, JTextField field) {
-        // Create and add the label
-        JLabel label = new JLabel(labelText);
-        panel.add(label);
-
-        // Add the label panel and field to the main panel
-        panel.add(field, "grow x");
-
-        // Create the info icon with tooltip
-        JLabel infoIcon = new JLabel(INFO_SYMBOL);
-        infoIcon.setToolTipText(description);
-        panel.add(infoIcon, "wrap");
-    }
-    
-    /**
-     * Adds a labeled combobox with an information icon that shows a tooltip with the combobox's description.
-     *
-     * @param panel       The panel to add the components to
-     * @param labelText   The text for the label
-     * @param description The description to show in the tooltip
-     * @param comboBox    The combobox to add
-     */
-    private void addLabeledComboBoxWithTooltip(JPanel panel, String labelText, String description, JComboBox<?> comboBox) {
-        // Create and add the label
-        JLabel label = new JLabel(labelText);
-        panel.add(label);
-
-        // Add the label panel and combobox to the main panel
-        panel.add(comboBox, "grow x");
-
-        // Create the info icon with tooltip
-        JLabel infoIcon = new JLabel(INFO_SYMBOL);
-        infoIcon.setToolTipText(description);
-        panel.add(infoIcon, "wrap");
-    }
-    
-    /**
      * Parses a subject Distinguished Name (DN) and extracts its components into the provided text fields.
      *
-     * @param subjectDN   The subject DN to parse
-     * @param cnField     The field for Common Name (CN)
-     * @param oField      The field for Organization (O)
-     * @param ouField     The field for Organizational Unit (OU)
-     * @param cField      The field for Country (C)
-     * @param stField     The field for State/Province (ST)
-     * @param lField      The field for Locality (L)
-     * @param emailField  The field for Email Address
+     * @param subjectDN  The subject DN to parse
+     * @param cnField    The field for Common Name (CN)
+     * @param oField     The field for Organization (O)
+     * @param ouField    The field for Organizational Unit (OU)
+     * @param cField     The field for Country (C)
+     * @param stField    The field for State/Province (ST)
+     * @param lField     The field for Locality (L)
+     * @param emailField The field for Email Address
      */
-    private void parseSubjectDN(String subjectDN, JTextField cnField, JTextField oField, JTextField ouField, 
-                               JTextField cField, JTextField stField, JTextField lField, JTextField emailField) {
+    private void parseSubjectDN(String subjectDN, JTextField cnField, JTextField oField, JTextField ouField,
+                                JTextField cField, JTextField stField, JTextField lField, JTextField emailField) {
         // Reset all fields
         cnField.setText("");
         oField.setText("");
@@ -738,6 +696,50 @@ public class LicenseManager {
                 }
             }
         }
+    }
+
+    /**
+     * Adds a labeled combobox with an information icon that shows a tooltip with the combobox's description.
+     *
+     * @param panel       The panel to add the components to
+     * @param labelText   The text for the label
+     * @param description The description to show in the tooltip
+     * @param comboBox    The combobox to add
+     */
+    private void addLabeledComboBoxWithTooltip(JPanel panel, String labelText, String description, JComboBox<?> comboBox) {
+        // Create and add the label
+        JLabel label = new JLabel(labelText);
+        panel.add(label);
+
+        // Add the label panel and combobox to the main panel
+        panel.add(comboBox, "grow x");
+
+        // Create the info icon with tooltip
+        JLabel infoIcon = new JLabel(INFO_SYMBOL);
+        infoIcon.setToolTipText(description);
+        panel.add(infoIcon, "wrap");
+    }
+
+    /**
+     * Adds a labeled field with an information icon that shows a tooltip with the field's description.
+     *
+     * @param panel       The panel to add the components to
+     * @param labelText   The text for the label
+     * @param description The description to show in the tooltip
+     * @param field       The text field to add
+     */
+    private void addLabeledFieldWithTooltip(JPanel panel, String labelText, String description, JTextField field) {
+        // Create and add the label
+        JLabel label = new JLabel(labelText);
+        panel.add(label);
+
+        // Add the label panel and field to the main panel
+        panel.add(field, "grow x");
+
+        // Create the info icon with tooltip
+        JLabel infoIcon = new JLabel(INFO_SYMBOL);
+        infoIcon.setToolTipText(description);
+        panel.add(infoIcon, "wrap");
     }
 
     /**
@@ -925,7 +927,7 @@ public class LicenseManager {
         // Create a combobox for parent certificate selection
         JComboBox<String> parentCertComboBox = new JComboBox<>();
         parentCertComboBox.addItem("standalone (no parent)");
-        
+
         // Populate the combobox with CA certificates
         try {
             keyStore.aliases().asIterator().forEachRemaining(alias -> {
@@ -1069,7 +1071,7 @@ public class LicenseManager {
 
             try {
                 // Get the selected parent certificate (for logging purposes only)
-                Optional<String> parentCertificateAlias = switch(parentCertComboBox.getSelectedItem()) {
+                Optional<String> parentCertificateAlias = switch (parentCertComboBox.getSelectedItem()) {
                     case String s when !s.equals("standalone (no parent)") -> Optional.of(s);
                     default -> Optional.empty();
                 };

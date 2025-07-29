@@ -3,18 +3,22 @@ package com.dua3.license.app;
 import com.dua3.license.DynamicEnum;
 import com.dua3.license.License;
 import com.dua3.utility.lang.Version;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import net.miginfocom.swing.MigLayout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jspecify.annotations.Nullable;
 
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.FlowLayout;
@@ -38,40 +42,12 @@ import java.util.Properties;
 import java.util.SequencedMap;
 import java.util.prefs.Preferences;
 
-import javax.swing.JFileChooser;
-import javax.swing.filechooser.FileNameExtensionFilter;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.jspecify.annotations.Nullable;
-
 /**
  * Class responsible for license editing functionality.
  */
 public class LicenseEditor {
 
     private static final Logger LOG = LogManager.getLogger(LicenseEditor.class);
-
-    // file extensions and file filters
-    private static final String DRAFT_FILE_EXTENSION = "license_draft";
-    private static final String LICENSE_FILE_EXTENSION = "license";
-    private static final FileNameExtensionFilter LICENSE_DRAFT_EXTENSION_FILTER = new FileNameExtensionFilter("License Draft Files (*.licensed)", DRAFT_FILE_EXTENSION);
-    private static final FileNameExtensionFilter LICENSE_EXTENSION_FILTER = new FileNameExtensionFilter("License Files (*.license)", LICENSE_FILE_EXTENSION);
-
-    // preferences paths
-    private static final String PREF_LICENSE_DIRECTORY = "licenseDirectory";
-
-    // placeholders for license field values
-    private static final String SIGNING_KEY_PLACEHOLDER = "### SIGNING_KEY ###";
-    private static final String SIGNATURE_PLACEHOLDER = "### SIGNATURE ###";
-
-    // text constants
-    private static final String HTML_OPEN = "<html>";
-    private static final String HTML_CLOSE = "</html>";
-    private static final String ERROR = "Error";
-    private static final String SIGNING_KEY = "signingKey";
-    private static final String SIGNATURE = "signature";
-    private static final String GROWX = "growx";
-
-    // placeholders for automatic fields
     /**
      * A placeholder variable representing the issue date of a license.
      */
@@ -88,50 +64,35 @@ public class LicenseEditor {
      * Represents a placeholder for the signature field in a license template.
      */
     public static final String $SIGNATURE = "${signature}";
+    // file extensions and file filters
+    private static final String DRAFT_FILE_EXTENSION = "license_draft";
+    private static final String LICENSE_FILE_EXTENSION = "license";
+    private static final FileNameExtensionFilter LICENSE_DRAFT_EXTENSION_FILTER = new FileNameExtensionFilter("License Draft Files (*.licensed)", DRAFT_FILE_EXTENSION);
+    private static final FileNameExtensionFilter LICENSE_EXTENSION_FILTER = new FileNameExtensionFilter("License Files (*.license)", LICENSE_FILE_EXTENSION);
+    // preferences paths
+    private static final String PREF_LICENSE_DIRECTORY = "licenseDirectory";
+    // placeholders for license field values
+    private static final String SIGNING_KEY_PLACEHOLDER = "### SIGNING_KEY ###";
+    private static final String SIGNATURE_PLACEHOLDER = "### SIGNATURE ###";
+    // text constants
+    private static final String HTML_OPEN = "<html>";
+    private static final String HTML_CLOSE = "</html>";
+    private static final String ERROR = "Error";
 
+    // placeholders for automatic fields
+    private static final String SIGNING_KEY = "signingKey";
+    private static final String SIGNATURE = "signature";
+    private static final String GROWX = "growx";
     // instance data
     private final LocalDate today = LocalDate.now();
     private final JFrame parentFrame;
     private final KeystoreManager keystoreManager;
-
-    /**
-     * Represents a license draft that can be saved and loaded.
-     */
-    private static class LicenseDraft {
-        private String templateName;
-        private Map<String, String> fieldValues;
-
-        // Default constructor for Jackson
-        public LicenseDraft() {
-            this.fieldValues = new LinkedHashMap<>();
-        }
-
-        public LicenseDraft(String templateName, Map<String, String> fieldValues) {
-            this.templateName = templateName;
-            this.fieldValues = new LinkedHashMap<>(fieldValues);
-        }
-
-        public String getTemplateName() {
-            return templateName;
-        }
-
-        public void setTemplateName(String templateName) {
-            this.templateName = templateName;
-        }
-
-        public Map<String, String> getFieldValues() {
-            return fieldValues;
-        }
-
-        public void setFieldValues(Map<String, String> fieldValues) {
-            this.fieldValues = fieldValues;
-        }
-    }
+    private Runnable licenseCreationCallback;
 
     /**
      * Constructs a LicenseEditor object with the provided parent frame and keystore manager.
      *
-     * @param parentFrame the parent JFrame of this editor
+     * @param parentFrame     the parent JFrame of this editor
      * @param keystoreManager the KeystoreManager instance to manage cryptographic operations
      */
     public LicenseEditor(JFrame parentFrame, KeystoreManager keystoreManager) {
@@ -140,26 +101,12 @@ public class LicenseEditor {
     }
 
     /**
-     * Gets the stored license directory from preferences or returns a default path if none is stored.
+     * Sets a callback to be called when a license is created.
      *
-     * @return the stored license directory or a default path
+     * @param callback the callback to be called
      */
-    private Path getLicenseDirectory() {
-        Preferences prefs = Preferences.userNodeForPackage(LicenseEditor.class);
-        String storedPath = prefs.get(PREF_LICENSE_DIRECTORY, null);
-        return storedPath != null ? Paths.get(storedPath) : Paths.get(".");
-    }
-
-    /**
-     * Saves the license directory to preferences.
-     *
-     * @param path the path to save
-     */
-    private void saveLicenseDirectory(Path path) {
-        if (path != null) {
-            Preferences prefs = Preferences.userNodeForPackage(LicenseEditor.class);
-            prefs.put(PREF_LICENSE_DIRECTORY, path.toString());
-        }
+    public void setLicenseCreationCallback(Runnable callback) {
+        this.licenseCreationCallback = callback;
     }
 
     /**
@@ -263,6 +210,186 @@ public class LicenseEditor {
     }
 
     /**
+     * Validates a license file.
+     * This method allows the user to select a license file, then validates its signature
+     * and checks if the license has expired.
+     */
+    private void validateLicense(@Nullable Version currentVersion) {
+        try {
+            // Create a file chooser
+            JFileChooser fileChooser = new JFileChooser();
+            fileChooser.setDialogTitle("Select License File to Validate");
+            fileChooser.setFileFilter(LICENSE_EXTENSION_FILTER);
+
+            // Set current directory to the stored license directory
+            Path storedDir = getLicenseDirectory();
+            if (Files.exists(storedDir) && Files.isDirectory(storedDir)) {
+                fileChooser.setCurrentDirectory(storedDir.toFile());
+            }
+
+            // Show open dialog
+            int userSelection = fileChooser.showOpenDialog(parentFrame);
+
+            if (userSelection != JFileChooser.APPROVE_OPTION) {
+                return; // User cancelled
+            }
+
+            Path filePath = fileChooser.getSelectedFile().toPath();
+
+            // Save the directory to preferences
+            saveLicenseDirectory(filePath.getParent());
+
+            // Load the license file
+            ObjectMapper mapper = new ObjectMapper();
+            Map<String, Object> licenseData = mapper.readValue(filePath.toFile(), Map.class);
+
+            if (currentVersion == null) {
+                currentVersion = (Version) licenseData.get(License.MAX_VERSION_LICENSE_FIELD);
+            }
+
+            // Validation results
+            StringBuilder validationResults = new StringBuilder();
+
+            // Use the License.validate method to validate the license data
+            boolean isValid = false;
+            try {
+                KeyStore keyStore = keystoreManager.getKeyStore();
+                char[] password = keystoreManager.getPassword();
+                isValid = License.validate(licenseData, keyStore, currentVersion, validationResults);
+            } catch (GeneralSecurityException e) {
+                LOG.warn("Error validating license: {}", e.getMessage(), e);
+                validationResults.append("❌ Error validating license: ").append(e.getMessage()).append("\n");
+            }
+
+            // Display the validation results
+            String title = isValid ? "License is Valid" : "License Validation Failed";
+
+            // Create a panel to display validation results and license data
+            JPanel licenseDataPanel = new JPanel(new BorderLayout());
+
+            // Add validation summary at the top
+            JLabel validationLabel = new JLabel(isValid ?
+                    "✅ License is valid" :
+                    "❌ License validation failed");
+            validationLabel.setFont(new java.awt.Font("Dialog", java.awt.Font.BOLD, 14));
+            validationLabel.setForeground(isValid ? new Color(0, 128, 0) : Color.RED);
+            licenseDataPanel.add(validationLabel, BorderLayout.NORTH);
+
+            // Create a panel for detailed validation results
+            JPanel validationPanel = new JPanel(new BorderLayout());
+            validationPanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Validation Results"));
+
+            // Use JTextArea with JScrollPane instead of JLabel for scrollable text
+            javax.swing.JTextArea validationDetailsArea = new javax.swing.JTextArea(validationResults.toString());
+            validationDetailsArea.setEditable(false);
+            validationDetailsArea.setLineWrap(true);
+            validationDetailsArea.setWrapStyleWord(true);
+            javax.swing.JScrollPane validationScrollPane = new javax.swing.JScrollPane(validationDetailsArea);
+            validationScrollPane.setPreferredSize(new java.awt.Dimension(600, 150));
+
+            validationPanel.add(validationScrollPane, BorderLayout.CENTER);
+
+            // Create table data for license properties
+            String[] columnNames = {"Property", "Value"};
+            Object[][] data = new Object[licenseData.size() - 1][2];
+
+            int i = 0;
+            for (Map.Entry<String, Object> entry : licenseData.entrySet()) {
+                if (entry.getKey().equals(License.SIGNATURE_LICENSE_FIELD)) {
+                    continue; // Skip the signature
+                }
+
+                data[i][0] = entry.getKey();
+
+                // Format value with line breaks for long text
+                String value = String.valueOf(entry.getValue());
+                if (value.length() > 80) {
+                    StringBuilder sb = new StringBuilder();
+                    int index = 0;
+                    while (index < value.length()) {
+                        int end = Math.min(index + 80, value.length());
+                        if (end < value.length() && Character.isLetterOrDigit(value.charAt(end))
+                                && Character.isLetterOrDigit(value.charAt(end - 1))) {
+                            // Try to break at a non-alphanumeric character
+                            int breakPoint = end - 1;
+                            while (breakPoint > index && Character.isLetterOrDigit(value.charAt(breakPoint))) {
+                                breakPoint--;
+                            }
+                            if (breakPoint > index) {
+                                end = breakPoint + 1;
+                            }
+                        }
+                        sb.append(value, index, end).append("<br>");
+                        index = end;
+                    }
+                    value = HTML_OPEN + sb + HTML_CLOSE;
+                }
+                data[i][1] = value;
+                i++;
+            }
+
+            // Create table with custom renderer for line breaks
+            javax.swing.JTable table = new javax.swing.JTable(data, columnNames);
+            table.getColumnModel().getColumn(0).setPreferredWidth(150);
+            table.getColumnModel().getColumn(1).setPreferredWidth(450);
+            table.setRowHeight(25);
+
+            // Make rows taller for wrapped content
+            for (i = 0; i < table.getRowCount(); i++) {
+                Object value = table.getValueAt(i, 1);
+                if (value != null && value.toString().startsWith(HTML_OPEN)) {
+                    // Count the number of <br> tags to estimate height
+                    String text = value.toString();
+                    int lineCount = (int) text.chars().filter(ch -> ch == '>').count() - 1;
+                    table.setRowHeight(i, Math.max(25, lineCount * 20));
+                }
+            }
+
+            // Add table to a scroll pane
+            javax.swing.JScrollPane scrollPane = new javax.swing.JScrollPane(table);
+            scrollPane.setPreferredSize(new java.awt.Dimension(600, 300));
+
+            // Create a split panel for validation results and license data
+            javax.swing.JSplitPane splitPane = new javax.swing.JSplitPane(
+                    javax.swing.JSplitPane.VERTICAL_SPLIT,
+                    validationPanel,
+                    scrollPane);
+            splitPane.setDividerLocation(150);
+            splitPane.setPreferredSize(new java.awt.Dimension(600, 500));
+
+            licenseDataPanel.add(splitPane, BorderLayout.CENTER);
+
+            // Create a resizable dialog instead of using JOptionPane
+            javax.swing.JDialog dialog = new javax.swing.JDialog(parentFrame, title, true);
+            dialog.setLayout(new BorderLayout());
+            dialog.add(licenseDataPanel, BorderLayout.CENTER);
+
+            // Add a close button at the bottom
+            JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+            JButton closeButton = new JButton("Close");
+            closeButton.addActionListener(e -> dialog.dispose());
+            buttonPanel.add(closeButton);
+            dialog.add(buttonPanel, BorderLayout.SOUTH);
+
+            // Set dialog properties
+            dialog.setSize(650, 600);
+            dialog.setResizable(true);
+            dialog.setLocationRelativeTo(parentFrame);
+
+            // Show the dialog
+            dialog.setVisible(true);
+        } catch (IOException e) {
+            LOG.error("Error validating license", e);
+            JOptionPane.showMessageDialog(
+                    parentFrame,
+                    "Error validating license: " + e.getMessage(),
+                    "Validation Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
+        }
+    }
+
+    /**
      * Shows a form to create a license using the selected template.
      *
      * @param template the DynamicEnum template
@@ -353,9 +480,9 @@ public class LicenseEditor {
                 if (!template.getName().equals(draft.getTemplateName())) {
                     int confirm = JOptionPane.showConfirmDialog(
                             parentFrame,
-                            "The loaded draft was created with template '" + draft.getTemplateName() + 
-                            "', but the current template is '" + template.getName() + "'.\n" +
-                            "Do you want to continue loading this draft?",
+                            "The loaded draft was created with template '" + draft.getTemplateName() +
+                                    "', but the current template is '" + template.getName() + "'.\n" +
+                                    "Do you want to continue loading this draft?",
                             "Template Mismatch",
                             JOptionPane.YES_NO_OPTION,
                             JOptionPane.WARNING_MESSAGE
@@ -485,7 +612,7 @@ public class LicenseEditor {
 
                     // Add extension if not present
                     if (!filePath.toString().toLowerCase().endsWith("." + LICENSE_FILE_EXTENSION)) {
-                        filePath = Paths.get(filePath.toString() + "." + LICENSE_FILE_EXTENSION);
+                        filePath = Paths.get(filePath + "." + LICENSE_FILE_EXTENSION);
                     }
 
                     try (OutputStream out = Files.newOutputStream(filePath)) {
@@ -515,22 +642,27 @@ public class LicenseEditor {
                         // Get the signature from the properties
                         int signatureIndex = specialFieldIndices.get(SIGNATURE);
                         String signatureFieldName = fields.get(signatureIndex).name();
-                        
+
                         // Load the license to get the signature
                         Properties licenseProps = new Properties();
                         try (InputStream in = Files.newInputStream(filePath)) {
                             licenseProps.load(in);
                         }
-                        
+
                         String signatureBase64 = licenseProps.getProperty(signatureFieldName);
-                        
+
                         // Update the signature field in the UI
                         JTextField signatureField = (JTextField) valueComponents[signatureIndex];
                         signatureField.setText(signatureBase64);
-                        
+
                         // Update the properties with the signature
                         properties.put(signatureFieldName, signatureBase64);
-                        
+
+                        // Call the license creation callback if set
+                        if (licenseCreationCallback != null) {
+                            licenseCreationCallback.run();
+                        }
+
                         JOptionPane.showMessageDialog(parentFrame,
                                 "License saved successfully to " + filePath,
                                 "License Saved",
@@ -567,8 +699,8 @@ public class LicenseEditor {
                         int index = 0;
                         while (index < value.length()) {
                             int end = Math.min(index + 80, value.length());
-                            if (end < value.length() && Character.isLetterOrDigit(value.charAt(end)) 
-                                && Character.isLetterOrDigit(value.charAt(end - 1))) {
+                            if (end < value.length() && Character.isLetterOrDigit(value.charAt(end))
+                                    && Character.isLetterOrDigit(value.charAt(end - 1))) {
                                 // Try to break at a non-alphanumeric character
                                 int breakPoint = end - 1;
                                 while (breakPoint > index && Character.isLetterOrDigit(value.charAt(breakPoint))) {
@@ -625,6 +757,29 @@ public class LicenseEditor {
         }
     }
 
+    /**
+     * Gets the stored license directory from preferences or returns a default path if none is stored.
+     *
+     * @return the stored license directory or a default path
+     */
+    private Path getLicenseDirectory() {
+        Preferences prefs = Preferences.userNodeForPackage(LicenseEditor.class);
+        String storedPath = prefs.get(PREF_LICENSE_DIRECTORY, null);
+        return storedPath != null ? Paths.get(storedPath) : Paths.get(".");
+    }
+
+    /**
+     * Saves the license directory to preferences.
+     *
+     * @param path the path to save
+     */
+    private void saveLicenseDirectory(Path path) {
+        if (path != null) {
+            Preferences prefs = Preferences.userNodeForPackage(LicenseEditor.class);
+            prefs.put(PREF_LICENSE_DIRECTORY, path.toString());
+        }
+    }
+
     private String getDefaultText(LicenseTemplate.LicenseField field) {
         String value = field.defaultValue();
         return switch (value) {
@@ -637,9 +792,55 @@ public class LicenseEditor {
     }
 
     /**
+     * Populates a combo box with non-expired signing keys from the keystore.
+     *
+     * @param comboBox the combo box to populate
+     */
+    private void populateSigningKeyComboBox(JComboBox<String> comboBox) {
+        KeyStore keyStore = keystoreManager.getKeyStore();
+        if (keyStore == null) {
+            LOG.warn("No keystore loaded, cannot populate signing key combo box");
+            return;
+        }
+
+        comboBox.removeAllItems();
+
+        try {
+            Date now = new Date();
+            keyStore.aliases().asIterator().forEachRemaining(alias -> {
+                try {
+                    if (keyStore.isKeyEntry(alias)) {
+                        Certificate cert = keyStore.getCertificate(alias);
+                        if (cert instanceof X509Certificate x509Cert) {
+                            // Check if the certificate has not expired
+                            try {
+                                x509Cert.checkValidity(now);
+                                // Add the alias to the combo box
+                                comboBox.addItem(alias);
+                            } catch (GeneralSecurityException e) {
+                                // Certificate has expired or is not yet valid, skip it
+                                LOG.debug("Skipping expired or not yet valid certificate: {}", alias);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    LOG.warn("Error processing key alias for combo box: {}", alias, e);
+                }
+            });
+        } catch (Exception e) {
+            LOG.warn("Error loading key aliases", e);
+            JOptionPane.showMessageDialog(parentFrame,
+                    "Error loading key aliases: " + e.getMessage(),
+                    ERROR,
+                    JOptionPane.ERROR_MESSAGE
+            );
+        }
+    }
+
+    /**
      * Saves the current license draft to a file.
-     * 
-     * @param template the license template
+     *
+     * @param template    the license template
      * @param fieldValues the map of field values
      */
     private void saveLicenseDraft(LicenseTemplate template, Map<String, String> fieldValues) {
@@ -694,65 +895,8 @@ public class LicenseEditor {
     }
 
     /**
-     * Saves the generated license to a file.
-     * 
-     * @param properties the license properties
-     */
-    private void saveLicense(Map<String, Object> properties) {
-        try {
-            // Create a file chooser
-            JFileChooser fileChooser = new JFileChooser();
-            fileChooser.setDialogTitle("Save License");
-            fileChooser.setFileFilter(LICENSE_EXTENSION_FILTER);
-
-            // Set current directory to the stored license directory
-            Path storedDir = getLicenseDirectory();
-            if (Files.exists(storedDir) && Files.isDirectory(storedDir)) {
-                fileChooser.setCurrentDirectory(storedDir.toFile());
-            }
-
-            // Set default file name using LICENSE_ID if available
-            String defaultFileName = "license";
-            if (properties.containsKey("LICENSE_ID")) {
-                defaultFileName = properties.get("LICENSE_ID").toString();
-            }
-            fileChooser.setSelectedFile(new java.io.File(defaultFileName + "." + LICENSE_FILE_EXTENSION));
-
-            // Show save dialog
-            int userSelection = fileChooser.showSaveDialog(parentFrame);
-
-            if (userSelection == JFileChooser.APPROVE_OPTION) {
-                Path filePath = fileChooser.getSelectedFile().toPath();
-
-                // Add extension if not present
-                if (!filePath.toString().toLowerCase().endsWith("." + LICENSE_FILE_EXTENSION)) {
-                    filePath = Paths.get(filePath.toString() + "." + LICENSE_FILE_EXTENSION);
-                }
-
-                // Save to file
-                ObjectMapper mapper = new ObjectMapper();
-                mapper.writerWithDefaultPrettyPrinter().writeValue(filePath.toFile(), properties);
-
-                // Save the directory to preferences
-                saveLicenseDirectory(filePath.getParent());
-
-                JOptionPane.showMessageDialog(parentFrame,
-                        "License saved successfully to " + filePath,
-                        "License Saved",
-                        JOptionPane.INFORMATION_MESSAGE);
-            }
-        } catch (Exception e) {
-            LOG.error("Error saving license", e);
-            JOptionPane.showMessageDialog(parentFrame,
-                    "Error saving license: " + e.getMessage(),
-                    ERROR,
-                    JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    /**
      * Loads a license draft from a file.
-     * 
+     *
      * @return the loaded license draft, or null if loading was cancelled or failed
      */
     private LicenseDraft loadLicenseDraft() {
@@ -795,15 +939,15 @@ public class LicenseEditor {
     }
 
     /**
-     * Validates a license file.
-     * This method allows the user to select a license file, then validates its signature
-     * and checks if the license has expired.
+     * Saves the generated license to a file.
+     *
+     * @param properties the license properties
      */
-    private void validateLicense(@Nullable Version currentVersion) {
+    private void saveLicense(Map<String, Object> properties) {
         try {
             // Create a file chooser
             JFileChooser fileChooser = new JFileChooser();
-            fileChooser.setDialogTitle("Select License File to Validate");
+            fileChooser.setDialogTitle("Save License");
             fileChooser.setFileFilter(LICENSE_EXTENSION_FILTER);
 
             // Set current directory to the stored license directory
@@ -812,211 +956,76 @@ public class LicenseEditor {
                 fileChooser.setCurrentDirectory(storedDir.toFile());
             }
 
-            // Show open dialog
-            int userSelection = fileChooser.showOpenDialog(parentFrame);
-
-            if (userSelection != JFileChooser.APPROVE_OPTION) {
-                return; // User cancelled
+            // Set default file name using LICENSE_ID if available
+            String defaultFileName = "license";
+            if (properties.containsKey("LICENSE_ID")) {
+                defaultFileName = properties.get("LICENSE_ID").toString();
             }
+            fileChooser.setSelectedFile(new java.io.File(defaultFileName + "." + LICENSE_FILE_EXTENSION));
 
-            Path filePath = fileChooser.getSelectedFile().toPath();
+            // Show save dialog
+            int userSelection = fileChooser.showSaveDialog(parentFrame);
 
-            // Save the directory to preferences
-            saveLicenseDirectory(filePath.getParent());
+            if (userSelection == JFileChooser.APPROVE_OPTION) {
+                Path filePath = fileChooser.getSelectedFile().toPath();
 
-            // Load the license file
-            ObjectMapper mapper = new ObjectMapper();
-            Map<String, Object> licenseData = mapper.readValue(filePath.toFile(), Map.class);
-
-            if (currentVersion == null) {
-                currentVersion = (Version) licenseData.get(License.MAX_VERSION_LICENSE_FIELD);
-            }
-
-            // Validation results
-            StringBuilder validationResults = new StringBuilder();
-
-            // Use the License.validate method to validate the license data
-            boolean isValid = false;
-            try {
-                KeyStore keyStore = keystoreManager.getKeyStore();
-                char[] password = keystoreManager.getPassword();
-                isValid = License.validate(licenseData, keyStore, currentVersion, validationResults);
-            } catch (GeneralSecurityException e) {
-                LOG.warn("Error validating license: {}", e.getMessage(), e);
-                validationResults.append("❌ Error validating license: ").append(e.getMessage()).append("\n");
-            }
-
-            // Display the validation results
-            String title = isValid ? "License is Valid" : "License Validation Failed";
-
-            // Create a panel to display validation results and license data
-            JPanel licenseDataPanel = new JPanel(new BorderLayout());
-
-            // Add validation summary at the top
-            JLabel validationLabel = new JLabel(isValid ? 
-                    "✅ License is valid" : 
-                    "❌ License validation failed");
-            validationLabel.setFont(new java.awt.Font("Dialog", java.awt.Font.BOLD, 14));
-            validationLabel.setForeground(isValid ? new Color(0, 128, 0) : Color.RED);
-            licenseDataPanel.add(validationLabel, BorderLayout.NORTH);
-
-            // Create a panel for detailed validation results
-            JPanel validationPanel = new JPanel(new BorderLayout());
-            validationPanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Validation Results"));
-
-            // Use JTextArea with JScrollPane instead of JLabel for scrollable text
-            javax.swing.JTextArea validationDetailsArea = new javax.swing.JTextArea(validationResults.toString());
-            validationDetailsArea.setEditable(false);
-            validationDetailsArea.setLineWrap(true);
-            validationDetailsArea.setWrapStyleWord(true);
-            javax.swing.JScrollPane validationScrollPane = new javax.swing.JScrollPane(validationDetailsArea);
-            validationScrollPane.setPreferredSize(new java.awt.Dimension(600, 150));
-
-            validationPanel.add(validationScrollPane, BorderLayout.CENTER);
-
-            // Create table data for license properties
-            String[] columnNames = {"Property", "Value"};
-            Object[][] data = new Object[licenseData.size() - 1][2];
-
-            int i = 0;
-            for (Map.Entry<String, Object> entry : licenseData.entrySet()) {
-                if (entry.getKey().equals(License.SIGNATURE_LICENSE_FIELD)) {
-                    continue; // Skip the signature
+                // Add extension if not present
+                if (!filePath.toString().toLowerCase().endsWith("." + LICENSE_FILE_EXTENSION)) {
+                    filePath = Paths.get(filePath + "." + LICENSE_FILE_EXTENSION);
                 }
 
-                data[i][0] = entry.getKey();
+                // Save to file
+                ObjectMapper mapper = new ObjectMapper();
+                mapper.writerWithDefaultPrettyPrinter().writeValue(filePath.toFile(), properties);
 
-                // Format value with line breaks for long text
-                String value = String.valueOf(entry.getValue());
-                if (value.length() > 80) {
-                    StringBuilder sb = new StringBuilder();
-                    int index = 0;
-                    while (index < value.length()) {
-                        int end = Math.min(index + 80, value.length());
-                        if (end < value.length() && Character.isLetterOrDigit(value.charAt(end))
-                                && Character.isLetterOrDigit(value.charAt(end - 1))) {
-                            // Try to break at a non-alphanumeric character
-                            int breakPoint = end - 1;
-                            while (breakPoint > index && Character.isLetterOrDigit(value.charAt(breakPoint))) {
-                                breakPoint--;
-                            }
-                            if (breakPoint > index) {
-                                end = breakPoint + 1;
-                            }
-                        }
-                        sb.append(value, index, end).append("<br>");
-                        index = end;
-                    }
-                    value = HTML_OPEN + sb.toString() + HTML_CLOSE;
-                }
-                data[i][1] = value;
-                i++;
+                // Save the directory to preferences
+                saveLicenseDirectory(filePath.getParent());
+
+                JOptionPane.showMessageDialog(parentFrame,
+                        "License saved successfully to " + filePath,
+                        "License Saved",
+                        JOptionPane.INFORMATION_MESSAGE);
             }
-
-            // Create table with custom renderer for line breaks
-            javax.swing.JTable table = new javax.swing.JTable(data, columnNames);
-            table.getColumnModel().getColumn(0).setPreferredWidth(150);
-            table.getColumnModel().getColumn(1).setPreferredWidth(450);
-            table.setRowHeight(25);
-
-            // Make rows taller for wrapped content
-            for (i = 0; i < table.getRowCount(); i++) {
-                Object value = table.getValueAt(i, 1);
-                if (value != null && value.toString().startsWith(HTML_OPEN)) {
-                    // Count the number of <br> tags to estimate height
-                    String text = value.toString();
-                    int lineCount = (int) text.chars().filter(ch -> ch == '>').count() - 1;
-                    table.setRowHeight(i, Math.max(25, lineCount * 20));
-                }
-            }
-
-            // Add table to a scroll pane
-            javax.swing.JScrollPane scrollPane = new javax.swing.JScrollPane(table);
-            scrollPane.setPreferredSize(new java.awt.Dimension(600, 300));
-
-            // Create a split panel for validation results and license data
-            javax.swing.JSplitPane splitPane = new javax.swing.JSplitPane(
-                    javax.swing.JSplitPane.VERTICAL_SPLIT,
-                    validationPanel,
-                    scrollPane);
-            splitPane.setDividerLocation(150);
-            splitPane.setPreferredSize(new java.awt.Dimension(600, 500));
-
-            licenseDataPanel.add(splitPane, BorderLayout.CENTER);
-
-            // Create a resizable dialog instead of using JOptionPane
-            javax.swing.JDialog dialog = new javax.swing.JDialog(parentFrame, title, true);
-            dialog.setLayout(new BorderLayout());
-            dialog.add(licenseDataPanel, BorderLayout.CENTER);
-
-            // Add a close button at the bottom
-            JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-            JButton closeButton = new JButton("Close");
-            closeButton.addActionListener(e -> dialog.dispose());
-            buttonPanel.add(closeButton);
-            dialog.add(buttonPanel, BorderLayout.SOUTH);
-
-            // Set dialog properties
-            dialog.setSize(650, 600);
-            dialog.setResizable(true);
-            dialog.setLocationRelativeTo(parentFrame);
-
-            // Show the dialog
-            dialog.setVisible(true);
-        } catch (IOException e) {
-            LOG.error("Error validating license", e);
-            JOptionPane.showMessageDialog(
-                    parentFrame,
-                    "Error validating license: " + e.getMessage(),
-                    "Validation Error",
-                    JOptionPane.ERROR_MESSAGE
-            );
+        } catch (Exception e) {
+            LOG.error("Error saving license", e);
+            JOptionPane.showMessageDialog(parentFrame,
+                    "Error saving license: " + e.getMessage(),
+                    ERROR,
+                    JOptionPane.ERROR_MESSAGE);
         }
     }
 
     /**
-     * Populates a combo box with non-expired signing keys from the keystore.
-     *
-     * @param comboBox the combo box to populate
+     * Represents a license draft that can be saved and loaded.
      */
-    private void populateSigningKeyComboBox(JComboBox<String> comboBox) {
-        KeyStore keyStore = keystoreManager.getKeyStore();
-        if (keyStore == null) {
-            LOG.warn("No keystore loaded, cannot populate signing key combo box");
-            return;
+    private static class LicenseDraft {
+        private String templateName;
+        private Map<String, String> fieldValues;
+
+        // Default constructor for Jackson
+        public LicenseDraft() {
+            this.fieldValues = new LinkedHashMap<>();
         }
 
-        comboBox.removeAllItems();
+        public LicenseDraft(String templateName, Map<String, String> fieldValues) {
+            this.templateName = templateName;
+            this.fieldValues = new LinkedHashMap<>(fieldValues);
+        }
 
-        try {
-            Date now = new Date();
-            keyStore.aliases().asIterator().forEachRemaining(alias -> {
-                try {
-                    if (keyStore.isKeyEntry(alias)) {
-                        Certificate cert = keyStore.getCertificate(alias);
-                        if (cert instanceof X509Certificate x509Cert) {
-                            // Check if the certificate has not expired
-                            try {
-                                x509Cert.checkValidity(now);
-                                // Add the alias to the combo box
-                                comboBox.addItem(alias);
-                            } catch (GeneralSecurityException e) {
-                                // Certificate has expired or is not yet valid, skip it
-                                LOG.debug("Skipping expired or not yet valid certificate: {}", alias);
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    LOG.warn("Error processing key alias for combo box: {}", alias, e);
-                }
-            });
-        } catch (Exception e) {
-            LOG.warn("Error loading key aliases", e);
-            JOptionPane.showMessageDialog(parentFrame,
-                    "Error loading key aliases: " + e.getMessage(),
-                    ERROR,
-                    JOptionPane.ERROR_MESSAGE
-            );
+        public String getTemplateName() {
+            return templateName;
+        }
+
+        public void setTemplateName(String templateName) {
+            this.templateName = templateName;
+        }
+
+        public Map<String, String> getFieldValues() {
+            return fieldValues;
+        }
+
+        public void setFieldValues(Map<String, String> fieldValues) {
+            this.fieldValues = fieldValues;
         }
     }
 }
