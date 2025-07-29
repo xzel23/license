@@ -578,13 +578,6 @@ public class LicenseEditor {
 
                 // Get the keystore
                 KeyStore keyStore = keystoreManager.getKeyStore();
-                if (keyStore == null) {
-                    JOptionPane.showMessageDialog(parentFrame,
-                            "No keystore loaded.",
-                            ERROR,
-                            JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
 
                 // Create a file chooser
                 JFileChooser fileChooser = new JFileChooser();
@@ -798,10 +791,6 @@ public class LicenseEditor {
      */
     private void populateSigningKeyComboBox(JComboBox<String> comboBox) {
         KeyStore keyStore = keystoreManager.getKeyStore();
-        if (keyStore == null) {
-            LOG.warn("No keystore loaded, cannot populate signing key combo box");
-            return;
-        }
 
         comboBox.removeAllItems();
 

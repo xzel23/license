@@ -6,6 +6,7 @@ import com.dua3.utility.crypt.KeyStoreUtil;
 import com.dua3.utility.crypt.KeyUtil;
 import com.dua3.utility.data.Pair;
 import com.dua3.utility.io.IoUtil;
+import com.dua3.utility.math.MathUtil;
 import com.dua3.utility.swing.SwingUtil;
 import net.miginfocom.swing.MigLayout;
 import org.apache.logging.log4j.LogManager;
@@ -55,6 +56,9 @@ import java.util.Optional;
 public class LicenseManager {
 
     private static final Logger LOG = LogManager.getLogger(LicenseManager.class);
+
+    private static final int FRAME_WIDTH = 1024;
+
     /**
      * A constant string representing an information symbol "ⓘ".
      * <p>
@@ -73,10 +77,10 @@ public class LicenseManager {
         }
     }
 
-    private final KeystoreManager keystoreManager = new KeystoreManager();
+    private final KeystoreManager keystoreManager;
     private final JComboBox<String> licenseKeyAliasComboBox = new JComboBox<>();
-    @Nullable
-    private JFrame mainFrame;
+    private final JFrame mainFrame;
+
     @Nullable
     private JTabbedPane tabbedPane;
     @Nullable
@@ -99,7 +103,26 @@ public class LicenseManager {
     /**
      * Constructs a new instance of the LicenseManager class.
      */
-    public LicenseManager() { /* nothing to do */ }
+    public LicenseManager() {
+        this.mainFrame = createFrame();
+        this.keystoreManager = new KeystoreManager(mainFrame);
+
+        createAndShowGUI();
+    }
+
+    /**
+     * Creates and initializes a {@code JFrame} instance configured with default settings.
+     * The frame's size is determined by the static {@code FRAME_WIDTH} field and the golden ratio,
+     * and its default close operation is set to exit the application.
+     *
+     * @return the configured {@code JFrame} instance
+     */
+    private static final JFrame createFrame() {
+        JFrame frame = new JFrame();
+        frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+        frame.setSize(FRAME_WIDTH, (int) Math.round(FRAME_WIDTH / MathUtil.GOLDEN_RATIO));
+        return frame;
+    }
 
     /**
      * The main method serves as the entry point for the License Manager application.
@@ -112,7 +135,6 @@ public class LicenseManager {
         SwingUtil.setNativeLookAndFeel(APP_NAME);
         SwingUtilities.invokeLater(() -> {
             LicenseManager app = new LicenseManager();
-            app.createAndShowGUI();
         });
     }
 
@@ -123,17 +145,14 @@ public class LicenseManager {
      */
     private void createAndShowGUI() {
         LOG.debug("Creating and showing GUI");
+
         // Show startup dialog to load or create keystore
-        if (!keystoreManager.showDialog(null)) {
-            // User chose to exit
-            LOG.info("User chose to exit after keystore loading failure");
+        if (!keystoreManager.showDialog()) {
+            mainFrame.dispose();
             return;
         }
 
         LOG.debug("Keystore loaded successfully, initializing main window");
-        mainFrame = new JFrame(APP_NAME);
-        mainFrame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-        mainFrame.setSize(800, 600);
 
         // Initialize the license editor
         licenseEditor = new LicenseEditor(mainFrame, keystoreManager);
@@ -154,14 +173,6 @@ public class LicenseManager {
 
         mainFrame.getContentPane().add(tabbedPane, BorderLayout.CENTER);
 
-        mainFrame.addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowClosing(WindowEvent e) {
-                // Clean up resources if needed
-                System.exit(0);
-            }
-        });
-
         mainFrame.setLocationRelativeTo(null);
         mainFrame.setVisible(true);
     }
@@ -174,10 +185,6 @@ public class LicenseManager {
 
         // Clear the table
         keysTableModel.setRowCount(0);
-
-        if (keyStore == null) {
-            return;
-        }
 
         try {
             keyStore.aliases().asIterator().forEachRemaining(alias -> {
@@ -303,10 +310,6 @@ public class LicenseManager {
         addKeyButton.addActionListener(e -> {
             // Reuse the key generation functionality from the Key Management tab
             KeyStore keyStore = keystoreManager.getKeyStore();
-            if (keyStore == null) {
-                JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", ERROR, JOptionPane.ERROR_MESSAGE);
-                return;
-            }
 
             // Show a dialog to get key information
             JTextField aliasField = new JTextField(20);
@@ -501,12 +504,6 @@ public class LicenseManager {
 
         JButton deleteKeyButton = new JButton("Delete Key");
         deleteKeyButton.addActionListener(e -> {
-            KeyStore keyStore = keystoreManager.getKeyStore();
-            if (keyStore == null) {
-                JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", ERROR, JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
             int row = keysTable.getSelectedRow();
             if (row < 0) {
                 JOptionPane.showMessageDialog(mainFrame, "Please select a key to delete.", ERROR, JOptionPane.ERROR_MESSAGE);
@@ -534,12 +531,6 @@ public class LicenseManager {
 
         JButton exportKeystoreButton = new JButton("Export public keys and certificates to new Keystore");
         exportKeystoreButton.addActionListener(e -> {
-            KeyStore keyStore = keystoreManager.getKeyStore();
-            if (keyStore == null) {
-                JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", ERROR, JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
             int row = keysTable.getSelectedRow();
             if (row < 0) {
                 JOptionPane.showMessageDialog(mainFrame, "Please select a key to export.", ERROR, JOptionPane.ERROR_MESSAGE);
@@ -772,10 +763,6 @@ public class LicenseManager {
 
     private void updateKeyAliasComboBox() {
         KeyStore keyStore = keystoreManager.getKeyStore();
-        if (keyStore == null) {
-            LOG.debug("No keystore loaded, skipping key alias update");
-            return;
-        }
 
         LOG.debug("Updating key alias combo box");
         licenseKeyAliasComboBox.removeAllItems();
@@ -803,9 +790,6 @@ public class LicenseManager {
 
     private void deleteKey(String alias) throws GeneralSecurityException, IOException {
         KeyStore keyStore = keystoreManager.getKeyStore();
-        if (keyStore == null) {
-            throw new IllegalStateException("No keystore loaded");
-        }
 
         keyStore.deleteEntry(alias);
         Path keystorePath = keystoreManager.getKeystorePath();
@@ -823,9 +807,6 @@ public class LicenseManager {
      */
     private void exportKeystore(String alias) throws GeneralSecurityException, IOException {
         KeyStore sourceKeyStore = keystoreManager.getKeyStore();
-        if (sourceKeyStore == null) {
-            throw new IllegalStateException("No keystore loaded");
-        }
 
         // Get the certificate from the keystore
         Certificate cert = sourceKeyStore.getCertificate(alias);
@@ -906,10 +887,6 @@ public class LicenseManager {
 
     private void newCertificate() {
         KeyStore keyStore = keystoreManager.getKeyStore();
-        if (keyStore == null) {
-            JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", ERROR, JOptionPane.ERROR_MESSAGE);
-            return;
-        }
 
         // Show a dialog to get certificate information
         JTextField aliasField = new JTextField(20);
@@ -1184,10 +1161,6 @@ public class LicenseManager {
 
     private void importCertificateFomText() {
         KeyStore keyStore = keystoreManager.getKeyStore();
-        if (keyStore == null) {
-            JOptionPane.showMessageDialog(mainFrame, "Please load or create a keystore first.", ERROR, JOptionPane.ERROR_MESSAGE);
-            return;
-        }
 
         // Show a text input dialog for pasting certificate content
         JTextField aliasField = new JTextField(20);
@@ -1271,10 +1244,6 @@ public class LicenseManager {
 
         // Clear the table
         certificatesTableModel.setRowCount(0);
-
-        if (keyStore == null) {
-            return;
-        }
 
         try {
             keyStore.aliases().asIterator().forEachRemaining(alias -> {

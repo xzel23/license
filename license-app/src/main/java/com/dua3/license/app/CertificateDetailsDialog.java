@@ -13,7 +13,6 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
-import java.awt.HeadlessException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -69,11 +68,6 @@ public class CertificateDetailsDialog {
      */
     public void showDialog() {
         LOG.debug("Showing certificate details for alias: {}", alias);
-        if (keyStore == null) {
-            LOG.warn("Attempted to show certificate details but no keystore is loaded");
-            JOptionPane.showMessageDialog(mainFrame, "No keystore loaded.", ERROR, JOptionPane.ERROR_MESSAGE);
-            return;
-        }
 
         try {
             // Get certificate information
@@ -282,11 +276,6 @@ public class CertificateDetailsDialog {
      */
     private void exportCertificate() throws GeneralSecurityException, IOException {
         LOG.debug("Exporting certificate for alias: {}", alias);
-        if (keyStore == null) {
-            LOG.warn("Attempted to export certificate but no keystore is loaded");
-            JOptionPane.showMessageDialog(mainFrame, "No keystore loaded.", ERROR, JOptionPane.ERROR_MESSAGE);
-            return;
-        }
 
         // Get the certificate from the keystore
         Certificate cert = keyStore.getCertificate(alias);
@@ -370,11 +359,6 @@ public class CertificateDetailsDialog {
      */
     private void exportForDistribution() throws GeneralSecurityException, IOException {
         LOG.debug("Exporting keystore for distribution with alias: {}", alias);
-        if (keyStore == null) {
-            LOG.warn("Attempted to export keystore for distribution but no keystore is loaded");
-            JOptionPane.showMessageDialog(mainFrame, "No keystore loaded.", ERROR, JOptionPane.ERROR_MESSAGE);
-            return;
-        }
 
         // Get the certificate from the keystore
         Certificate cert = keyStore.getCertificate(alias);

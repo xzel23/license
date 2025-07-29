@@ -68,11 +68,6 @@ public class KeyDetailsDialog {
      */
     public void showDialog() {
         LOG.debug("Showing key details for alias: {}", alias);
-        if (keyStore == null) {
-            LOG.warn("Attempted to show key details but no keystore is loaded");
-            JOptionPane.showMessageDialog(mainFrame, "No keystore loaded.", ERROR, JOptionPane.ERROR_MESSAGE);
-            return;
-        }
 
         try {
             // Get certificate information
@@ -259,11 +254,6 @@ public class KeyDetailsDialog {
      */
     private void showPrivateKey(JTextArea privateKeyTextArea) {
         LOG.debug("Attempting to show private key for alias: {}", alias);
-        if (keyStore == null) {
-            LOG.warn("Attempted to show private key but no keystore is loaded");
-            JOptionPane.showMessageDialog(mainFrame, "No keystore loaded.", ERROR, JOptionPane.ERROR_MESSAGE);
-            return;
-        }
 
         // Create password input dialog
         JPasswordField passwordField = new JPasswordField(20);
@@ -316,11 +306,6 @@ public class KeyDetailsDialog {
      */
     private void exportCertificate() throws GeneralSecurityException, IOException {
         LOG.debug("Exporting certificate for alias: {}", alias);
-        if (keyStore == null) {
-            LOG.warn("Attempted to export certificate but no keystore is loaded");
-            JOptionPane.showMessageDialog(mainFrame, "No keystore loaded.", ERROR, JOptionPane.ERROR_MESSAGE);
-            return;
-        }
 
         // Get the certificate from the keystore
         Certificate cert = keyStore.getCertificate(alias);
@@ -405,11 +390,6 @@ public class KeyDetailsDialog {
      */
     private void exportForDistribution() throws GeneralSecurityException, IOException {
         LOG.debug("Exporting keystore for distribution with alias: {}", alias);
-        if (keyStore == null) {
-            LOG.warn("Attempted to export keystore for distribution but no keystore is loaded");
-            JOptionPane.showMessageDialog(mainFrame, "No keystore loaded.", ERROR, JOptionPane.ERROR_MESSAGE);
-            return;
-        }
 
         // Get the certificate from the keystore
         Certificate cert = keyStore.getCertificate(alias);

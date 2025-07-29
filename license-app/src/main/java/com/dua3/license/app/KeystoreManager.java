@@ -14,6 +14,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import javax.swing.ImageIcon;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -49,6 +50,8 @@ public class KeystoreManager {
     private static final String LOGO_PATH_256 = "/com/dua3/license/app/Keytool-256.png";
     private static final String LOGO_PATH_512 = "/com/dua3/license/app/Keytool-512.png";
     private byte[] iv;
+
+    private Component parent;
 
     /**
      * Gets the appropriate logo icon based on the screen resolution.
@@ -110,9 +113,13 @@ public class KeystoreManager {
     }
 
     /**
-     * Constructs an instance of KeystoreManager.
+     * Constructs a new KeystoreManager instance with the specified parent component.
+     *
+     * @param parent the parent component, typically used as the owner for dialog windows
      */
-    public KeystoreManager() { /* nothing to do */ }
+    public KeystoreManager(Component parent) {
+        this.parent = parent;
+    }
 
     /**
      * Enum to specify the mode of the keystore dialog.
@@ -137,20 +144,12 @@ public class KeystoreManager {
      * Shows a dialog at startup that asks the user to either load an existing keystore or create a new one.
      * If there's an error, it shows the error message and asks if the user wants to try again.
      *
-     * @param parent the parent component
      * @return true if a keystore was successfully loaded or created, false otherwise
      */
-    public boolean showDialog(Component parent) {
-        String errorMessage = null;
-
+    public boolean showDialog() {
         do {
             // Create a panel for error message if needed
             JPanel messagePanel = null;
-            if (errorMessage != null) {
-                messagePanel = new JPanel(new MigLayout("fill, insets 0", "[grow]", "[]"));
-                JLabel errorLabel = new JLabel("<html><font color='red'>Error: " + errorMessage + "</font></html>");
-                messagePanel.add(errorLabel, "wrap");
-            }
 
             // Create a panel with centered logo and message
             JPanel panel = createCenteredLogoPanel(messagePanel);
@@ -178,9 +177,6 @@ public class KeystoreManager {
                     boolean success = showLoadCreateKeystoreDialog(parent, DialogMode.LOAD_EXISTING);
                     if (success) {
                         return true; // Successfully loaded
-                    } else {
-                        // Get the error message from the dialog
-                        errorMessage = "Failed to load keystore. Please check the path and password.";
                     }
                 }
                 case 1 -> {
@@ -189,9 +185,6 @@ public class KeystoreManager {
                     boolean success = showLoadCreateKeystoreDialog(parent, DialogMode.CREATE_NEW);
                     if (success) {
                         return true; // Successfully created
-                    } else {
-                        // Get the error message from the dialog
-                        errorMessage = "Failed to create keystore. Please check the path and password.";
                     }
                 }
                 default -> {
@@ -199,7 +192,6 @@ public class KeystoreManager {
                     return false;
                 }
             }
-
         } while (true);
     }
 
@@ -226,7 +218,6 @@ public class KeystoreManager {
         // Check if a path was selected
         if (selectedPath.isEmpty()) {
             LOG.warn("No keystore path specified for {}", modeString);
-            JOptionPane.showMessageDialog(parent, createCenteredLogoPanel("Please specify a keystore path."), ERROR, JOptionPane.PLAIN_MESSAGE, null);
             return false;
         }
 
