@@ -67,7 +67,6 @@ public class LicenseManager {
     public static final String INFO_SYMBOL = "ⓘ";
     private static final String APP_NAME = LicenseManager.class.getSimpleName();
     private static final String ERROR = "Error";
-    private static final String PRIVATEKEY_SUFFIX = "-privatekey";
 
     static {
         try {
@@ -164,10 +163,8 @@ public class LicenseManager {
         // Create panels for each tab
         createKeysPanel();
         createLicensesPanel();
-        createCertificatesPanel();
 
         // Add the new tabs as required
-        tabbedPane.addTab("Certificates", certificatesPanel);
         tabbedPane.addTab("Keys", keysPanel);
         tabbedPane.addTab("Licenses", licensesPanel);
 
@@ -322,69 +319,8 @@ public class LicenseManager {
             JTextField emailField = new JTextField("", 20);
             JTextField validDaysField = new JTextField("3650", 5);
 
-            // Create a combobox for certificate selection
-            JComboBox<String> certComboBox = new JComboBox<>();
-            certComboBox.addItem("-- Create new certificate --");
-
-            // Populate the combobox with available certificates
-            try {
-                keyStore.aliases().asIterator().forEachRemaining(certAlias -> {
-                    try {
-                        // Only process certificate entries
-                        if (keyStore.isCertificateEntry(certAlias)) {
-                            // Get certificate information
-                            java.security.cert.Certificate cert = keyStore.getCertificate(certAlias);
-
-                            if (cert instanceof java.security.cert.X509Certificate x509Cert) {
-                                String subject = x509Cert.getSubjectX500Principal().getName();
-                                certComboBox.addItem(certAlias + " - " + subject);
-                            }
-                        }
-                    } catch (KeyStoreException ex) {
-                        // Skip this alias if there's an error
-                        LOG.warn("Error processing certificate alias: {}", certAlias, ex);
-                    }
-                });
-            } catch (Exception ex) {
-                LOG.warn("Error loading certificate information", ex);
-            }
-
-            // Add listener to update fields when a certificate is selected
-            certComboBox.addActionListener(evt -> {
-                int selectedIndex = certComboBox.getSelectedIndex();
-                if (selectedIndex > 0) { // Not "Create new certificate"
-                    String selectedItem = (String) certComboBox.getSelectedItem();
-                    String certAlias = selectedItem.substring(0, selectedItem.indexOf(" - "));
-
-                    try {
-                        java.security.cert.Certificate cert = keyStore.getCertificate(certAlias);
-                        if (cert instanceof java.security.cert.X509Certificate x509Cert) {
-                            String subject = x509Cert.getSubjectX500Principal().getName();
-
-                            // Parse the subject DN and update the fields
-                            parseSubjectDN(subject, cnField, oField, ouField, cField, stField, lField, emailField);
-                        }
-                    } catch (Exception ex) {
-                        LOG.warn("Error getting certificate information", ex);
-                    }
-                } else {
-                    // Reset to default values
-                    cnField.setText("License Key");
-                    oField.setText("Your Organization");
-                    ouField.setText("");
-                    cField.setText("US");
-                    stField.setText("");
-                    lField.setText("");
-                    emailField.setText("");
-                }
-            });
-
             // Create a helper method to add a label with info icon and tooltip
             JPanel panel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[]5[]5[]5[]5[]5[]5[]5[]5[]5[]"));
-
-            // Add certificate selection combobox
-            addLabeledComboBoxWithTooltip(panel, "Certificate:",
-                    "Select an existing certificate or create a new one", certComboBox);
 
             // Add field with label, info icon, and tooltip
             addLabeledFieldWithTooltip(panel, "Key Alias:",
@@ -484,15 +420,16 @@ public class LicenseManager {
                 }
 
                 try {
-                    KeyStoreUtil.generateAndStoreKeyPairWithX509Certificate(keyStore, alias, AsymmetricAlgorithm.RSA, 2048, keystoreManager.getPassword(), subject, validDays);
+                    KeyStoreUtil.generateAndStoreKeyPairWithX509Certificate(keyStore, alias, AsymmetricAlgorithm.RSA, 4096, keystoreManager.getPassword(), subject, validDays);
+                    LOG.info("Generated key pair for alias: {}", alias);
+                    updateKeysTable();
+                    updateKeyAliasComboBox();
 
                     // Backup the keystore file before saving
                     Path keystorePath = keystoreManager.getKeystorePath();
                     backupKeystoreFile(keystorePath);
 
                     KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, keystoreManager.getPassword());
-
-                    updateKeyAliasComboBox();
 
                     JOptionPane.showMessageDialog(mainFrame, "Key pair generated and stored successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
                 } catch (GeneralSecurityException | IOException ex) {
@@ -901,15 +838,15 @@ public class LicenseManager {
         JCheckBox enableCACheckbox = new JCheckBox("Allow signing other certificates");
         enableCACheckbox.setToolTipText("When checked, this certificate can be used to sign other certificates");
 
-        // Create a combobox for parent certificate selection
+        // Create a combobox for parent key/certificate selection
         JComboBox<String> parentCertComboBox = new JComboBox<>();
         parentCertComboBox.addItem("standalone (no parent)");
 
-        // Populate the combobox with CA certificates
+        // Populate the combobox with CA certificates and keys
         try {
             keyStore.aliases().asIterator().forEachRemaining(alias -> {
                 try {
-                    // Only process certificate entries
+                    // Process both certificate entries and key entries
                     if (keyStore.isCertificateEntry(alias)) {
                         // Get certificate information
                         java.security.cert.Certificate cert = keyStore.getCertificate(alias);
@@ -927,14 +864,31 @@ public class LicenseManager {
                                 parentCertComboBox.addItem(alias);
                             }
                         }
+                    } else if (keyStore.isKeyEntry(alias)) {
+                        // Get certificate chain for key entry
+                        Certificate[] certChain = keyStore.getCertificateChain(alias);
+                        
+                        if (certChain != null && certChain.length > 0 && certChain[0] instanceof X509Certificate x509Cert) {
+                            // Check if this is a CA certificate
+                            boolean[] keyUsage = x509Cert.getKeyUsage();
+                            boolean isCA = false;
+                            if (keyUsage != null && keyUsage.length > 5) {
+                                // Key usage bit 5 is for keyCertSign
+                                isCA = keyUsage[5];
+                            }
+
+                            if (isCA) {
+                                parentCertComboBox.addItem(alias);
+                            }
+                        }
                     }
                 } catch (Exception e) {
                     // Skip this alias if there's an error
-                    LOG.warn("Error processing certificate alias: {}", alias, e);
+                    LOG.warn("Error processing alias: {}", alias, e);
                 }
             });
         } catch (Exception e) {
-            LOG.warn("Error loading CA certificates", e);
+            LOG.warn("Error loading CA certificates and keys", e);
         }
 
         // Create a panel for the dialog
@@ -944,9 +898,9 @@ public class LicenseManager {
         addLabeledFieldWithTooltip(panel, "Certificate Alias:",
                 "A unique identifier for this certificate in the keystore", aliasField);
 
-        // Add parent certificate combobox
-        addLabeledComboBoxWithTooltip(panel, "Parent Certificate:",
-                "Select a parent certificate or 'standalone (no parent)' for a self-signed certificate", parentCertComboBox);
+        // Add parent key/certificate combobox
+        addLabeledComboBoxWithTooltip(panel, "Parent Key/Certificate:",
+                "Select a parent key or certificate with CA capabilities, or 'standalone (no parent)' for a self-signed certificate", parentCertComboBox);
 
         // Add subject fields with required fields marked
         addLabeledFieldWithTooltip(panel, "CN - Common Name: *",
@@ -1047,7 +1001,7 @@ public class LicenseManager {
             }
 
             try {
-                // Get the selected parent certificate (for logging purposes only)
+                // Get the selected parent key/certificate alias
                 Optional<String> parentCertificateAlias = switch (parentCertComboBox.getSelectedItem()) {
                     case String s when !s.equals("standalone (no parent)") -> Optional.of(s);
                     default -> Optional.empty();
@@ -1065,7 +1019,7 @@ public class LicenseManager {
 
                 // Generate certificate
                 boolean enableCA = enableCACheckbox.isSelected();
-                KeyPair keyPair = KeyUtil.generateKeyPair(AsymmetricAlgorithm.RSA, 2048);
+                KeyPair keyPair = KeyUtil.generateKeyPair(AsymmetricAlgorithm.RSA, 4096);
                 X509Certificate[] certificate;
                 if (parentCertificateChain.length == 0) {
                     // self-signed
@@ -1073,7 +1027,7 @@ public class LicenseManager {
                 } else {
                     // with parent
                     PrivateKey parentPrivateKey = (PrivateKey) keyStore.getKey(
-                            parentCertificateAlias.orElseThrow() + PRIVATEKEY_SUFFIX,
+                            parentCertificateAlias.orElseThrow(),
                             keystoreManager.getPassword()
                     );
                     certificate = CertificateUtil.createX509Certificate(
@@ -1087,12 +1041,11 @@ public class LicenseManager {
                 }
 
                 keyStore.setKeyEntry(
-                        alias + PRIVATEKEY_SUFFIX,
+                        alias,
                         keyPair.getPrivate(),
                         keystoreManager.getPassword(),
                         certificate
                 );
-                keyStore.setCertificateEntry(alias, certificate[0]);
 
                 // Backup the keystore file before saving
                 Path keystorePath = keystoreManager.getKeystorePath();
@@ -1100,8 +1053,9 @@ public class LicenseManager {
 
                 KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, keystoreManager.getPassword());
 
-                // Update the certificates table
+                // Update the certificates and keys tables
                 updateCertificatesTable();
+                updateKeysTable();
 
                 JOptionPane.showMessageDialog(mainFrame, "Certificate generated and stored successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
             } catch (GeneralSecurityException | IOException ex) {
