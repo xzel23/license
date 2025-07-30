@@ -6,6 +6,8 @@
             <!-- returning keystore -->
             <Bug pattern="EI_EXPOSE_REP"/>
             <Bug pattern="EI_EXPOSE_REP2"/>
+            <!-- -->
+            <Bug pattern="CT_CONSTRUCTOR_THROW"/>
         </Or>
     </Match>
 </FindBugsFilter>
