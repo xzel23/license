@@ -1,9 +1,13 @@
 package com.dua3.license.app;
 
+import com.dua3.utility.crypt.CryptUtil;
+import com.dua3.utility.crypt.InputBufferHandling;
 import com.dua3.utility.crypt.KeyStoreUtil;
 import com.dua3.utility.data.Pair;
 import com.dua3.utility.swing.FileInput;
 import com.dua3.utility.swing.SwingUtil;
+import com.dua3.utility.text.TextUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import net.miginfocom.swing.MigLayout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -14,7 +18,6 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import javax.swing.ImageIcon;
-import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -28,6 +31,8 @@ import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.SecureRandom;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.prefs.Preferences;
 
@@ -52,6 +57,12 @@ public class KeystoreManager {
     private byte[] iv;
 
     private Component parent;
+
+    private byte[] encryptedPassword;
+    private byte[] encryptionKey;
+    private Path keystorePath;
+    private KeyStore keyStore;
+    private Map<String, String> passwords = new HashMap<>();
 
     /**
      * Gets the appropriate logo icon based on the screen resolution.
@@ -122,6 +133,90 @@ public class KeystoreManager {
     }
 
     /**
+     * Sets a password for a specific private key alias and securely stores it in an encrypted form.
+     *
+     * @param privateKeyAlias the alias identifying the private key for which the password is being set
+     * @param password the password being set for the private key, represented as a character array
+     */
+    public void setPassword(String privateKeyAlias, char[] password) {
+        passwords.put(
+                privateKeyAlias,
+                CryptUtil.encrypt(
+                        TextUtil.toByteArray(password),
+                        getPassword(),
+                        InputBufferHandling.PRESERVE
+                )
+        );
+    }
+
+    /**
+     * Saves the current keystore and associated passwords to the filesystem.
+     *
+     * This method performs the following operations:
+     * 1. Backs up the keystore and associated password files to prevent data loss.
+     * 2. Persists the keystore to the specified file path.
+     * 3. Serializes and saves the passwords in a separate JSON file.
+     * 4. Updates the application's preferences with the path to the keystore.
+     *
+     * @throws IOException if an I/O error occurs while saving the keystore or passwords,
+     *                     or if there is an error during the backup process.
+     */
+    public void save() throws IOException {
+        Path passwordPath = keystorePath.resolveSibling(keystorePath.getFileName() + ".json");
+        try {
+            // Backup and save the keystore
+            backupFile(keystorePath);
+            LOG.debug("Keystore backed up");
+
+            KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, getPassword());
+            LOG.debug("Keystore saved successfully to: {}", keystorePath);
+
+            // Backup and save the passwords
+            backupFile(passwordPath);
+            LOG.debug("Password file backed up");
+
+            new ObjectMapper().writeValue(passwordPath.toFile(), passwords);
+            saveKeystorePath(keystorePath);
+            LOG.debug("Passwords saved successfully to: {}", keystorePath);
+        } catch (GeneralSecurityException e) {
+            throw new IOException("Error saving keystore", e);
+        }
+    }
+
+    /**
+     * Backs up the keystore file before it is updated.
+     * The backup file is named with a timestamp in the format yyyymmddhhmmssss.
+     *
+     * @param keystorePath the path to the keystore file
+     * @throws IOException if there's an I/O error
+     */
+    private void backupFile(Path keystorePath) throws IOException {
+        if (keystorePath == null || !Files.exists(keystorePath)) {
+            return; // Nothing to backup
+        }
+
+        // Delete the oldest backup if it exists
+        Path oldestBackup = Path.of(keystorePath + ".bak.9");
+        Files.deleteIfExists(oldestBackup);
+
+        // Rotate existing backups
+        for (int i = 8; i >= 0; i--) {
+            Path source = i == 0
+                    ? Path.of(keystorePath + ".bak")
+                    : Path.of(keystorePath + ".bak." + i);
+
+            Path target = Path.of(keystorePath + ".bak." + (i + 1));
+
+            if (Files.exists(source)) {
+                Files.move(source, target);
+            }
+        }
+
+        // Create new backup
+        Files.copy(keystorePath, Path.of(keystorePath + ".bak"));
+    }
+
+    /**
      * Enum to specify the mode of the keystore dialog.
      */
     public enum DialogMode {
@@ -134,11 +229,6 @@ public class KeystoreManager {
          */
         CREATE_NEW
     }
-
-    private byte[] encryptedPassword;
-    private byte[] encryptionKey;
-    private Path keystorePath;
-    private KeyStore keyStore;
 
     /**
      * Shows a dialog at startup that asks the user to either load an existing keystore or create a new one.
@@ -419,9 +509,8 @@ public class KeystoreManager {
      *
      * @return the decrypted password as a char array
      * @throws IllegalStateException if no password is stored
-     * @throws GeneralSecurityException if decryption fails
      */
-    public char[] getPassword() throws GeneralSecurityException {
+    public char[] getPassword() {
         // Try to load encryption key and IV from preferences if not available in memory
         if (encryptionKey == null || iv == null) {
             Preferences prefs = Preferences.userNodeForPackage(KeystoreManager.class);
@@ -473,7 +562,7 @@ public class KeystoreManager {
             prefs.remove(PREF_ENCRYPTION_KEY);
             prefs.remove(PREF_IV);
 
-            throw new GeneralSecurityException("Failed to decrypt password. Please re-enter your password.", e);
+            throw new IllegalStateException("Failed to decrypt password. Please re-enter your password.", e);
         }
     }
 
@@ -597,23 +686,12 @@ public class KeystoreManager {
     }
 
     /**
-     * Gets the password for the keystore.
-     *
-     * @return the keystore password
-     * @throws GeneralSecurityException if there's a security-related error
-     */
-    public char[] getKeystorePassword() throws GeneralSecurityException {
-        return getPassword();
-    }
-
-    /**
      * Prompts the user to enter their password and stores it.
      * This is used when the encrypted password is not available in memory.
      *
      * @return the entered password
-     * @throws GeneralSecurityException if there's a security-related error
      */
-    private char[] promptForPasswordAndStore() throws GeneralSecurityException {
+    private char[] promptForPasswordAndStore() {
         JPanel panel = new JPanel(new MigLayout("fillx, wrap 1", "[grow]", "[][]"));
         JLabel label = new JLabel("Please enter your keystore password:");
         JPasswordField passwordField = new JPasswordField(20);
@@ -636,7 +714,7 @@ public class KeystoreManager {
 
         // Store the password
         if (!storePassword(password, DialogMode.LOAD_EXISTING)) {
-            throw new GeneralSecurityException("Failed to store password");
+            throw new IllegalStateException("Failed to store password");
         }
 
         return password;

@@ -251,15 +251,8 @@ public class LicenseEditor {
             StringBuilder validationResults = new StringBuilder();
 
             // Use the License.validate method to validate the license data
-            boolean isValid = false;
-            try {
-                KeyStore keyStore = keystoreManager.getKeyStore();
-                char[] password = keystoreManager.getPassword();
-                isValid = License.validate(licenseData, keyStore, currentVersion, validationResults);
-            } catch (GeneralSecurityException e) {
-                LOG.warn("Error validating license: {}", e.getMessage(), e);
-                validationResults.append("❌ Error validating license: ").append(e.getMessage()).append("\n");
-            }
+            KeyStore keyStore = keystoreManager.getKeyStore();
+            boolean isValid = License.validate(licenseData, keyStore, currentVersion, validationResults);
 
             // Display the validation results
             String title = isValid ? "License is Valid" : "License Validation Failed";
@@ -617,13 +610,7 @@ public class LicenseEditor {
                                 dynamicEnum,
                                 properties,
                                 () -> keyStore,
-                                () -> {
-                                    try {
-                                        return keystoreManager.getKeystorePassword();
-                                    } catch (GeneralSecurityException e) {
-                                        throw new RuntimeException("Failed to get keystore password", e);
-                                    }
-                                }
+                                keystoreManager::getPassword
                         );
 
                         ObjectMapper mapper = new ObjectMapper();
