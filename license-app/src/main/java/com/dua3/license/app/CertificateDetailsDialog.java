@@ -3,6 +3,7 @@ package com.dua3.license.app;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.dua3.utility.crypt.PasswordUtil;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -23,6 +24,7 @@ import java.security.KeyStoreException;
 import java.security.PublicKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
 import java.util.Base64;
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -42,6 +44,7 @@ public class CertificateDetailsDialog {
     private static final String ERROR = "Error";
     private static final String WARNING = "Warning";
     private static final String DIALOG = "Dialog";
+    private static final String DUMMY_PASSWORD = "************************";
 
     private final JFrame mainFrame;
     private final KeyStore keyStore;
@@ -422,7 +425,29 @@ public class CertificateDetailsDialog {
 
         passwordPanel.add(new JLabel("Confirm Password:"));
         JPasswordField confirmPasswordField = new JPasswordField(20);
-        passwordPanel.add(confirmPasswordField, "growx");
+        passwordPanel.add(confirmPasswordField, "growx, wrap");
+        
+        // Add "Suggest Password" button
+        final JPasswordField finalPasswordField = passwordField;
+        final JPasswordField finalConfirmPasswordField = confirmPasswordField;
+        JButton suggestPasswordButton = new JButton("Suggest Password");
+        char[] generatedPassword = PasswordUtil.generatePassword();
+        suggestPasswordButton.addActionListener(e -> {
+            finalPasswordField.setText(DUMMY_PASSWORD);
+            finalConfirmPasswordField.setText(DUMMY_PASSWORD);
+            
+            // Copy to clipboard
+            java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                new java.awt.datatransfer.StringSelection(new String(generatedPassword)), null);
+            
+            // Show information popup
+            JOptionPane.showMessageDialog(mainFrame,
+                    "A secure password has been copied to the clipboard.\n" +
+                            "Please store it in a safe place.",
+                "Password Generated",
+                JOptionPane.INFORMATION_MESSAGE);
+        });
+        passwordPanel.add(suggestPasswordButton, "align right");
 
         int result = JOptionPane.showConfirmDialog(
                 mainFrame,
@@ -438,7 +463,13 @@ public class CertificateDetailsDialog {
 
         // Verify passwords match
         char[] password = passwordField.getPassword();
+        if (Arrays.equals(password, DUMMY_PASSWORD.toCharArray())) {
+            password = generatedPassword;
+        }
         char[] confirmPassword = confirmPasswordField.getPassword();
+        if (Arrays.equals(confirmPassword, DUMMY_PASSWORD.toCharArray())) {
+            confirmPassword = generatedPassword;
+        }
 
         if (!java.util.Arrays.equals(password, confirmPassword)) {
             JOptionPane.showMessageDialog(mainFrame,

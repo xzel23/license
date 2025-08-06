@@ -3,10 +3,12 @@ package com.dua3.license.app;
 import com.dua3.utility.crypt.CryptUtil;
 import com.dua3.utility.crypt.InputBufferHandling;
 import com.dua3.utility.crypt.KeyStoreUtil;
+import com.dua3.utility.crypt.PasswordUtil;
 import com.dua3.utility.data.Pair;
 import com.dua3.utility.swing.FileInput;
 import com.dua3.utility.swing.SwingUtil;
 import com.dua3.utility.text.TextUtil;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.miginfocom.swing.MigLayout;
 import org.apache.logging.log4j.LogManager;
@@ -18,6 +20,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import javax.swing.ImageIcon;
+import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -31,8 +34,11 @@ import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.SecureRandom;
+import java.util.Arrays;
+import java.util.Formatter;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.prefs.Preferences;
 
@@ -54,6 +60,7 @@ public class KeystoreManager {
     private static final String LOGO_PATH_128 = "/com/dua3/license/app/Keytool-128.png";
     private static final String LOGO_PATH_256 = "/com/dua3/license/app/Keytool-256.png";
     private static final String LOGO_PATH_512 = "/com/dua3/license/app/Keytool-512.png";
+    private static final String DUMMY_PASSWORD = "************************";
     private byte[] iv;
 
     private Component parent;
@@ -149,9 +156,18 @@ public class KeystoreManager {
         );
     }
 
+    public char[] getSecretKeyPassword(String alias) {
+        byte[] bytes = CryptUtil.decrypt(
+                Objects.requireNonNull(passwords.get(alias), "password for alias '" + alias + "' not found"),
+                getPassword(),
+                InputBufferHandling.CLEAR_AFTER_USE
+        );
+        return TextUtil.toCharArray(bytes);
+    }
+
     /**
      * Saves the current keystore and associated passwords to the filesystem.
-     *
+     * <p>
      * This method performs the following operations:
      * 1. Backs up the keystore and associated password files to prevent data loss.
      * 2. Persists the keystore to the specified file path.
@@ -365,6 +381,32 @@ public class KeystoreManager {
             passwordPanel.add(confirmPasswordField, "growx");
         }
 
+        // Add "Suggest Password" button
+        final JPasswordField finalKeystorePasswordField = keystorePasswordField;
+        final JPasswordField finalConfirmPasswordField = confirmPasswordField;
+        JButton suggestPasswordButton = new JButton("Suggest Password");
+        final char[] generatedPassword = com.dua3.utility.crypt.PasswordUtil.generatePassword();
+        suggestPasswordButton.addActionListener(e -> {
+            finalKeystorePasswordField.setText(DUMMY_PASSWORD);
+            if (finalConfirmPasswordField != null) {
+                finalConfirmPasswordField.setText(DUMMY_PASSWORD);
+            }
+
+            // Copy to clipboard
+            java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                    new java.awt.datatransfer.StringSelection(new String(generatedPassword)),
+                    null
+            );
+
+            // Show information popup
+            JOptionPane.showMessageDialog(parent,
+                    "A secure password has been copied to the clipboard.\n" +
+                            "Please store it in a safe place.",
+                    "Password Generated",
+                    JOptionPane.INFORMATION_MESSAGE);
+        });
+        passwordPanel.add(suggestPasswordButton, "span, align right");
+
         // Show the password dialog
         String passwordDialogTitle = mode == DialogMode.LOAD_EXISTING ? "Enter Keystore Password" : "Create Keystore Password";
         int passwordResult = JOptionPane.showConfirmDialog(
@@ -377,14 +419,20 @@ public class KeystoreManager {
         );
 
         if (passwordResult != JOptionPane.OK_OPTION) {
-            LOG.debug("User cancelled password entry for {} keystore", modeString);
+            LOG.debug("User canceled password entry for {} keystore", modeString);
             return false;
         }
 
         // For new keystores, verify that passwords match
+        char[] password = keystorePasswordField.getPassword();
+        if (Arrays.equals(password, DUMMY_PASSWORD.toCharArray())) {
+            password = generatedPassword;
+        }
         if (confirmPasswordField != null) {
-            char[] password = keystorePasswordField.getPassword();
             char[] confirmPassword = confirmPasswordField.getPassword();
+            if (Arrays.equals(confirmPassword, DUMMY_PASSWORD.toCharArray())) {
+                confirmPassword = generatedPassword;
+            }
 
             if (!java.util.Arrays.equals(password, confirmPassword)) {
                 LOG.debug("Passwords do not match for new keystore creation");
@@ -398,7 +446,7 @@ public class KeystoreManager {
         }
 
         // Process the password
-        if (!storePassword(keystorePasswordField.getPassword(), mode)) {
+        if (!storePassword(password, mode)) {
             return false;
         }
 
@@ -406,14 +454,7 @@ public class KeystoreManager {
         if (mode == DialogMode.LOAD_EXISTING) {
             // Load existing keystore
             try {
-                KeyStore loadedKeyStore = KeyStoreUtil.loadKeyStoreFromFile(path, getPassword());
-
-                // Store the keystore path and instance
-                this.keystorePath = path;
-                this.keyStore = loadedKeyStore;
-                saveKeystorePath(path);
-
-                LOG.debug("Keystore loaded successfully from: {}", path);
+                load(path);
                 return true;
             } catch (GeneralSecurityException | IOException e) {
                 LOG.warn("Error loading keystore from path: {}", path, e);
@@ -443,24 +484,41 @@ public class KeystoreManager {
         }
     }
 
+    private void load(Path path) throws GeneralSecurityException, IOException {
+        Path passwordPath = keystorePath.resolveSibling(keystorePath.getFileName() + ".json");
+
+        KeyStore loadedKeyStore = KeyStoreUtil.loadKeyStoreFromFile(path, getPassword());
+        Map<String, String> loadedPasswords = new ObjectMapper().readValue(
+                passwordPath.toFile(),
+                new TypeReference<HashMap<String, String>>() {}
+        );
+
+        // Store the keystore path and instance
+        this.keystorePath = path;
+        this.keyStore = loadedKeyStore;
+        this.passwords = loadedPasswords;
+
+        saveKeystorePath(path);
+        LOG.debug("Keystore loaded successfully from: {}", path);
+    }
+
     private boolean storePassword(char[] password, DialogMode mode) {
         // Validate password only when creating a new keystore
         if (mode == DialogMode.CREATE_NEW) {
-            PasswordValidationResult validationResult = validatePassword(password);
-            if (!validationResult.valid()) {
-                JOptionPane.showMessageDialog(null,
-                        createCenteredLogoPanel(validationResult.errorMessage() + """
-                                
-                                
-                                        Password requirements:
-                                        - At least 8 characters
-                                        - Maximum 80 characters
-                                        - Contains digits, uppercase and lowercase letters
-                                        - All characters are valid ASCII
-                                        - At least one special character
-                                """),
-                        "Invalid Password", JOptionPane.PLAIN_MESSAGE, null);
-                return false;
+            PasswordUtil.PasswordStrength strength = PasswordUtil.evaluatePasswordStrength(password);
+            if (!strength.isSecure()) {
+                try (Formatter fmt = new Formatter()) {
+                    fmt.format("The entered password is not secure, password strength is: %s%n", strength.strengthLevel().getDescription());
+                    strength.issues().forEach(s -> fmt.format("%n- %s", s));
+                    fmt.format("%n");
+                    JOptionPane.showMessageDialog(parent,
+                            createCenteredLogoPanel(fmt.toString()),
+                            "Invalid Password",
+                            JOptionPane.PLAIN_MESSAGE,
+                            null
+                    );
+                    return false;
+                }
             }
         }
 
@@ -590,84 +648,6 @@ public class KeystoreManager {
     }
 
     /**
-     * Validates a password against security requirements.
-     *
-     * @param password the password to validate
-     * @return a validation result containing success status and error message if any
-     */
-    public static PasswordValidationResult validatePassword(char[] password) {
-        if (password == null || password.length == 0) {
-            return new PasswordValidationResult(false, "Password cannot be empty");
-        }
-
-        // Check length requirements
-        if (password.length < 8) {
-            return new PasswordValidationResult(false, "Password must be at least 8 characters long");
-        }
-
-        if (password.length > 80) {
-            return new PasswordValidationResult(false, "Password cannot exceed 80 characters");
-        }
-
-        boolean hasDigit = false;
-        boolean hasUpperCase = false;
-        boolean hasLowerCase = false;
-        boolean hasSpecialChar = false;
-
-        // Check character requirements
-        for (char c : password) {
-            // Check if all characters are valid ASCII
-            if (c > 127) {
-                return new PasswordValidationResult(false, "Password must contain only ASCII characters");
-            }
-
-            if (Character.isDigit(c)) {
-                hasDigit = true;
-            } else if (Character.isUpperCase(c)) {
-                hasUpperCase = true;
-            } else if (Character.isLowerCase(c)) {
-                hasLowerCase = true;
-            } else if (isPunctuation(c) || c == '+' || c == '-' || c == '$' || c == '@' || c == '!' || c == '%' || c == '&' || c == '*' || c == '=' || c == '_') {
-                hasSpecialChar = true;
-            }
-        }
-
-        if (!hasDigit) {
-            return new PasswordValidationResult(false, "Password must contain at least one digit");
-        }
-
-        if (!hasUpperCase) {
-            return new PasswordValidationResult(false, "Password must contain at least one uppercase letter");
-        }
-
-        if (!hasLowerCase) {
-            return new PasswordValidationResult(false, "Password must contain at least one lowercase letter");
-        }
-
-        if (!hasSpecialChar) {
-            return new PasswordValidationResult(false, "Password must contain at least one special character (punctuation, +, -, $, etc)");
-        }
-
-        return new PasswordValidationResult(true, null);
-    }
-
-    /**
-     * Helper method to check if a character is a punctuation symbol.
-     */
-    private static boolean isPunctuation(char c) {
-        return (c >= 33 && c <= 47) || (c >= 58 && c <= 64) ||
-                (c >= 91 && c <= 96) || (c >= 123 && c <= 126);
-    }
-
-    /**
-     * Represents the result of a password validation process.
-     * @param valid a boolean indicating whether the password is considered valid.
-     * @param errorMessage string containing an error message if the password is invalid,
-     */
-    public record PasswordValidationResult(boolean valid, String errorMessage) {
-    }
-
-    /**
      * Gets the keystore that was loaded or created.
      *
      * @return the keystore
@@ -692,7 +672,7 @@ public class KeystoreManager {
      * @return the entered password
      */
     private char[] promptForPasswordAndStore() {
-        JPanel panel = new JPanel(new MigLayout("fillx, wrap 1", "[grow]", "[][]"));
+        JPanel panel = new JPanel(new MigLayout("fillx, wrap 1", "[grow]", "[][][]"));
         JLabel label = new JLabel("Please enter your keystore password:");
         JPasswordField passwordField = new JPasswordField(20);
 

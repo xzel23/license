@@ -43,6 +43,7 @@ import java.security.Security;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Optional;
 
@@ -57,6 +58,7 @@ public class LicenseManager {
     private static final Logger LOG = LogManager.getLogger(LicenseManager.class);
 
     private static final int FRAME_WIDTH = 1024;
+    private static final String DUMMY_PASSWORD = "************************";
 
     /**
      * A constant string representing an information symbol "ⓘ".
@@ -480,19 +482,18 @@ public class LicenseManager {
 
                 try {
                     // Get the selected parent key/certificate alias
-                    Optional<String> parentCertificateAlias = switch (parentCertComboBox.getSelectedItem()) {
-                        case String s when !s.equals(PARENT_KEY_SELECTION_STANDALONE) -> Optional.of(s);
-                        default -> Optional.empty();
-                    };
-                    Certificate[] parentCertificateChain = parentCertificateAlias
-                            .map(alias1 -> {
-                                try {
-                                    return keyStore.getCertificateChain(alias1);
-                                } catch (KeyStoreException kse) {
-                                    throw new IllegalStateException(kse);
-                                }
-                            })
-                            .orElse(new Certificate[]{});
+                    Certificate[] parentCertificateChain;
+                    PrivateKey parentKey;
+                    switch (parentCertComboBox.getSelectedItem()) {
+                        case String s when !s.equals(PARENT_KEY_SELECTION_STANDALONE) -> {
+                            parentKey = (PrivateKey) keyStore.getKey(s, keystoreManager.getSecretKeyPassword(s));
+                            parentCertificateChain = keyStore.getCertificateChain(s);
+                        }
+                        default -> {
+                            parentKey = null;
+                            parentCertificateChain = new Certificate[]{};
+                        }
+                    }
 
                     // verify the certificate chain
                     try {
@@ -511,7 +512,7 @@ public class LicenseManager {
 
                     // Get the CA checkbox value
                     boolean enableCA = enableCACheckbox.isSelected();
-                    
+
                     // Generate certificate
                     KeyPair keyPair = KeyUtil.generateKeyPair(AsymmetricAlgorithm.RSA, 4096);
                     X509Certificate[] certificate;
@@ -522,35 +523,27 @@ public class LicenseManager {
                     } else {
                         // with parent
                         LOG.info("Generating certificate with parent for alias: {}", alias);
-                        PrivateKey parentPrivateKey = (PrivateKey) keyStore.getKey(
-                                parentCertificateAlias.orElseThrow(),
-                                keystoreManager.getPassword()
-                        );
                         certificate = CertificateUtil.createX509Certificate(
                                 keyPair,
                                 subject,
                                 validDays,
                                 enableCA,
-                                parentPrivateKey,
+                                parentKey,
                                 DataUtil.convert(parentCertificateChain, X509Certificate[].class)
                         );
                     }
 
                     // add key
-                    String privateKeyAlias = alias + SUFFIX_PRIVATEKEY;
-                    String privateKeyPassword = PasswordUtil.generatePassword();
+                    char[] privateKeyPassword = PasswordUtil.generatePassword();
                     keyStore.setKeyEntry(
-                            privateKeyAlias,
+                            alias,
                             keyPair.getPrivate(),
-                            privateKeyPassword.toCharArray(),
-                            parentCertificateChain
+                            privateKeyPassword,
+                            certificate
                     );
 
-                    // add certificate
-                    keyStore.setCertificateEntry(alias + "-cert", certificate[0]);
-
                     // add password
-                    keystoreManager.setPassword(privateKeyAlias, privateKeyPassword.toCharArray());
+                    keystoreManager.setPassword(alias, privateKeyPassword);
 
                     LOG.info("Generated key pair for alias: {}", alias);
                     updateKeysTable();
@@ -986,7 +979,29 @@ public class LicenseManager {
 
         passwordPanel.add(new JLabel("Confirm Password:"));
         JPasswordField confirmPasswordField = new JPasswordField(20);
-        passwordPanel.add(confirmPasswordField, "growx");
+        passwordPanel.add(confirmPasswordField, "growx, wrap");
+        
+        // Add "Suggest Password" button
+        final JPasswordField finalPasswordField = passwordField;
+        final JPasswordField finalConfirmPasswordField = confirmPasswordField;
+        JButton suggestPasswordButton = new JButton("Suggest Password");
+        char[] generatedPassword = PasswordUtil.generatePassword();
+        suggestPasswordButton.addActionListener(e -> {
+            finalPasswordField.setText(DUMMY_PASSWORD);
+            finalConfirmPasswordField.setText(DUMMY_PASSWORD);
+            
+            // Copy to clipboard
+            java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                new java.awt.datatransfer.StringSelection(new String(generatedPassword)), null);
+            
+            // Show information popup
+            JOptionPane.showMessageDialog(mainFrame,
+                "A secure password has been generated and copied to the clipboard.\n" +
+                "Please store it in a safe place.",
+                "Password Generated",
+                JOptionPane.INFORMATION_MESSAGE);
+        });
+        passwordPanel.add(suggestPasswordButton, "align right");
 
         int result = JOptionPane.showConfirmDialog(
                 mainFrame,
@@ -1002,7 +1017,13 @@ public class LicenseManager {
 
         // Verify passwords match
         char[] password = passwordField.getPassword();
+        if (Arrays.equals(password, DUMMY_PASSWORD.toCharArray())) {
+            password = generatedPassword;
+        }
         char[] confirmPassword = confirmPasswordField.getPassword();
+        if (Arrays.equals(confirmPassword, DUMMY_PASSWORD.toCharArray())) {
+            confirmPassword = generatedPassword;
+        }
 
         if (!java.util.Arrays.equals(password, confirmPassword)) {
             JOptionPane.showMessageDialog(mainFrame,

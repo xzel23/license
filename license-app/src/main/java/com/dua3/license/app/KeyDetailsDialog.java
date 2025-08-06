@@ -3,6 +3,7 @@ package com.dua3.license.app;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.dua3.utility.crypt.PasswordUtil;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
