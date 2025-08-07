@@ -533,6 +533,21 @@ public class LicenseManager {
                         );
                     }
 
+                    // Verify the complete certificate chain AFTER creation
+                    try {
+                        CertificateUtil.verifyCertificateChain(certificate);
+                        LOG.debug("Certificate chain verified successfully for alias: {}", alias);
+                    } catch (CertificateException e) {
+                        LOG.warn("Certificate chain verification failed for key alias: {}", alias, e);
+                        JOptionPane.showMessageDialog(
+                                mainFrame,
+                                "The generated certificate chain is invalid: " + e.getMessage(),
+                                ERROR,
+                                JOptionPane.ERROR_MESSAGE
+                        );
+                        return;
+                    }
+
                     // add key
                     char[] privateKeyPassword = PasswordUtil.generatePassword();
                     keyStore.setKeyEntry(

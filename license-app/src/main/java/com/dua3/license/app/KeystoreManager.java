@@ -485,7 +485,7 @@ public class KeystoreManager {
     }
 
     private void load(Path path) throws GeneralSecurityException, IOException {
-        Path passwordPath = keystorePath.resolveSibling(keystorePath.getFileName() + ".json");
+        Path passwordPath = path.resolveSibling(path.getFileName() + ".json");
 
         KeyStore loadedKeyStore = KeyStoreUtil.loadKeyStoreFromFile(path, getPassword());
         Map<String, String> loadedPasswords = new ObjectMapper().readValue(
