@@ -44,6 +44,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -530,6 +531,9 @@ public class LicenseManager {
                                 parentKey,
                                 DataUtil.convert(parentCertificateChain, X509Certificate[].class)
                         );
+
+                        // Verify that both certificates have different public keys
+                        assert !Objects.equals(certificate[1].getPublicKey(), certificate[0].getPublicKey());
 
                         LOG.debug("Built certificate chain with {} certificates", certificate.length);
                         for (int i = 0; i < certificate.length; i++) {
