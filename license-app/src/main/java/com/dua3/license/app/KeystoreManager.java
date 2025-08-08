@@ -1,15 +1,10 @@
 package com.dua3.license.app;
 
-import com.dua3.utility.crypt.CryptUtil;
-import com.dua3.utility.crypt.InputBufferHandling;
 import com.dua3.utility.crypt.KeyStoreUtil;
 import com.dua3.utility.crypt.PasswordUtil;
 import com.dua3.utility.data.Pair;
 import com.dua3.utility.swing.FileInput;
 import com.dua3.utility.swing.SwingUtil;
-import com.dua3.utility.text.TextUtil;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import net.miginfocom.swing.MigLayout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,9 +31,6 @@ import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Formatter;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.prefs.Preferences;
 
@@ -69,7 +61,6 @@ public class KeystoreManager {
     private byte[] encryptionKey;
     private Path keystorePath;
     private KeyStore keyStore;
-    private Map<String, String> passwords = new HashMap<>();
 
     /**
      * Gets the appropriate logo icon based on the screen resolution.
@@ -140,32 +131,6 @@ public class KeystoreManager {
     }
 
     /**
-     * Sets a password for a specific private key alias and securely stores it in an encrypted form.
-     *
-     * @param privateKeyAlias the alias identifying the private key for which the password is being set
-     * @param password the password being set for the private key, represented as a character array
-     */
-    public void setPassword(String privateKeyAlias, char[] password) {
-        passwords.put(
-                privateKeyAlias,
-                CryptUtil.encrypt(
-                        TextUtil.toByteArray(password),
-                        getPassword(),
-                        InputBufferHandling.PRESERVE
-                )
-        );
-    }
-
-    public char[] getSecretKeyPassword(String alias) {
-        byte[] bytes = CryptUtil.decrypt(
-                Objects.requireNonNull(passwords.get(alias), "password for alias '" + alias + "' not found"),
-                getPassword(),
-                InputBufferHandling.CLEAR_AFTER_USE
-        );
-        return TextUtil.toCharArray(bytes);
-    }
-
-    /**
      * Saves the current keystore and associated passwords to the filesystem.
      * <p>
      * This method performs the following operations:
@@ -178,7 +143,6 @@ public class KeystoreManager {
      *                     or if there is an error during the backup process.
      */
     public void save() throws IOException {
-        Path passwordPath = keystorePath.resolveSibling(keystorePath.getFileName() + ".json");
         try {
             // Backup and save the keystore
             backupFile(keystorePath);
@@ -186,14 +150,6 @@ public class KeystoreManager {
 
             KeyStoreUtil.saveKeyStoreToFile(keyStore, keystorePath, getPassword());
             LOG.debug("Keystore saved successfully to: {}", keystorePath);
-
-            // Backup and save the passwords
-            backupFile(passwordPath);
-            LOG.debug("Password file backed up");
-
-            new ObjectMapper().writeValue(passwordPath.toFile(), passwords);
-            saveKeystorePath(keystorePath);
-            LOG.debug("Passwords saved successfully to: {}", keystorePath);
         } catch (GeneralSecurityException e) {
             throw new IOException("Error saving keystore", e);
         }
@@ -316,9 +272,9 @@ public class KeystoreManager {
         Path defaultPath = getStoredKeystorePath();
         Optional<Path> selectedPath = switch (mode) {
             case LOAD_EXISTING ->
-                    SwingUtil.showFileOpenDialog(parent, defaultPath, Pair.of("Java Keystore File", new String[]{"jks"}));
+                    SwingUtil.showFileOpenDialog(parent, defaultPath, Pair.of("Keystore File", new String[]{"p12"}));
             case CREATE_NEW ->
-                    SwingUtil.showFileSaveDialog(parent, defaultPath, Pair.of("Java Keystore File", new String[]{"jks"}));
+                    SwingUtil.showFileSaveDialog(parent, defaultPath, Pair.of("Keystore File", new String[]{"p12"}));
         };
 
         // Check if a path was selected
@@ -485,18 +441,11 @@ public class KeystoreManager {
     }
 
     private void load(Path path) throws GeneralSecurityException, IOException {
-        Path passwordPath = path.resolveSibling(path.getFileName() + ".json");
-
         KeyStore loadedKeyStore = KeyStoreUtil.loadKeyStoreFromFile(path, getPassword());
-        Map<String, String> loadedPasswords = new ObjectMapper().readValue(
-                passwordPath.toFile(),
-                new TypeReference<HashMap<String, String>>() {}
-        );
 
         // Store the keystore path and instance
         this.keystorePath = path;
         this.keyStore = loadedKeyStore;
-        this.passwords = loadedPasswords;
 
         saveKeystorePath(path);
         LOG.debug("Keystore loaded successfully from: {}", path);

@@ -403,7 +403,7 @@ public class KeyDetailsDialog {
         Optional<Path> selectedPath = SwingUtil.showFileSaveDialog(
                 mainFrame,
                 keystorePath.getParent(),
-                Pair.of("Java Keystore File", new String[]{"jks"})
+                Pair.of("Java Keystore File", new String[]{"p12"})
         );
 
         // Check if a path was selected

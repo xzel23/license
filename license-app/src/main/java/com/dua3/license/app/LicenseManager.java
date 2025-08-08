@@ -485,7 +485,7 @@ public class LicenseManager {
                     PrivateKey parentKey;
                     switch (parentCertComboBox.getSelectedItem()) {
                         case String s when !s.equals(PARENT_KEY_SELECTION_STANDALONE) -> {
-                            parentKey = (PrivateKey) keyStore.getKey(s, keystoreManager.getSecretKeyPassword(s));
+                            parentKey = (PrivateKey) keyStore.getKey(s, keystoreManager.getPassword());
                             parentCertificateChain = keyStore.getCertificateChain(s);
                         }
                         default -> {
@@ -553,16 +553,12 @@ public class LicenseManager {
                     }
 
                     // add key
-                    char[] privateKeyPassword = PasswordUtil.generatePassword();
                     keyStore.setKeyEntry(
                             alias,
                             keyPair.getPrivate(),
-                            privateKeyPassword,
+                            keystoreManager.getPassword(),
                             certificate
                     );
-
-                    // add password
-                    keystoreManager.setPassword(alias, privateKeyPassword);
 
                     LOG.info("Generated key pair for alias: {}", alias);
                     updateKeysTable();
@@ -857,7 +853,7 @@ public class LicenseManager {
         Optional<Path> selectedPath = SwingUtil.showFileSaveDialog(
                 mainFrame,
                 initialDir,
-                Pair.of("Java Keystore File", new String[]{"jks"})
+                Pair.of("Java Keystore File", new String[]{"p12"})
         );
 
         // Check if a path was selected

@@ -49,7 +49,7 @@ public class KeystoreManagerTest {
 
         // The actual test would be something like this:
         // 1. Create a keystore with a password
-        // Path keystorePath = tempDir.resolve("test.jks");
+        // Path keystorePath = tempDir.resolve("test.p12");
         // boolean created = keystoreManager.createOrLoadKeystore(keystorePath, true);
         // assertTrue(created, "Keystore should be created successfully");
 
