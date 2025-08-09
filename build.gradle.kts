@@ -335,6 +335,7 @@ allprojects {
             reports.create("html") {
                 required.set(true)
                 outputLocation.set(layout.buildDirectory.file("reports/spotbugs/main.html"))
+                setStylesheet("fancy-hist.xsl")
             }
         }
 
@@ -342,6 +343,7 @@ allprojects {
             reports.create("html") {
                 required.set(true)
                 outputLocation.set(layout.buildDirectory.file("reports/spotbugs/test.html"))
+                setStylesheet("fancy-hist.xsl")
             }
         }
     }
