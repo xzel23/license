@@ -63,6 +63,28 @@ public class KeystoreManager {
     private KeyStore keyStore;
 
     /**
+     * Constructs a new KeystoreManager instance with the specified parent component.
+     * <p>
+     * The keystore path is initialised to the path last saved in the preferences.
+     *
+     * @param parent the parent component, typically used as the owner for dialog windows
+     */
+    public KeystoreManager(Component parent) {
+        this(parent, getKeystorePathFromPreferences());
+    }
+
+    /**
+     * Constructs a new KeystoreManager instance with the specified parent component and keystore path.
+     *
+     * @param parent the parent component, typically used as the owner for dialog windows
+     * @param keystorePath the file path to the keystore
+     */
+    public KeystoreManager(Component parent, Path keystorePath) {
+        this.parent = parent;
+        this.keystorePath = keystorePath;
+    }
+
+    /**
      * Gets the appropriate logo icon based on the screen resolution.
      *
      * @return the logo icon
@@ -119,15 +141,6 @@ public class KeystoreManager {
         }
 
         return panel;
-    }
-
-    /**
-     * Constructs a new KeystoreManager instance with the specified parent component.
-     *
-     * @param parent the parent component, typically used as the owner for dialog windows
-     */
-    public KeystoreManager(Component parent) {
-        this.parent = parent;
     }
 
     /**
@@ -269,7 +282,7 @@ public class KeystoreManager {
         LOG.debug("Showing {} keystore dialog", modeString);
 
         // First, show a file selection dialog
-        Path defaultPath = getStoredKeystorePath();
+        Path defaultPath = getKeystorePathFromPreferences();
         Optional<Path> selectedPath = switch (mode) {
             case LOAD_EXISTING ->
                     SwingUtil.showFileOpenDialog(parent, defaultPath, Pair.of("Keystore File", new String[]{"p12"}));
@@ -432,7 +445,7 @@ public class KeystoreManager {
                 KeyStoreUtil.saveKeyStoreToFile(newKeyStore, path, getPassword());
                 this.keystorePath = path;
                 this.keyStore = newKeyStore;
-                saveKeystorePath(path);
+                saveKeystorePathInPreferences(path);
 
                 LOG.debug("Keystore created successfully at: {}", path);
                 return true;
@@ -451,7 +464,7 @@ public class KeystoreManager {
         this.keystorePath = path;
         this.keyStore = loadedKeyStore;
 
-        saveKeystorePath(path);
+        saveKeystorePathInPreferences(path);
         LOG.debug("Keystore loaded successfully from: {}", path);
     }
 
@@ -582,7 +595,7 @@ public class KeystoreManager {
      *
      * @return the stored keystore path or a default path
      */
-    private Path getStoredKeystorePath() {
+    public static Path getKeystorePathFromPreferences() {
         Preferences prefs = Preferences.userNodeForPackage(KeystoreManager.class);
         String storedPath = prefs.get(PREF_KEYSTORE_PATH, null);
         return storedPath != null ? Paths.get(storedPath) : Paths.get(".");
@@ -593,10 +606,11 @@ public class KeystoreManager {
      *
      * @param path the path to save
      */
-    private void saveKeystorePath(Path path) {
+    public static void saveKeystorePathInPreferences(Path path) {
         if (path != null) {
             Preferences prefs = Preferences.userNodeForPackage(KeystoreManager.class);
             prefs.put(PREF_KEYSTORE_PATH, path.toString());
+            LOG.info("Keystore path set to {}", path);
         }
     }
 
