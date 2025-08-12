@@ -337,31 +337,35 @@ public class KeystoreManager {
             passwordPanel.add(confirmPasswordField, "growx");
         }
 
-        // Add "Suggest Password" button
-        final JPasswordField finalKeystorePasswordField = keystorePasswordField;
-        final JPasswordField finalConfirmPasswordField = confirmPasswordField;
-        JButton suggestPasswordButton = new JButton("Suggest Password");
-        final char[] generatedPassword = com.dua3.utility.crypt.PasswordUtil.generatePassword();
-        suggestPasswordButton.addActionListener(e -> {
-            finalKeystorePasswordField.setText(DUMMY_PASSWORD);
-            if (finalConfirmPasswordField != null) {
-                finalConfirmPasswordField.setText(DUMMY_PASSWORD);
-            }
+        // Add "Suggest Password" button only when creating a new keystore
+        char[] generatedPassword = null;
+        if (mode == DialogMode.CREATE_NEW) {
+            final JPasswordField finalKeystorePasswordField = keystorePasswordField;
+            final JPasswordField finalConfirmPasswordField = confirmPasswordField;
+            JButton suggestPasswordButton = new JButton("Suggest Password");
+            generatedPassword = com.dua3.utility.crypt.PasswordUtil.generatePassword();
+            final char[] finalGeneratedPassword = generatedPassword;
+            suggestPasswordButton.addActionListener(e -> {
+                finalKeystorePasswordField.setText(DUMMY_PASSWORD);
+                if (finalConfirmPasswordField != null) {
+                    finalConfirmPasswordField.setText(DUMMY_PASSWORD);
+                }
 
-            // Copy to clipboard
-            java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
-                    new java.awt.datatransfer.StringSelection(new String(generatedPassword)),
-                    null
-            );
+                // Copy to clipboard
+                java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                        new java.awt.datatransfer.StringSelection(new String(finalGeneratedPassword)),
+                        null
+                );
 
-            // Show information popup
-            JOptionPane.showMessageDialog(parent,
-                    "A secure password has been copied to the clipboard.\n" +
-                            "Please store it in a safe place.",
-                    "Password Generated",
-                    JOptionPane.INFORMATION_MESSAGE);
-        });
-        passwordPanel.add(suggestPasswordButton, "span, align right");
+                // Show information popup
+                JOptionPane.showMessageDialog(parent,
+                        "A secure password has been copied to the clipboard.\n" +
+                                "Please store it in a safe place.",
+                        "Password Generated",
+                        JOptionPane.INFORMATION_MESSAGE);
+            });
+            passwordPanel.add(suggestPasswordButton, "span, align right");
+        }
 
         // Show the password dialog
         String passwordDialogTitle = mode == DialogMode.LOAD_EXISTING ? "Enter Keystore Password" : "Create Keystore Password";
@@ -381,12 +385,12 @@ public class KeystoreManager {
 
         // For new keystores, verify that passwords match
         char[] password = keystorePasswordField.getPassword();
-        if (Arrays.equals(password, DUMMY_PASSWORD.toCharArray())) {
+        if (generatedPassword != null && Arrays.equals(password, DUMMY_PASSWORD.toCharArray())) {
             password = generatedPassword;
         }
         if (confirmPasswordField != null) {
             char[] confirmPassword = confirmPasswordField.getPassword();
-            if (Arrays.equals(confirmPassword, DUMMY_PASSWORD.toCharArray())) {
+            if (generatedPassword != null && Arrays.equals(confirmPassword, DUMMY_PASSWORD.toCharArray())) {
                 confirmPassword = generatedPassword;
             }
 
