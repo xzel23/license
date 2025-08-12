@@ -4,7 +4,6 @@ import com.dua3.utility.crypt.AsymmetricAlgorithm;
 import com.dua3.utility.crypt.CertificateUtil;
 import com.dua3.utility.crypt.KeyStoreUtil;
 import com.dua3.utility.crypt.KeyUtil;
-import com.dua3.utility.crypt.PasswordUtil;
 import com.dua3.utility.data.DataUtil;
 import com.dua3.utility.data.Pair;
 import com.dua3.utility.io.IoUtil;
@@ -606,18 +605,10 @@ public class LicenseManager {
             }
         });
 
-        JButton exportKeystoreButton = new JButton("Export public keys and certificates to new Keystore");
+        JButton exportKeystoreButton = new JButton("Export items to new Keystore");
         exportKeystoreButton.addActionListener(e -> {
-            int row = keysTable.getSelectedRow();
-            if (row < 0) {
-                JOptionPane.showMessageDialog(mainFrame, "Please select a key to export.", ERROR, JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
-            String alias = (String) keysTable.getValueAt(row, 0);
-
             try {
-                exportKeystore(alias);
+                exportKeystoreMulti();
             } catch (Exception ex) {
                 LOG.warn("Error exporting keystore", ex);
                 JOptionPane.showMessageDialog(mainFrame, "Error exporting keystore: " + ex.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
@@ -843,14 +834,70 @@ public class LicenseManager {
      * @throws IOException              if there is an error saving the keystore
      */
     private void exportKeystore(String alias) throws GeneralSecurityException, IOException {
+        // Kept for backward compatibility if referenced elsewhere; delegate to multi-export with only this alias's public cert
         KeyStore sourceKeyStore = keystoreManager.getKeyStore();
-
-        // Get the certificate from the keystore
-        Certificate cert = sourceKeyStore.getCertificate(alias);
-        if (cert == null) {
-            JOptionPane.showMessageDialog(mainFrame, "No certificate found for alias: " + alias, ERROR, JOptionPane.ERROR_MESSAGE);
+        ExportSelectionDialog dialog = new ExportSelectionDialog(mainFrame, sourceKeyStore);
+        // preselect only this alias public
+        dialog.getSelections().forEach(s -> {
+            s.exportPublic = Objects.equals(s.alias, alias);
+            s.exportPrivate = false;
+        });
+        if (!dialog.showDialog()) {
             return;
         }
+        exportAccordingToSelection(dialog);
+    }
+
+    private void exportKeystoreMulti() throws GeneralSecurityException, IOException {
+        KeyStore sourceKeyStore = keystoreManager.getKeyStore();
+        ExportSelectionDialog dialog = new ExportSelectionDialog(mainFrame, sourceKeyStore);
+        if (!dialog.showDialog()) {
+            return;
+        }
+        exportAccordingToSelection(dialog);
+    }
+
+    private static char[] generateStrongPassword() {
+        // Character sets
+        final String upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        final String lower = "abcdefghijklmnopqrstuvwxyz";
+        final String digits = "0123456789";
+        final String symbols = "!@#$%^&*()-_=+[]{};:,.<>/?";
+        final String all = upper + lower + digits + symbols;
+        final java.security.SecureRandom rnd = new java.security.SecureRandom();
+        for (int attempt = 0; attempt < 1000; attempt++) {
+            int len = 20 + rnd.nextInt(9);
+            char[] out = new char[len];
+            out[0] = upper.charAt(rnd.nextInt(upper.length()));
+            out[1] = lower.charAt(rnd.nextInt(lower.length()));
+            out[2] = digits.charAt(rnd.nextInt(digits.length()));
+            out[3] = symbols.charAt(rnd.nextInt(symbols.length()));
+            for (int i = 4; i < len; i++) {
+                out[i] = all.charAt(rnd.nextInt(all.length()));
+            }
+            for (int i = len - 1; i > 0; i--) {
+                int j = rnd.nextInt(i + 1);
+                char tmp = out[i]; out[i] = out[j]; out[j] = tmp;
+            }
+            if (com.dua3.utility.crypt.PasswordUtil.evaluatePasswordStrength(out).isSecure()) {
+                return out;
+            }
+            java.util.Arrays.fill(out, '\0');
+        }
+        return "ThisIs@StrongPassw0rd!".toCharArray();
+    }
+
+    private void exportAccordingToSelection(ExportSelectionDialog dialog) throws GeneralSecurityException, IOException {
+        KeyStore sourceKeyStore = keystoreManager.getKeyStore();
+
+        // Ensure at least one item selected
+        boolean anySelected = dialog.getSelections().stream().anyMatch(s -> s.exportPublic || s.exportPrivate);
+        if (!anySelected) {
+            JOptionPane.showMessageDialog(mainFrame, "No items selected for export.", ERROR, JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        boolean anyPrivate = dialog.getSelections().stream().anyMatch(s -> s.exportPrivate);
 
         // Show a file save dialog with the current keystore directory as the initial directory
         Path initialDir = keystoreManager.getKeystorePath().getParent();
@@ -859,94 +906,110 @@ public class LicenseManager {
                 initialDir,
                 Pair.of("Java Keystore File", new String[]{"p12"})
         );
-
-        // Check if a path was selected
         if (selectedPath.isEmpty()) {
             return;
         }
-
         Path path = selectedPath.get();
 
-        // Show password dialog
-        JPanel passwordPanel = new JPanel(new MigLayout("fill, insets 10", "[right][grow]", "[][]"));
-        passwordPanel.add(new JLabel("New Keystore Password:"));
-        JPasswordField passwordField = new JPasswordField(20);
-        passwordPanel.add(passwordField, "growx, wrap");
-
-        passwordPanel.add(new JLabel("Confirm Password:"));
-        JPasswordField confirmPasswordField = new JPasswordField(20);
-        passwordPanel.add(confirmPasswordField, "growx, wrap");
-
-        // Add "Suggest Password" button
-        final JPasswordField finalPasswordField = passwordField;
-        final JPasswordField finalConfirmPasswordField = confirmPasswordField;
-        JButton suggestPasswordButton = new JButton("Suggest Password");
-        char[] generatedPassword = PasswordUtil.generatePassword();
-        suggestPasswordButton.addActionListener(e -> {
-            finalPasswordField.setText(DUMMY_PASSWORD);
-            finalConfirmPasswordField.setText(DUMMY_PASSWORD);
-
-            // Copy to clipboard
-            java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
-                    new java.awt.datatransfer.StringSelection(new String(generatedPassword)), null);
-
-            // Show information popup
-            JOptionPane.showMessageDialog(mainFrame,
-                    "A secure password has been generated and copied to the clipboard.\n" +
-                            "Please store it in a safe place.",
-                    "Password Generated",
-                    JOptionPane.INFORMATION_MESSAGE);
-        });
-        passwordPanel.add(suggestPasswordButton, "align right");
-
-        int result = JOptionPane.showConfirmDialog(
-                mainFrame,
-                passwordPanel,
-                "Create Keystore Password",
-                JOptionPane.OK_CANCEL_OPTION,
-                JOptionPane.PLAIN_MESSAGE
-        );
-
-        if (result != JOptionPane.OK_OPTION) {
-            return;
+        // Determine target keystore password
+        char[] ksPassword;
+        if (anyPrivate) {
+            ksPassword = dialog.getPassword();
+            if (ksPassword == null || ksPassword.length == 0) {
+                JOptionPane.showMessageDialog(mainFrame, "A password is required when exporting private keys.", ERROR, JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            var strength = com.dua3.utility.crypt.PasswordUtil.evaluatePasswordStrength(ksPassword);
+            if (!strength.isSecure()) {
+                JOptionPane.showMessageDialog(mainFrame, "Password is not strong enough: " + strength.strengthLevel().getDescription(), "Weak Password", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+        } else {
+            // Prompt for keystore password (as before)
+            JPanel passwordPanel = new JPanel(new MigLayout("fill, insets 10", "[right][grow][]", "[][][]"));
+            passwordPanel.add(new JLabel("New Keystore Password:"));
+            JPasswordField passwordField = new JPasswordField(20);
+            JPasswordField confirmPasswordField = new JPasswordField(20);
+            passwordPanel.add(passwordField, "growx");
+            JButton generateBtn = new JButton("Generate password");
+            generateBtn.addActionListener(e -> {
+                char[] gp = generateStrongPassword();
+                String s = new String(gp);
+                passwordField.setText(s);
+                confirmPasswordField.setText(s);
+                Arrays.fill(gp, '\0');
+            });
+            passwordPanel.add(generateBtn, "wrap");
+            passwordPanel.add(new JLabel("Confirm Password:"));
+            passwordPanel.add(confirmPasswordField, "growx, span 2");
+            int result = JOptionPane.showConfirmDialog(
+                    mainFrame,
+                    passwordPanel,
+                    "Create Keystore Password",
+                    JOptionPane.OK_CANCEL_OPTION,
+                    JOptionPane.PLAIN_MESSAGE
+            );
+            if (result != JOptionPane.OK_OPTION) {
+                return;
+            }
+            char[] pw1 = passwordField.getPassword();
+            char[] pw2 = confirmPasswordField.getPassword();
+            if (!Arrays.equals(pw1, pw2)) {
+                JOptionPane.showMessageDialog(mainFrame, "Passwords do not match. Please try again.", "Password Mismatch", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            // Enforce strong password
+            var strength = com.dua3.utility.crypt.PasswordUtil.evaluatePasswordStrength(pw1);
+            if (!strength.isSecure()) {
+                JOptionPane.showMessageDialog(mainFrame, "Password is not strong enough: " + strength.strengthLevel().getDescription(), "Weak Password", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            ksPassword = pw1;
         }
 
-        // Verify passwords match
-        char[] password = passwordField.getPassword();
-        if (Arrays.equals(password, DUMMY_PASSWORD.toCharArray())) {
-            password = generatedPassword;
-        }
-        char[] confirmPassword = confirmPasswordField.getPassword();
-        if (Arrays.equals(confirmPassword, DUMMY_PASSWORD.toCharArray())) {
-            confirmPassword = generatedPassword;
-        }
-
-        if (!java.util.Arrays.equals(password, confirmPassword)) {
-            JOptionPane.showMessageDialog(mainFrame,
-                    "Passwords do not match. Please try again.",
-                    "Password Mismatch",
-                    JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
+        KeyStore newKeyStore = KeyStore.getInstance("PKCS12");
         try {
-            // Create a new KeyStore instance
-            KeyStore newKeyStore = KeyStore.getInstance("PKCS12");
-            newKeyStore.load(null, password);
+            newKeyStore.load(null, ksPassword);
 
-            // Add the certificate to the new keystore
-            newKeyStore.setCertificateEntry(alias, cert);
+            // Source keystore password for retrieving private keys
+            char[] sourcePassword = keystoreManager.getPassword();
 
-            // Save the new keystore
-            KeyStoreUtil.saveKeyStoreToFile(newKeyStore, path, password);
+            for (var sel : dialog.getSelections()) {
+                if (!sel.exportPublic && !sel.exportPrivate) continue;
 
+                if (sel.exportPrivate) {
+                    // Export private key with chain
+                    try {
+                        java.security.Key key = sourceKeyStore.getKey(sel.alias, sourcePassword);
+                        if (key instanceof PrivateKey privateKey) {
+                            Certificate[] chain = sourceKeyStore.getCertificateChain(sel.alias);
+                            if (chain == null || chain.length == 0) {
+                                Certificate cert = sourceKeyStore.getCertificate(sel.alias);
+                                chain = cert != null ? new Certificate[]{cert} : null;
+                            }
+                            newKeyStore.setKeyEntry(sel.alias, privateKey, ksPassword, chain);
+                        }
+                    } catch (Exception ex) {
+                        LOG.warn("Failed to export private key for alias {}", sel.alias, ex);
+                        JOptionPane.showMessageDialog(mainFrame, "Failed to export private key for alias: " + sel.alias + " - " + ex.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+                } else if (sel.exportPublic) {
+                    // Only public: export certificate entry
+                    Certificate cert = sourceKeyStore.getCertificate(sel.alias);
+                    if (cert != null) {
+                        newKeyStore.setCertificateEntry(sel.alias, cert);
+                    }
+                }
+            }
+
+            KeyStoreUtil.saveKeyStoreToFile(newKeyStore, path, ksPassword);
             JOptionPane.showMessageDialog(mainFrame,
-                    "Public key and certificate exported successfully to:\n" + path,
+                    "Selected items exported successfully to:\n" + path,
                     "Export Successful", JOptionPane.INFORMATION_MESSAGE);
         } finally {
-            // Clear passwords from memory
-            java.util.Arrays.fill(password, '\0');
-            java.util.Arrays.fill(confirmPassword, '\0');
+            // best-effort cleanup
+            if (ksPassword != null) Arrays.fill(ksPassword, '\0');
         }
     }
 
