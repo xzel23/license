@@ -431,7 +431,7 @@ public class CertificateDetailsDialog {
         final JPasswordField finalPasswordField = passwordField;
         final JPasswordField finalConfirmPasswordField = confirmPasswordField;
         JButton suggestPasswordButton = new JButton("Suggest Password");
-        char[] generatedPassword = PasswordUtil.generatePassword();
+        char[] generatedPassword = PasswordUtil.generatePassword(20);
         suggestPasswordButton.addActionListener(e -> {
             finalPasswordField.setText(DUMMY_PASSWORD);
             finalConfirmPasswordField.setText(DUMMY_PASSWORD);
