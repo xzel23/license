@@ -4,6 +4,7 @@ import com.dua3.utility.crypt.AsymmetricAlgorithm;
 import com.dua3.utility.crypt.CertificateUtil;
 import com.dua3.utility.crypt.KeyStoreUtil;
 import com.dua3.utility.crypt.KeyUtil;
+import com.dua3.utility.crypt.PasswordUtil;
 import com.dua3.utility.data.DataUtil;
 import com.dua3.utility.data.Pair;
 import com.dua3.utility.io.IoUtil;
@@ -857,36 +858,6 @@ public class LicenseManager {
         exportAccordingToSelection(dialog);
     }
 
-    private static char[] generateStrongPassword() {
-        // Character sets
-        final String upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        final String lower = "abcdefghijklmnopqrstuvwxyz";
-        final String digits = "0123456789";
-        final String symbols = "!@#$%^&*()-_=+[]{};:,.<>/?";
-        final String all = upper + lower + digits + symbols;
-        final java.security.SecureRandom rnd = new java.security.SecureRandom();
-        for (int attempt = 0; attempt < 1000; attempt++) {
-            int len = 20 + rnd.nextInt(9);
-            char[] out = new char[len];
-            out[0] = upper.charAt(rnd.nextInt(upper.length()));
-            out[1] = lower.charAt(rnd.nextInt(lower.length()));
-            out[2] = digits.charAt(rnd.nextInt(digits.length()));
-            out[3] = symbols.charAt(rnd.nextInt(symbols.length()));
-            for (int i = 4; i < len; i++) {
-                out[i] = all.charAt(rnd.nextInt(all.length()));
-            }
-            for (int i = len - 1; i > 0; i--) {
-                int j = rnd.nextInt(i + 1);
-                char tmp = out[i]; out[i] = out[j]; out[j] = tmp;
-            }
-            if (com.dua3.utility.crypt.PasswordUtil.evaluatePasswordStrength(out).isSecure()) {
-                return out;
-            }
-            java.util.Arrays.fill(out, '\0');
-        }
-        return "ThisIs@StrongPassw0rd!".toCharArray();
-    }
-
     private void exportAccordingToSelection(ExportSelectionDialog dialog) throws GeneralSecurityException, IOException {
         KeyStore sourceKeyStore = keystoreManager.getKeyStore();
 
@@ -933,7 +904,7 @@ public class LicenseManager {
             passwordPanel.add(passwordField, "growx");
             JButton generateBtn = new JButton("Generate password");
             generateBtn.addActionListener(e -> {
-                char[] gp = generateStrongPassword();
+                char[] gp = PasswordUtil.generatePassword();
                 String s = new String(gp);
                 passwordField.setText(s);
                 confirmPasswordField.setText(s);
