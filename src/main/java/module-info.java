@@ -13,5 +13,4 @@ open module com.dua3.license {
 
     requires java.prefs;
     requires org.jspecify;
-    requires org.osgi.annotation.versioning;
 }
