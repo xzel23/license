@@ -1,5 +1,6 @@
 package com.dua3.license;
 
+import com.dua3.utility.crypt.KeyUtil;
 import com.dua3.utility.lang.Version;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -9,12 +10,10 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
-import java.security.InvalidKeyException;
 import java.security.KeyStore;
-import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Signature;
-import java.security.SignatureException;
 import java.security.cert.Certificate;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -29,6 +28,7 @@ import java.util.Objects;
 import java.util.SequencedMap;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -45,12 +45,6 @@ public final class License {
      */
     // required license fields
     public static final String LICENSE_ID_LICENSE_FIELD = "LICENSE_ID";
-    /**
-     * A constant representing the field name for the signing key alias
-     * in the license system. This field is used to reference the alias
-     * of the signing key associated with the license.
-     */
-    public static final String SIGNING_KEY_ALIAS_LICENSE_FIELD = "SIGNING_KEY_ALIAS";
     /**
      * A constant representing the field name for the digital signature in the license data.
      * This field is used to reference the digital signature associated with the license.
@@ -76,7 +70,6 @@ public final class License {
             LICENSE_ID_LICENSE_FIELD,
             ISSUE_DATE_LICENSE_FIELD,
             EXPIRY_DATE_LICENSE_FIELD,
-            SIGNING_KEY_ALIAS_LICENSE_FIELD,
             SIGNATURE_LICENSE_FIELD
     );
     /**
@@ -92,6 +85,7 @@ public final class License {
      */
     public static final String MAX_VERSION_LICENSE_FIELD = "MAX_VERSION";
     private static final String SIGNATURE = "signature";
+
     private final Object keyClass;
     private final Map<Object, Object> data;
     private final String licenseString;
@@ -100,12 +94,12 @@ public final class License {
      * Constructs a new instance of the License class. This constructor verifies the signature of the license
      * properties against the provided public key and initializes the license data.
      *
-     * @param keyClass    the class defining the keys used in the license; this must be an enum class or a DynamicEnum
-     * @param properties  a map of license properties, including the signature and other license data
-     * @param keySupplier a function that supplies the public key for verifying the license signature, based on its alias
+     * @param keyClass     the class defining the keys used in the license; this must be an enum class or a DynamicEnum
+     * @param properties   a map of license properties, including the signature and other license data
+     * @param keyValidator a predicate that validates the public key of the license signature
      * @throws LicenseException if the key class is invalid, the license signature is invalid, or any other error occurs during processing
      */
-    private License(Object keyClass, Map<String, Object> properties, Function<String, PublicKey> keySupplier) throws LicenseException {
+    private License(Object keyClass, Map<String, Object> properties, Predicate<PublicKey> keyValidator) throws LicenseException {
         try {
             Set<Object> keys;
             Function<Object, String> enumName;
@@ -130,10 +124,7 @@ public final class License {
 
             this.keyClass = keyClass;
 
-            // Verify the signature
-            Signature signature = Signature.getInstance("SHA256withRSA");
-            signature.initVerify(keySupplier.apply(String.valueOf(properties.get(SIGNING_KEY_ALIAS_LICENSE_FIELD))));
-
+            // copy the signature data
             this.data = LinkedHashMap.newLinkedHashMap(keys.size());
             keys.forEach(key -> data.put(enumName.apply(key), properties.get(key.toString())));
 
@@ -141,25 +132,13 @@ public final class License {
                 throw new LicenseException("invalid license data", properties.toString());
             }
 
-            signature.update(prepareSigningData(data));
-
-            if (!switch (properties.get(SIGNATURE)) {
-                case byte[] bytes -> signature.verify(bytes);
-                case String s -> signature.verify(Base64.getDecoder().decode(s));
-                default -> throw new LicenseException("invalid signature data");
-            }) {
+            if (!validate(properties, keyValidator, null, new StringBuilder())) {
                 throw new LicenseException("invalid signature");
             }
 
             this.licenseString = data.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new LicenseException("could not find verify license");
-        } catch (SignatureException e) {
-            throw new LicenseException("invalid signature");
-        } catch (InvalidKeyException e) {
-            throw new LicenseException("invalid license key");
         } catch (InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
-            throw new LicenseException("error in key class", e.getMessage());
+            throw new LicenseException("error in key class", e);
         }
     }
 
@@ -169,8 +148,7 @@ public final class License {
      *
      * @param licenseFieldsEnum the enum class defining the license fields
      * @param licenseData       the license data
-     * @param keyStore          supplier for the keystore containing the signing key
-     * @param keyStorePassword  supplier for the keystore password
+     * @param keySupplier       supplier for the private signing key
      * @return an unmodifiable sequenced map containing the signed license data
      * @throws GeneralSecurityException     if a security error occurs
      * @throws ReflectiveOperationException if an error occurs while accessing enum values
@@ -178,8 +156,7 @@ public final class License {
     public static SequencedMap<String, Object> createLicense(
             Class<? extends Enum> licenseFieldsEnum,
             Map<String, Object> licenseData,
-            java.util.function.Supplier<KeyStore> keyStore,
-            java.util.function.Supplier<char[]> keyStorePassword
+            Supplier<PrivateKey> keySupplier
     ) throws GeneralSecurityException, ReflectiveOperationException {
         // Get enum values using reflection
         Object[] enumValues = (Object[]) licenseFieldsEnum.getMethod("values").invoke(null);
@@ -190,8 +167,7 @@ public final class License {
         return createLicense(
                 licenseFields,
                 licenseData,
-                keyStore,
-                keyStorePassword
+                keySupplier
         );
     }
 
@@ -199,18 +175,16 @@ public final class License {
      * Creates a license with the specified license fields and data, signs it with the provided key,
      * and returns the signed license data.
      *
-     * @param licenseFields    the list of license field names
-     * @param licenseData      the license data
-     * @param keyStore         supplier for the keystore containing the signing key
-     * @param keyStorePassword supplier for the keystore password
+     * @param licenseFields the list of license field names
+     * @param licenseData   the license data
+     * @param keySupplier   supplier for the private signing key
      * @return an unmodifiable sequenced map containing the signed license data
      * @throws GeneralSecurityException if a security error occurs
      */
     private static SequencedMap<String, Object> createLicense(
             List<String> licenseFields,
             Map<String, Object> licenseData,
-            Supplier<KeyStore> keyStore,
-            Supplier<char[]> keyStorePassword
+            Supplier<PrivateKey> keySupplier
     ) throws GeneralSecurityException {
         // Validate that all license data keys are in the license fields
         for (String key : licenseData.keySet()) {
@@ -219,18 +193,8 @@ public final class License {
             }
         }
 
-        // Get the key alias from the license data
-        String keyAlias = (String) licenseData.get(SIGNING_KEY_ALIAS_LICENSE_FIELD);
-        if (keyAlias == null) {
-            throw new IllegalArgumentException("License data must contain a signing key alias");
-        }
-
-        // Get the keystore and password
-        KeyStore ks = keyStore.get();
-        char[] password = keyStorePassword.get();
-
         // Get the private key
-        java.security.PrivateKey privateKey = (java.security.PrivateKey) ks.getKey(keyAlias, password);
+        java.security.PrivateKey privateKey = keySupplier.get();
 
         // Create a signature
         java.security.Signature signature = java.security.Signature.getInstance("SHA256withRSA");
@@ -271,16 +235,14 @@ public final class License {
      *
      * @param licenseFieldsEnum the dynamic enum defining the license fields
      * @param licenseData       the license data
-     * @param keyStore          supplier for the keystore containing the signing key
-     * @param keyStorePassword  supplier for the keystore password
+     * @param keySupplier       supplier for the private signing key
      * @return an unmodifiable sequenced map containing the signed license data
      * @throws GeneralSecurityException if a security error occurs
      */
     public static SequencedMap<String, Object> createLicense(
             DynamicEnum licenseFieldsEnum,
             Map<String, Object> licenseData,
-            java.util.function.Supplier<KeyStore> keyStore,
-            java.util.function.Supplier<char[]> keyStorePassword
+            Supplier<PrivateKey> keySupplier
     ) throws GeneralSecurityException {
         List<String> licenseFields = Arrays.stream(licenseFieldsEnum.values())
                 .map(DynamicEnum.EnumValue::name)
@@ -289,8 +251,7 @@ public final class License {
         return createLicense(
                 licenseFields,
                 licenseData,
-                keyStore,
-                keyStorePassword
+                keySupplier
         );
     }
 
@@ -298,14 +259,14 @@ public final class License {
      * Loads a license from a sequenced map containing the license data.
      *
      * @param keyClass    the enum class defining the keys used in the license
-     * @param keySupplier a supplier providing the public key for verifying the license signature
+     * @param keyValidator the validator for the signing key
      * @param licenseData the map containing the license data
      * @return a {@code License} instance created using the provided properties and public key
      * @throws LicenseException if a problem occurs while loading or processing the license
      */
     public static License load(
             Class<? extends Enum<?>> keyClass,
-            Function<String, PublicKey> keySupplier,
+            Predicate<PublicKey> keyValidator,
             SequencedMap<String, Object> licenseData
     ) throws LicenseException {
         // Convert JSON data to a map of string to object with proper types
@@ -330,7 +291,7 @@ public final class License {
             }
         }
 
-        return new License(keyClass.asSubclass(Enum.class), properties, keySupplier);
+        return new License(keyClass.asSubclass(Enum.class), properties, keyValidator);
     }
 
     /**
@@ -391,15 +352,6 @@ public final class License {
     }
 
     /**
-     * Retrieves the alias of the signing key used for the license.
-     *
-     * @return a string representing the alias of the signing key, or null if the alias is not set
-     */
-    public String getSigningKeyAlias() {
-        return (String) get(toKey(SIGNING_KEY_ALIAS_LICENSE_FIELD));
-    }
-
-    /**
      * Retrieves the signature information stored in the license data.
      *
      * @return the signature as a string, or null if no signature is associated
@@ -441,12 +393,12 @@ public final class License {
      * The method checks the license data against the keystore and writes any validation
      * messages to the provided output.
      *
-     * @param keyStore         the keystore containing the certificates for validation
+     * @param keyValidator     validator for the signing key
      * @param currentVersion   the current version of the application for version compatibility checks
      * @param validationOutput an appendable instance to which validation messages will be written
      * @return true if the license is valid, false otherwise
      */
-    public boolean validate(KeyStore keyStore, Version currentVersion, Appendable validationOutput) {
+    public boolean validate(Predicate<PublicKey> keyValidator, Version currentVersion, Appendable validationOutput) {
         Map<String, Object> licenseData = new LinkedHashMap<>();
 
         // Convert internal data to a map of strings
@@ -455,26 +407,25 @@ public final class License {
         }
 
         // Use the static validate method to validate the license data
-        return validate(licenseData, keyStore, currentVersion, validationOutput);
+        return validate(licenseData, keyValidator, currentVersion, validationOutput);
     }
 
     /**
      * Validates a license from license data.
      *
      * @param licenseData      the license data to validate
-     * @param keyStore         the keystore containing the certificates
+     * @param keyValidator     validator for the signing key
      * @param currentVersion    the current version of the application for version compatibility checks
      * @param validationOutput appendable to write validation messages to
      * @return true if the license is valid, false otherwise
      */
-    public static boolean validate(Map<String, Object> licenseData, KeyStore keyStore, @Nullable Version currentVersion, Appendable validationOutput) {
+    public static boolean validate(Map<String, Object> licenseData, Predicate<PublicKey> keyValidator, @Nullable Version currentVersion, Appendable validationOutput) {
         boolean isValid = true;
 
         try {
             // Check that all required fields are present in the license
             String[] requiredFields = {
                     LICENSE_ID_LICENSE_FIELD,
-                    SIGNING_KEY_ALIAS_LICENSE_FIELD,
                     SIGNATURE_LICENSE_FIELD,
                     ISSUE_DATE_LICENSE_FIELD,
                     EXPIRY_DATE_LICENSE_FIELD,
@@ -496,31 +447,33 @@ public final class License {
             }
 
             // Find the signature field
-            String signingKeyAlias = Objects.requireNonNullElse(licenseData.get(SIGNING_KEY_ALIAS_LICENSE_FIELD), "").toString();
             String signatureValue = Objects.requireNonNullElse(licenseData.get(SIGNATURE_LICENSE_FIELD), "").toString();
-
             if (signatureValue.isBlank()) {
-                validationOutput.append("❌ No valid signature found in the license file.\n");
+                validationOutput.append("❌ No signature found in the license file.\n");
                 isValid = false;
             } else {
                 validationOutput.append("✓ Signature found.\n");
             }
 
-            if (signingKeyAlias.isBlank()) {
-                validationOutput.append("❌ No signing key information found in the license.\n");
+            PublicKey key;
+            byte[] signatureBytes;
+            try {
+                String[] signatureParts = signatureValue.split(":");
+                key = KeyUtil.toPublicKey(Base64.getDecoder().decode(signatureParts[0]));
+                signatureBytes = Base64.getDecoder().decode(signatureParts[1]);
+                validationOutput.append("✓ Signature format is valid.\n");
+            } catch (GeneralSecurityException | ArrayIndexOutOfBoundsException e) {
+                validationOutput.append("❌ Invalid signature format.\n");
                 isValid = false;
-            } else {
-                validationOutput.append("✓ Signing key alias found.\n");
             }
 
             if (isValid) {
                 // Create a copy of the license data without the signature for verification
-                Map<String, Object> dataToVerify = new LinkedHashMap<>(licenseData);
-                dataToVerify.remove(SIGNATURE_LICENSE_FIELD);
+                byte[] unsignedLicenseData = getUnsignedLicenseData(licenseData);
 
                 // Verify the signature
                 try {
-                    Certificate cert = keyStore.getCertificate(signingKeyAlias);
+                    Certificate cert = getCert();
 
                     if (cert == null) {
                         validationOutput.append("❌ Certificate not found for key: ").append(signingKeyAlias).append("\n");
@@ -533,8 +486,7 @@ public final class License {
                         signature.initVerify(publicKey);
 
                         // Update with the data to verify
-                        byte[] dataToSign = dataToVerify.toString().getBytes(StandardCharsets.UTF_8);
-                        signature.update(dataToSign);
+                        signature.update(unsignedLicenseData);
 
                         // Verify the signature
                         byte[] signatureBytes = Base64.getDecoder().decode(signatureValue);
@@ -670,6 +622,12 @@ public final class License {
         }
 
         return isValid;
+    }
+
+    public static byte[] getUnsignedLicenseData(Map<String, Object> licenseData) {
+        Map<String, Object> dataToVerify = new LinkedHashMap<>(licenseData);
+        dataToVerify.remove(SIGNATURE_LICENSE_FIELD);
+        return dataToVerify.toString().getBytes(StandardCharsets.UTF_8);
     }
 
     private static @Nullable Version getAndValidateVersion(Map<String, Object> licenseData, String licenseFieldName) {
