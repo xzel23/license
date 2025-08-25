@@ -1,10 +1,14 @@
 package com.dua3.license.app;
 
+import com.dua3.utility.crypt.KeyStoreUtil;
+import com.dua3.utility.data.Pair;
+import com.dua3.utility.swing.SwingUtil;
+import net.miginfocom.swing.MigLayout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.dua3.utility.crypt.PasswordUtil;
 import javax.swing.JButton;
+import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -12,29 +16,23 @@ import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.cert.Certificate;
-import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.Base64;
-import javax.swing.JFileChooser;
-import javax.swing.filechooser.FileNameExtensionFilter;
-import java.nio.file.Paths;
 import java.util.Objects;
 import java.util.Optional;
-import com.dua3.utility.crypt.KeyStoreUtil;
-import com.dua3.utility.data.Pair;
-import com.dua3.utility.swing.SwingUtil;
-import net.miginfocom.swing.MigLayout;
 
 /**
  * Dialog for displaying key details including certificate information and public/private keys.
@@ -52,9 +50,9 @@ public class KeyDetailsDialog {
     /**
      * Creates a new KeyDetailsDialog.
      *
-     * @param mainFrame the parent frame
-     * @param keyStore the keystore containing the key
-     * @param alias the alias of the key to display
+     * @param mainFrame    the parent frame
+     * @param keyStore     the keystore containing the key
+     * @param alias        the alias of the key to display
      * @param keystorePath the path to the keystore file
      */
     public KeyDetailsDialog(JFrame mainFrame, KeyStore keyStore, String alias, Path keystorePath) {
@@ -249,61 +247,10 @@ public class KeyDetailsDialog {
     }
 
     /**
-     * Shows the private key for the given alias after password verification.
-     *
-     * @param privateKeyTextArea the text area to display the private key in
-     */
-    private void showPrivateKey(JTextArea privateKeyTextArea) {
-        LOG.debug("Attempting to show private key for alias: {}", alias);
-
-        // Create password input dialog
-        JPasswordField passwordField = new JPasswordField(20);
-        JPanel passwordPanel = new JPanel(new BorderLayout(10, 10));
-        passwordPanel.setBorder(javax.swing.BorderFactory.createEmptyBorder(10, 10, 10, 10));
-
-        JLabel promptLabel = new JLabel("Please re-enter the keystore password to view the private key:");
-        passwordPanel.add(promptLabel, BorderLayout.NORTH);
-        passwordPanel.add(passwordField, BorderLayout.CENTER);
-
-        int result = JOptionPane.showConfirmDialog(
-                mainFrame,
-                passwordPanel,
-                "Password Verification",
-                JOptionPane.OK_CANCEL_OPTION,
-                JOptionPane.QUESTION_MESSAGE
-        );
-
-        if (result != JOptionPane.OK_OPTION) {
-            return; // User cancelled
-        }
-
-        char[] enteredPassword = passwordField.getPassword();
-
-        try {
-            // Get the private key using the entered password
-            PrivateKey privateKey = (PrivateKey) keyStore.getKey(alias, enteredPassword);
-            if (privateKey == null) {
-                JOptionPane.showMessageDialog(mainFrame, "No private key found for alias: " + alias, ERROR, JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
-            // Display the private key in the provided text area
-            String privateKeyString = Base64.getEncoder().encodeToString(privateKey.getEncoded());
-            privateKeyTextArea.setText(privateKeyString);
-        } catch (GeneralSecurityException e) {
-            LOG.warn("Error retrieving private key for alias: {}", alias, e);
-            JOptionPane.showMessageDialog(mainFrame, "Error retrieving private key: " + e.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
-        } finally {
-            // Clear the password from memory
-            java.util.Arrays.fill(enteredPassword, '\0');
-        }
-    }
-
-    /**
      * Exports the certificate for the current key alias to a file.
      *
      * @throws GeneralSecurityException if there is an error accessing the certificate
-     * @throws IOException if there is an error writing the certificate to a file
+     * @throws IOException              if there is an error writing the certificate to a file
      */
     private void exportCertificate() throws GeneralSecurityException, IOException {
         LOG.debug("Exporting certificate for alias: {}", alias);
@@ -387,7 +334,7 @@ public class KeyDetailsDialog {
      * This creates a keystore that can be used to verify licenses signed with this key.
      *
      * @throws GeneralSecurityException if there is an error accessing the keystore
-     * @throws IOException if there is an error saving the keystore
+     * @throws IOException              if there is an error saving the keystore
      */
     private void exportForDistribution() throws GeneralSecurityException, IOException {
         LOG.debug("Exporting keystore for distribution with alias: {}", alias);
@@ -465,6 +412,57 @@ public class KeyDetailsDialog {
             // Clear passwords from memory
             java.util.Arrays.fill(password, '\0');
             java.util.Arrays.fill(confirmPassword, '\0');
+        }
+    }
+
+    /**
+     * Shows the private key for the given alias after password verification.
+     *
+     * @param privateKeyTextArea the text area to display the private key in
+     */
+    private void showPrivateKey(JTextArea privateKeyTextArea) {
+        LOG.debug("Attempting to show private key for alias: {}", alias);
+
+        // Create password input dialog
+        JPasswordField passwordField = new JPasswordField(20);
+        JPanel passwordPanel = new JPanel(new BorderLayout(10, 10));
+        passwordPanel.setBorder(javax.swing.BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        JLabel promptLabel = new JLabel("Please re-enter the keystore password to view the private key:");
+        passwordPanel.add(promptLabel, BorderLayout.NORTH);
+        passwordPanel.add(passwordField, BorderLayout.CENTER);
+
+        int result = JOptionPane.showConfirmDialog(
+                mainFrame,
+                passwordPanel,
+                "Password Verification",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.QUESTION_MESSAGE
+        );
+
+        if (result != JOptionPane.OK_OPTION) {
+            return; // User cancelled
+        }
+
+        char[] enteredPassword = passwordField.getPassword();
+
+        try {
+            // Get the private key using the entered password
+            PrivateKey privateKey = (PrivateKey) keyStore.getKey(alias, enteredPassword);
+            if (privateKey == null) {
+                JOptionPane.showMessageDialog(mainFrame, "No private key found for alias: " + alias, ERROR, JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            // Display the private key in the provided text area
+            String privateKeyString = Base64.getEncoder().encodeToString(privateKey.getEncoded());
+            privateKeyTextArea.setText(privateKeyString);
+        } catch (GeneralSecurityException e) {
+            LOG.warn("Error retrieving private key for alias: {}", alias, e);
+            JOptionPane.showMessageDialog(mainFrame, "Error retrieving private key: " + e.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
+        } finally {
+            // Clear the password from memory
+            java.util.Arrays.fill(enteredPassword, '\0');
         }
     }
 }

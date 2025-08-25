@@ -1,5 +1,6 @@
 package com.dua3.license.app;
 
+import com.dua3.utility.crypt.PasswordUtil;
 import net.miginfocom.swing.MigLayout;
 
 import javax.swing.JButton;
@@ -10,6 +11,8 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.table.AbstractTableModel;
 import java.awt.BorderLayout;
 import java.awt.Frame;
@@ -18,8 +21,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import com.dua3.utility.crypt.PasswordUtil;
-
 /**
  * Dialog to select which items to export to a new keystore.
  * It lists all aliases and provides two checkboxes per alias: export public key/certificate and export private key.
@@ -27,22 +28,12 @@ import com.dua3.utility.crypt.PasswordUtil;
  */
 public class ExportSelectionDialog extends JDialog {
 
-    public static class Selection {
-        public final String alias;
-        public boolean exportPublic;
-        public boolean exportPrivate;
-        public Selection(String alias) {
-            this.alias = alias;
-        }
-    }
-
     private final List<Selection> selections = new ArrayList<>();
     private final JTextField passwordField = new JTextField(20);
     private final JTextField confirmPasswordField = new JTextField(20);
-    private boolean approved = false;
-
     private final JTable table;
     private final JButton okButton = new JButton("OK");
+    private boolean approved = false;
 
     public ExportSelectionDialog(Frame owner, KeyStore keyStore) {
         super(owner, "Select Items to Export", true);
@@ -61,18 +52,16 @@ public class ExportSelectionDialog extends JDialog {
 
         // Table model
         var model = new AbstractTableModel() {
-            private final String[] cols = new String[]{"Alias", "Export public key", "Export private key"};
-            @Override public int getRowCount() { return selections.size(); }
-            @Override public int getColumnCount() { return 3; }
-            @Override public String getColumnName(int column) { return cols[column]; }
-            @Override public Class<?> getColumnClass(int columnIndex) {
-                return switch (columnIndex) {
-                    case 0 -> String.class;
-                    default -> Boolean.class;
-                };
-            }
-            @Override public boolean isCellEditable(int rowIndex, int columnIndex) { return columnIndex > 0; }
-            @Override public Object getValueAt(int rowIndex, int columnIndex) {
+            private final String[] cols = {"Alias", "Export public key", "Export private key"};
+
+            @Override
+            public int getRowCount() {return selections.size();}
+
+            @Override
+            public int getColumnCount() {return 3;}
+
+            @Override
+            public Object getValueAt(int rowIndex, int columnIndex) {
                 Selection s = selections.get(rowIndex);
                 return switch (columnIndex) {
                     case 0 -> s.alias;
@@ -81,7 +70,23 @@ public class ExportSelectionDialog extends JDialog {
                     default -> null;
                 };
             }
-            @Override public void setValueAt(Object aValue, int rowIndex, int columnIndex) {
+
+            @Override
+            public String getColumnName(int column) {return cols[column];}
+
+            @Override
+            public Class<?> getColumnClass(int columnIndex) {
+                return switch (columnIndex) {
+                    case 0 -> String.class;
+                    default -> Boolean.class;
+                };
+            }
+
+            @Override
+            public boolean isCellEditable(int rowIndex, int columnIndex) {return columnIndex > 0;}
+
+            @Override
+            public void setValueAt(Object aValue, int rowIndex, int columnIndex) {
                 Selection s = selections.get(rowIndex);
                 if (columnIndex == 1) {
                     s.exportPublic = (Boolean) aValue;
@@ -168,16 +173,30 @@ public class ExportSelectionDialog extends JDialog {
         return approved;
     }
 
-    public List<Selection> getSelections() { return selections; }
+    public List<Selection> getSelections() {return selections;}
 
-    public char[] getPassword() { return passwordField.getText().toCharArray(); }
+    public char[] getPassword() {return passwordField.getText().toCharArray();}
+
+    public static class Selection {
+        public final String alias;
+        public boolean exportPublic;
+        public boolean exportPrivate;
+
+        public Selection(String alias) {
+            this.alias = alias;
+        }
+    }
 
     // Simple document listener adapter
-    private static class SimpleDocListener implements javax.swing.event.DocumentListener {
-        private final Runnable r;
-        SimpleDocListener(Runnable r) { this.r = r; }
-        @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { r.run(); }
-        @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { r.run(); }
-        @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { r.run(); }
+    private record SimpleDocListener(Runnable r) implements DocumentListener {
+
+        @Override
+        public void insertUpdate(DocumentEvent e) {r.run();}
+
+        @Override
+        public void removeUpdate(DocumentEvent e) {r.run();}
+
+        @Override
+        public void changedUpdate(DocumentEvent e) {r.run();}
     }
 }

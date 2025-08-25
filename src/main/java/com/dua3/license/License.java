@@ -265,7 +265,7 @@ public final class License {
     public static License load(
             Class<? extends Enum<?>> keyClass,
             SequencedMap<String, Object> licenseData,
-            Certificate trustedRoots
+            Certificate... trustedRoots
     ) throws LicenseException {
         // Convert JSON data to a map of string to object with proper types
         Map<String, Object> properties = new HashMap<>();
@@ -634,6 +634,15 @@ public final class License {
         return false;
     }
 
+    /**
+     * Extracts the unsigned license data by removing the signature field from the provided
+     * license data map and converting the remaining map to a UTF-8 encoded byte array.
+     * This method is used to prepare the license data for verification processes.
+     *
+     * @param licenseData a map containing the license data, which includes signed data
+     *                    and associated metadata
+     * @return a byte array representing the unsigned license data in UTF-8 encoding
+     */
     public static byte[] getUnsignedLicenseData(Map<String, Object> licenseData) {
         Map<String, Object> dataToVerify = new LinkedHashMap<>(licenseData);
         dataToVerify.remove(SIGNATURE_LICENSE_FIELD);

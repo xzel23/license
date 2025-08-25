@@ -498,7 +498,7 @@ public class LicenseManager {
                     // verify the certificate chain
                     try {
                         CertificateUtil.verifyCertificateChain(parentCertificateChain);
-                        LOG.debug("Certificate chain verified successfully for alias: {}", alias);
+                        LOG.debug("Parent certificate chain verified successfully for alias: {}", alias);
                     } catch (CertificateException e) {
                         LOG.warn("Certificate chain verification failed for key alias: {}", alias, e);
                         JOptionPane.showMessageDialog(
