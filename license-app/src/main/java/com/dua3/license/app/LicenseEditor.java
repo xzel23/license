@@ -31,15 +31,20 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.SequencedMap;
+import java.util.Set;
 import java.util.prefs.Preferences;
 
 /**
@@ -138,7 +143,7 @@ public class LicenseEditor {
 
         // Validate License button
         JButton validateLicenseButton = new JButton("Validate License");
-        validateLicenseButton.addActionListener(e -> validateLicense(null)); // Show dialog to validate a license
+        validateLicenseButton.addActionListener(e -> validateLicense(getTrustedRoots(), null)); // Show dialog to validate a license
         buttonPanel.add(validateLicenseButton);
 
         // Manage Templates button
@@ -156,6 +161,24 @@ public class LicenseEditor {
         licensesPanel.add(contentPanel, BorderLayout.CENTER);
 
         return licensesPanel;
+    }
+
+    private Certificate[] getTrustedRoots() {
+        try {
+            KeyStore keyStore = keystoreManager.getKeyStore();
+            Set<Certificate> trustedRoots = new HashSet<>();
+            for (var alias : Collections.list(keyStore.aliases())) {
+                if (keyStore.isCertificateEntry(alias)) {
+                    Certificate cert = keyStore.getCertificate(alias);
+                    if (cert instanceof X509Certificate) {
+                        trustedRoots.add(cert);
+                    }
+                }
+            }
+            return trustedRoots.toArray(Certificate[]::new);
+        } catch (KeyStoreException e) {
+            throw new IllegalStateException("Failed to get trusted roots from keystore", e);
+        }
     }
 
     /**
@@ -214,7 +237,7 @@ public class LicenseEditor {
      * This method allows the user to select a license file, then validates its signature
      * and checks if the license has expired.
      */
-    private void validateLicense(@Nullable Version currentVersion) {
+    private void validateLicense(Certificate[] trustedRoots, @Nullable Version currentVersion) {
         try {
             // Create a file chooser
             JFileChooser fileChooser = new JFileChooser();
@@ -251,8 +274,7 @@ public class LicenseEditor {
             StringBuilder validationResults = new StringBuilder();
 
             // Use the License.validate method to validate the license data
-            KeyStore keyStore = keystoreManager.getKeyStore();
-            boolean isValid = License.validate(licenseData, keyStore, currentVersion, validationResults);
+            boolean isValid = License.validate(licenseData, trustedRoots, currentVersion, validationResults);
 
             // Display the validation results
             String title = isValid ? "License is Valid" : "License Validation Failed";
@@ -609,8 +631,7 @@ public class LicenseEditor {
                         SequencedMap<String, Object> licenseData = License.createLicense(
                                 dynamicEnum,
                                 properties,
-                                () -> keyStore,
-                                keystoreManager::getPassword
+                                () -> getPrivateKey(keyStore, keyAlias)
                         );
 
                         ObjectMapper mapper = new ObjectMapper();
@@ -647,7 +668,7 @@ public class LicenseEditor {
                                 "License saved successfully to " + filePath,
                                 "License Saved",
                                 JOptionPane.INFORMATION_MESSAGE);
-                    } catch (IOException | GeneralSecurityException e) {
+                    } catch (IOException | GeneralSecurityException | RuntimeException e) {
                         LOG.error("Error creating license", e);
                         JOptionPane.showMessageDialog(parentFrame,
                                 "Error creating license: " + e.getMessage(),
@@ -734,6 +755,18 @@ public class LicenseEditor {
                         ERROR,
                         JOptionPane.ERROR_MESSAGE);
             }
+        }
+    }
+
+    private PrivateKey getPrivateKey(KeyStore keyStore, String keyAlias) {
+        try {
+            if (keyStore.getKey(keyAlias, keystoreManager.getPassword()) instanceof PrivateKey pk) {
+                return pk;
+            } else {
+                throw new IllegalStateException("No private key found for alias '" + keyAlias + "'.");
+            }
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException(e);
         }
     }
 

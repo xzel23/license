@@ -1,6 +1,6 @@
 package com.dua3.license;
 
-import com.dua3.utility.crypt.KeyUtil;
+import com.dua3.utility.crypt.CertificateUtil;
 import com.dua3.utility.lang.Version;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -10,7 +10,6 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
-import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Signature;
@@ -28,7 +27,6 @@ import java.util.Objects;
 import java.util.SequencedMap;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -96,10 +94,10 @@ public final class License {
      *
      * @param keyClass     the class defining the keys used in the license; this must be an enum class or a DynamicEnum
      * @param properties   a map of license properties, including the signature and other license data
-     * @param keyValidator a predicate that validates the public key of the license signature
+     * @param trustedRoots the trusted root certificates
      * @throws LicenseException if the key class is invalid, the license signature is invalid, or any other error occurs during processing
      */
-    private License(Object keyClass, Map<String, Object> properties, Predicate<PublicKey> keyValidator) throws LicenseException {
+    private License(Object keyClass, Map<String, Object> properties, Certificate... trustedRoots) throws LicenseException {
         try {
             Set<Object> keys;
             Function<Object, String> enumName;
@@ -132,7 +130,7 @@ public final class License {
                 throw new LicenseException("invalid license data", properties.toString());
             }
 
-            if (!validate(properties, keyValidator, null, new StringBuilder())) {
+            if (!validate(properties, trustedRoots, null, new StringBuilder())) {
                 throw new LicenseException("invalid signature");
             }
 
@@ -258,16 +256,16 @@ public final class License {
     /**
      * Loads a license from a sequenced map containing the license data.
      *
-     * @param keyClass    the enum class defining the keys used in the license
-     * @param keyValidator the validator for the signing key
-     * @param licenseData the map containing the license data
+     * @param keyClass     the enum class defining the keys used in the license
+     * @param licenseData  the map containing the license data
+     * @param trustedRoots the trusted root certificates
      * @return a {@code License} instance created using the provided properties and public key
      * @throws LicenseException if a problem occurs while loading or processing the license
      */
     public static License load(
             Class<? extends Enum<?>> keyClass,
-            Predicate<PublicKey> keyValidator,
-            SequencedMap<String, Object> licenseData
+            SequencedMap<String, Object> licenseData,
+            Certificate trustedRoots
     ) throws LicenseException {
         // Convert JSON data to a map of string to object with proper types
         Map<String, Object> properties = new HashMap<>();
@@ -291,7 +289,7 @@ public final class License {
             }
         }
 
-        return new License(keyClass.asSubclass(Enum.class), properties, keyValidator);
+        return new License(keyClass.asSubclass(Enum.class), properties, trustedRoots);
     }
 
     /**
@@ -393,12 +391,12 @@ public final class License {
      * The method checks the license data against the keystore and writes any validation
      * messages to the provided output.
      *
-     * @param keyValidator     validator for the signing key
+     * @param trustedRoots     the trusted root certificates
      * @param currentVersion   the current version of the application for version compatibility checks
      * @param validationOutput an appendable instance to which validation messages will be written
      * @return true if the license is valid, false otherwise
      */
-    public boolean validate(Predicate<PublicKey> keyValidator, Version currentVersion, Appendable validationOutput) {
+    public boolean validate(Certificate[] trustedRoots, Version currentVersion, Appendable validationOutput) {
         Map<String, Object> licenseData = new LinkedHashMap<>();
 
         // Convert internal data to a map of strings
@@ -407,19 +405,19 @@ public final class License {
         }
 
         // Use the static validate method to validate the license data
-        return validate(licenseData, keyValidator, currentVersion, validationOutput);
+        return validate(licenseData, trustedRoots, currentVersion, validationOutput);
     }
 
     /**
      * Validates a license from license data.
      *
      * @param licenseData      the license data to validate
-     * @param keyValidator     validator for the signing key
-     * @param currentVersion    the current version of the application for version compatibility checks
+     * @param trustedRoots     the trusted root certificates
+     * @param currentVersion   the current version of the application for version compatibility checks
      * @param validationOutput appendable to write validation messages to
      * @return true if the license is valid, false otherwise
      */
-    public static boolean validate(Map<String, Object> licenseData, Predicate<PublicKey> keyValidator, @Nullable Version currentVersion, Appendable validationOutput) {
+    public static boolean validate(Map<String, Object> licenseData, Certificate[] trustedRoots, @Nullable Version currentVersion, Appendable validationOutput) {
         boolean isValid = true;
 
         try {
@@ -455,15 +453,18 @@ public final class License {
                 validationOutput.append("✓ Signature found.\n");
             }
 
-            PublicKey key;
+            Certificate[] certChain;
             byte[] signatureBytes;
             try {
                 String[] signatureParts = signatureValue.split(":");
-                key = KeyUtil.toPublicKey(Base64.getDecoder().decode(signatureParts[0]));
+
+                certChain = CertificateUtil.pkcs7BytesToCertificateChain(Base64.getDecoder().decode(signatureParts[0]));
                 signatureBytes = Base64.getDecoder().decode(signatureParts[1]);
                 validationOutput.append("✓ Signature format is valid.\n");
             } catch (GeneralSecurityException | ArrayIndexOutOfBoundsException e) {
                 validationOutput.append("❌ Invalid signature format.\n");
+                certChain = null;
+                signatureBytes = null;
                 isValid = false;
             }
 
@@ -473,13 +474,14 @@ public final class License {
 
                 // Verify the signature
                 try {
-                    Certificate cert = getCert();
-
-                    if (cert == null) {
-                        validationOutput.append("❌ Certificate not found for key: ").append(signingKeyAlias).append("\n");
+                    if (certChain.length == 0) {
+                        validationOutput.append("❌ Certificate chain is empty.\n");
+                        isValid = false;
+                    } else if (!isTrusted(certChain[0], trustedRoots)) {
+                        validationOutput.append("❌ Root certificate is not trusted.\n");
                         isValid = false;
                     } else {
-                        PublicKey publicKey = cert.getPublicKey();
+                        PublicKey publicKey = certChain[0].getPublicKey();
 
                         // Create signature instance
                         Signature signature = Signature.getInstance("SHA256withRSA");
@@ -489,7 +491,6 @@ public final class License {
                         signature.update(unsignedLicenseData);
 
                         // Verify the signature
-                        byte[] signatureBytes = Base64.getDecoder().decode(signatureValue);
                         boolean signatureValid = signature.verify(signatureBytes);
 
                         if (signatureValid) {
@@ -622,6 +623,15 @@ public final class License {
         }
 
         return isValid;
+    }
+
+    private static boolean isTrusted(Certificate certificate, Certificate[] trustedRooots) {
+        for (Certificate trustedRooot : trustedRooots) {
+            if (certificate.equals(trustedRooot)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static byte[] getUnsignedLicenseData(Map<String, Object> licenseData) {
