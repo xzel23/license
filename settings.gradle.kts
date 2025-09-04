@@ -56,9 +56,10 @@ dependencyResolutionManagement {
             library("bouncycastle-provider", "org.bouncycastle", "bcprov-jdk18on").versionRef("bouncycastle")
             library("bouncycastle-pkix", "org.bouncycastle", "bcpkix-jdk18on").versionRef("bouncycastle")
 
-            library("jackson-core", "com.fasterxml.jackson.core", "jackson-core").versionRef("jackson")
-            library("jackson-databind", "com.fasterxml.jackson.core", "jackson-databind").versionRef("jackson")
-            library("jackson-annotations", "com.fasterxml.jackson.core", "jackson-annotations").versionRef("jackson")
+            library("jackson-bom", "com.fasterxml.jackson", "jackson-bom").versionRef("jackson")
+            library("jackson-core", "com.fasterxml.jackson.core", "jackson-core").withoutVersion()
+            library("jackson-databind", "com.fasterxml.jackson.core", "jackson-databind").withoutVersion()
+            library("jackson-annotations", "com.fasterxml.jackson.core", "jackson-annotations").withoutVersion()
         }
     }
 
