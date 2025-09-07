@@ -10,7 +10,6 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
-import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.cert.Certificate;
@@ -27,7 +26,6 @@ import java.util.Objects;
 import java.util.SequencedMap;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * Represents a License with associated metadata and functionality for validation and processing.
@@ -146,16 +144,15 @@ public final class License {
      *
      * @param licenseFieldsEnum the enum class defining the license fields
      * @param licenseData       the license data
-     * @param keySupplier       supplier for the private signing key
+     * @param signer            the signing function
      * @return an unmodifiable sequenced map containing the signed license data
-     * @throws GeneralSecurityException     if a security error occurs
      * @throws ReflectiveOperationException if an error occurs while accessing enum values
      */
     public static SequencedMap<String, Object> createLicense(
             Class<? extends Enum> licenseFieldsEnum,
             Map<String, Object> licenseData,
-            Supplier<PrivateKey> keySupplier
-    ) throws GeneralSecurityException, ReflectiveOperationException {
+            Function<byte[], byte[]> signer
+    ) throws ReflectiveOperationException {
         // Get enum values using reflection
         Object[] enumValues = (Object[]) licenseFieldsEnum.getMethod("values").invoke(null);
         List<String> licenseFields = Arrays.stream(enumValues)
@@ -165,7 +162,7 @@ public final class License {
         return createLicense(
                 licenseFields,
                 licenseData,
-                keySupplier
+                signer
         );
     }
 
@@ -175,15 +172,15 @@ public final class License {
      *
      * @param licenseFields the list of license field names
      * @param licenseData   the license data
-     * @param keySupplier   supplier for the private signing key
+     * @param signer        the signing function
      * @return an unmodifiable sequenced map containing the signed license data
      * @throws GeneralSecurityException if a security error occurs
      */
     private static SequencedMap<String, Object> createLicense(
             List<String> licenseFields,
             Map<String, Object> licenseData,
-            Supplier<PrivateKey> keySupplier
-    ) throws GeneralSecurityException {
+            Function<byte[], byte[]> signer
+    ) {
         // Validate that all license data keys are in the license fields
         for (String key : licenseData.keySet()) {
             if (!licenseFields.contains(key) && !key.equals(SIGNATURE)) {
@@ -191,23 +188,13 @@ public final class License {
             }
         }
 
-        // Get the private key
-        java.security.PrivateKey privateKey = keySupplier.get();
-
-        // Create a signature
-        java.security.Signature signature = java.security.Signature.getInstance("SHA256withRSA");
-        signature.initSign(privateKey);
-
         // Create a copy of the license data without the signature
         Map<String, Object> dataToSign = new LinkedHashMap<>(licenseData);
         dataToSign.remove(SIGNATURE);
 
-        // Prepare the data for signing
+        // Sign the data
         byte[] dataToSignBytes = prepareSigningData(dataToSign);
-        signature.update(dataToSignBytes);
-
-        // Generate the signature
-        byte[] signatureBytes = signature.sign();
+        byte[] signatureBytes = signer.apply(dataToSignBytes);
         String signatureBase64 = Base64.getEncoder().encodeToString(signatureBytes);
 
         // Add the signature to the license data
@@ -233,15 +220,14 @@ public final class License {
      *
      * @param licenseFieldsEnum the dynamic enum defining the license fields
      * @param licenseData       the license data
-     * @param keySupplier       supplier for the private signing key
+     * @param signer            the signing function
      * @return an unmodifiable sequenced map containing the signed license data
-     * @throws GeneralSecurityException if a security error occurs
      */
     public static SequencedMap<String, Object> createLicense(
             DynamicEnum licenseFieldsEnum,
             Map<String, Object> licenseData,
-            Supplier<PrivateKey> keySupplier
-    ) throws GeneralSecurityException {
+            Function<byte[], byte[]> signer
+    ) {
         List<String> licenseFields = Arrays.stream(licenseFieldsEnum.values())
                 .map(DynamicEnum.EnumValue::name)
                 .toList();
@@ -249,7 +235,7 @@ public final class License {
         return createLicense(
                 licenseFields,
                 licenseData,
-                keySupplier
+                signer
         );
     }
 

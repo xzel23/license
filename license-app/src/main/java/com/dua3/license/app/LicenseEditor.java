@@ -2,6 +2,8 @@ package com.dua3.license.app;
 
 import com.dua3.license.DynamicEnum;
 import com.dua3.license.License;
+import com.dua3.utility.crypt.InputBufferHandling;
+import com.dua3.utility.crypt.SignatureUtil;
 import com.dua3.utility.lang.Version;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.miginfocom.swing.MigLayout;
@@ -45,6 +47,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.SequencedMap;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 import java.util.prefs.Preferences;
 
 /**
@@ -591,9 +594,6 @@ public class LicenseEditor {
                     }
                 }
 
-                // Get the keystore
-                KeyStore keyStore = keystoreManager.getKeyStore();
-
                 // Create a file chooser
                 JFileChooser fileChooser = new JFileChooser();
                 fileChooser.setDialogTitle("Save License");
@@ -631,7 +631,7 @@ public class LicenseEditor {
                         SequencedMap<String, Object> licenseData = License.createLicense(
                                 dynamicEnum,
                                 properties,
-                                () -> getPrivateKey(keyStore, keyAlias)
+                                data -> signData(data, keyAlias)
                         );
 
                         ObjectMapper mapper = new ObjectMapper();
@@ -668,7 +668,7 @@ public class LicenseEditor {
                                 "License saved successfully to " + filePath,
                                 "License Saved",
                                 JOptionPane.INFORMATION_MESSAGE);
-                    } catch (IOException | GeneralSecurityException | RuntimeException e) {
+                    } catch (IOException | RuntimeException e) {
                         LOG.error("Error creating license", e);
                         JOptionPane.showMessageDialog(parentFrame,
                                 "Error creating license: " + e.getMessage(),
@@ -755,6 +755,16 @@ public class LicenseEditor {
                         ERROR,
                         JOptionPane.ERROR_MESSAGE);
             }
+        }
+    }
+
+    private byte[] signData(byte[] data, String keyAlias) {
+        try {
+            // Get the keystore
+            KeyStore keyStore = keystoreManager.getKeyStore();
+            return SignatureUtil.sign(getPrivateKey(keyStore, keyAlias), data, InputBufferHandling.PRESERVE);
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException(e);
         }
     }
 
