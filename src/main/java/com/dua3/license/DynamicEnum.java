@@ -37,7 +37,7 @@ public final class DynamicEnum {
      * An array holding the enumerated values for this dynamic enum.
      * Each {@code EnumValue} in the array represents a unique enumerated value,
      * defined at runtime with its ordinal, name, and associated value.
-     *
+     * <p>
      * The values in this array are immutable, ensuring the integrity and consistency
      * of the dynamic enum definition once it has been created.
      */

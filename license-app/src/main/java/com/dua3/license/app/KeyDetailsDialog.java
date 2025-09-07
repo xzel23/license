@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.cert.Certificate;
@@ -117,14 +118,12 @@ public class KeyDetailsDialog {
                 tableModel.addRow(new Object[]{"Valid Until", x509Cert.getNotAfter()});
 
                 // Add key size information
-                int keySize = 0;
-                if (publicKey instanceof java.security.interfaces.RSAKey k) {
-                    keySize = k.getModulus().bitLength();
-                } else if (publicKey instanceof java.security.interfaces.DSAKey k) {
-                    keySize = k.getParams().getP().bitLength();
-                } else if (publicKey instanceof java.security.interfaces.ECKey k) {
-                    keySize = k.getParams().getCurve().getField().getFieldSize();
-                }
+                int keySize = switch (publicKey) {
+                    case java.security.interfaces.RSAKey k -> k.getModulus().bitLength();
+                    case java.security.interfaces.DSAKey k -> k.getParams().getP().bitLength();
+                    case java.security.interfaces.ECKey k -> k.getParams().getCurve().getField().getFieldSize();
+                    default -> throw new IllegalStateException("Unsupported key type: " + publicKey.getClass().getName());
+                };
 
                 if (keySize > 0) {
                     tableModel.addRow(new Object[]{"Key Size", keySize + " bits"});
@@ -240,7 +239,7 @@ public class KeyDetailsDialog {
             // Show dialog
             JOptionPane.showMessageDialog(mainFrame, panel, "Key Details for " + alias, JOptionPane.INFORMATION_MESSAGE);
 
-        } catch (Exception e) {
+        } catch (KeyStoreException e) {
             LOG.warn("Error retrieving key details for alias: {}", alias, e);
             JOptionPane.showMessageDialog(mainFrame, "Error retrieving key details: " + e.getMessage(), ERROR, JOptionPane.ERROR_MESSAGE);
         }

@@ -47,7 +47,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.SequencedMap;
 import java.util.Set;
-import java.util.function.UnaryOperator;
 import java.util.prefs.Preferences;
 
 /**

@@ -180,12 +180,11 @@ public class CertificateDetailsDialog {
 
                 // Add key size information
                 int keySize = 0;
-                if (publicKey instanceof java.security.interfaces.RSAKey k) {
-                    keySize = k.getModulus().bitLength();
-                } else if (publicKey instanceof java.security.interfaces.DSAKey k) {
-                    keySize = k.getParams().getP().bitLength();
-                } else if (publicKey instanceof java.security.interfaces.ECKey k) {
-                    keySize = k.getParams().getCurve().getField().getFieldSize();
+                switch (publicKey) {
+                    case java.security.interfaces.RSAKey k -> keySize = k.getModulus().bitLength();
+                    case java.security.interfaces.DSAKey k -> keySize = k.getParams().getP().bitLength();
+                    case java.security.interfaces.ECKey k -> keySize = k.getParams().getCurve().getField().getFieldSize();
+                    default -> throw new IllegalStateException("Unsupported public key type: " + publicKey.getClass().getName());
                 }
 
                 if (keySize > 0) {

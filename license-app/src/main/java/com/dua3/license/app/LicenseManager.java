@@ -36,6 +36,7 @@ import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Security;
@@ -203,12 +204,14 @@ public class LicenseManager {
                             algorithm = publicKey.getAlgorithm();
 
                             // Estimate key size
-                            if (publicKey instanceof java.security.interfaces.RSAKey rsaKey) {
-                                keySize = rsaKey.getModulus().bitLength();
-                            } else if (publicKey instanceof java.security.interfaces.DSAKey dsaKey) {
-                                keySize = dsaKey.getParams().getP().bitLength();
-                            } else if (publicKey instanceof java.security.interfaces.ECKey ecKey) {
-                                keySize = ecKey.getParams().getCurve().getField().getFieldSize();
+                            switch (publicKey) {
+                                case java.security.interfaces.RSAKey rsaKey ->
+                                        keySize = rsaKey.getModulus().bitLength();
+                                case java.security.interfaces.DSAKey dsaKey ->
+                                        keySize = dsaKey.getParams().getP().bitLength();
+                                case java.security.interfaces.ECKey ecKey ->
+                                        keySize = ecKey.getParams().getCurve().getField().getFieldSize();
+                                default -> throw new IllegalArgumentException("Unsupported key type: " + publicKey.getClass().getSimpleName());
                             }
 
                             // Get subject from X509Certificate
@@ -227,7 +230,7 @@ public class LicenseManager {
                         keysTableModel.addRow(new Object[]{alias, algorithm, keySize > 0 ? String.valueOf(keySize) : "N/A", subject, publicKeyString
                         });
                     }
-                } catch (Exception e) {
+                } catch (KeyStoreException e) {
                     // Skip this alias if there's an error
                     LOG.warn("Error processing key alias: {}", alias, e);
                 }

@@ -62,7 +62,7 @@ public class LicenseTemplate {
      */
     public static LicenseTemplate loadTemplate(Path path) throws IOException {
         ObjectMapper mapper = new ObjectMapper();
-        List<LicenseField> fields = mapper.readValue(path.toFile(), new TypeReference<List<LicenseField>>() {});
+        List<LicenseField> fields = mapper.readValue(path.toFile(), new TypeReference<>() {});
 
         // Validate that all required fields are present
         for (String requiredField : REQUIRED_LICENSE_FIELDS) {

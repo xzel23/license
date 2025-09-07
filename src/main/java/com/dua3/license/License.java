@@ -174,7 +174,6 @@ public final class License {
      * @param licenseData   the license data
      * @param signer        the signing function
      * @return an unmodifiable sequenced map containing the signed license data
-     * @throws GeneralSecurityException if a security error occurs
      */
     private static SequencedMap<String, Object> createLicense(
             List<String> licenseFields,
