@@ -4,7 +4,7 @@
 import org.gradle.internal.extensions.stdlib.toDefaultLowerCase
 
 rootProject.name = "license"
-val projectVersion = "0.1.0-beta10-SNAPSHOT"
+val projectVersion = "0.1.0-beta10"
 
 include("license-app")
 
@@ -29,7 +29,7 @@ dependencyResolutionManagement {
             plugin("test-logger", "com.adarshr.test-logger").version("4.0.0")
             plugin("versions", "com.github.ben-manes.versions").version("0.52.0")
 
-            version("dua3-utility", "20.0.0-beta15")
+            version("dua3-utility", "20.0.0-beta16")
             version("jspecify", "1.0.0")
             version("log4j-bom", "2.25.1")
             version("spotbugs", "4.9.5")
@@ -47,6 +47,7 @@ dependencyResolutionManagement {
                 "utility-logging-log4j"
             ).withoutVersion()
             library("dua3-utility-swing", "com.dua3.utility", "utility-swing").withoutVersion()
+
             library("log4j-bom", "org.apache.logging.log4j", "log4j-bom").versionRef("log4j-bom")
             library("log4j-api", "org.apache.logging.log4j", "log4j-api").withoutVersion()
             library("log4j-core", "org.apache.logging.log4j", "log4j-core").withoutVersion()

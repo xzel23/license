@@ -16,7 +16,6 @@ import org.gradle.internal.extensions.stdlib.toDefaultLowerCase
 plugins {
     id("java-library")
     id("jvm-test-suite")
-    id("version-catalog")
     id("signing")
     id("idea")
     id("jacoco-report-aggregation")
@@ -252,8 +251,10 @@ allprojects {
     if (!project.name.endsWith("-bom")) {
         dependencies {
             implementation(rootProject.libs.jspecify)
+
             implementation(platform(rootProject.libs.log4j.bom))
             implementation(rootProject.libs.log4j.api)
+
             implementation(platform(rootProject.libs.dua3.utility.bom))
             implementation(rootProject.libs.dua3.utility)
         }
