@@ -4,7 +4,7 @@
 import org.gradle.internal.extensions.stdlib.toDefaultLowerCase
 
 rootProject.name = "license"
-val projectVersion = "0.1.0-beta10"
+val projectVersion = "0.1.0-beta11"
 
 include("license-app")
 
@@ -25,16 +25,16 @@ dependencyResolutionManagement {
             plugin("forbiddenapis", "de.thetaphi.forbiddenapis").version("3.9")
             plugin("jreleaser", "org.jreleaser").version("1.20.0")
             plugin("sonar", "org.sonarqube").version("6.3.1.5724")
-            plugin("spotbugs", "com.github.spotbugs").version("6.4.1")
+            plugin("spotbugs", "com.github.spotbugs").version("6.4.2")
             plugin("test-logger", "com.adarshr.test-logger").version("4.0.0")
             plugin("versions", "com.github.ben-manes.versions").version("0.52.0")
 
-            version("dua3-utility", "20.0.0-beta16")
+            version("dua3-utility", "20.0.0-beta17")
             version("jspecify", "1.0.0")
             version("log4j-bom", "2.25.1")
-            version("spotbugs", "4.9.5")
+            version("spotbugs", "4.9.6")
             version("miglayout", "11.4.2")
-            version("bouncycastle", "1.81")
+            version("bouncycastle", "1.82")
             version("jackson", "2.20.0")
 
             library("dua3-utility-bom", "com.dua3.utility", "utility-bom").versionRef("dua3-utility")
