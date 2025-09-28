@@ -4,7 +4,7 @@
 import org.gradle.internal.extensions.stdlib.toDefaultLowerCase
 
 rootProject.name = "license"
-val projectVersion = "0.1.0-beta11"
+val projectVersion = "0.1.0-beta12"
 
 include("license-app")
 
@@ -27,11 +27,11 @@ dependencyResolutionManagement {
             plugin("sonar", "org.sonarqube").version("6.3.1.5724")
             plugin("spotbugs", "com.github.spotbugs").version("6.4.2")
             plugin("test-logger", "com.adarshr.test-logger").version("4.0.0")
-            plugin("versions", "com.github.ben-manes.versions").version("0.52.0")
+            plugin("versions", "com.github.ben-manes.versions").version("0.53.0")
 
-            version("dua3-utility", "20.0.0-beta17")
+            version("dua3-utility", "20.0.0-beta23")
             version("jspecify", "1.0.0")
-            version("log4j-bom", "2.25.1")
+            version("log4j-bom", "2.25.2")
             version("spotbugs", "4.9.6")
             version("miglayout", "11.4.2")
             version("bouncycastle", "1.82")
