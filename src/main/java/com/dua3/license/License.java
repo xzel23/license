@@ -152,18 +152,22 @@ public final class License {
             Class<? extends Enum> licenseFieldsEnum,
             Map<String, Object> licenseData,
             Function<byte[], byte[]> signer
-    ) throws ReflectiveOperationException {
-        // Get enum values using reflection
-        Object[] enumValues = (Object[]) licenseFieldsEnum.getMethod("values").invoke(null);
-        List<String> licenseFields = Arrays.stream(enumValues)
-                .map(v -> ((Enum<?>) v).name())
-                .toList();
+    ) throws LicenseException {
+        try {
+            // Get enum values using reflection
+            Object[] enumValues = (Object[]) licenseFieldsEnum.getMethod("values").invoke(null);
+            List<String> licenseFields = Arrays.stream(enumValues)
+                    .map(v -> ((Enum<?>) v).name())
+                    .toList();
 
-        return createLicense(
-                licenseFields,
-                licenseData,
-                signer
-        );
+            return createLicense(
+                    licenseFields,
+                    licenseData,
+                    signer
+            );
+        } catch (InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
+            throw new LicenseException("internal error during license creation", e);
+        }
     }
 
     /**
@@ -326,6 +330,7 @@ public final class License {
      * @return the key as an object, which may be an Enum or DynamicEnum value
      * @throws IllegalArgumentException if the key class is invalid or the key cannot be converted
      */
+    @SuppressWarnings("unchecked")
     private Object toKey(String name) {
         return switch (keyClass) {
             case DynamicEnum de -> de.valueOf(name);
