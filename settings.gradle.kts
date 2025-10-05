@@ -22,7 +22,7 @@ dependencyResolutionManagement {
             version("projectVersion", projectVersion)
 
             plugin("cabe", "com.dua3.cabe").version("3.3.0")
-            plugin("forbiddenapis", "de.thetaphi.forbiddenapis").version("3.9")
+            plugin("forbiddenapis", "de.thetaphi.forbiddenapis").version("3.10")
             plugin("jreleaser", "org.jreleaser").version("1.20.0")
             plugin("sonar", "org.sonarqube").version("6.3.1.5724")
             plugin("spotbugs", "com.github.spotbugs").version("6.4.2")
