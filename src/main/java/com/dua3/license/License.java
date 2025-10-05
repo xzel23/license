@@ -146,7 +146,7 @@ public final class License {
      * @param licenseData       the license data
      * @param signer            the signing function
      * @return an unmodifiable sequenced map containing the signed license data
-     * @throws ReflectiveOperationException if an error occurs while accessing enum values
+     * @throws LicenseException if an error occurs
      */
     public static SequencedMap<String, Object> createLicense(
             Class<? extends Enum> licenseFieldsEnum,
