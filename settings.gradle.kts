@@ -4,7 +4,7 @@
 import org.gradle.internal.extensions.stdlib.toDefaultLowerCase
 
 rootProject.name = "license"
-val projectVersion = "0.1.0-beta12"
+val projectVersion = "0.1.0-beta13"
 
 include("license-app")
 
