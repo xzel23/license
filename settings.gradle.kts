@@ -4,7 +4,7 @@
 import org.gradle.internal.extensions.stdlib.toDefaultLowerCase
 
 rootProject.name = "license"
-val projectVersion = "0.1.0-beta13"
+val projectVersion = "0.1.0-beta14-SNAPSHOT"
 
 include("license-app")
 
@@ -29,7 +29,7 @@ dependencyResolutionManagement {
             plugin("test-logger", "com.adarshr.test-logger").version("4.0.0")
             plugin("versions", "com.github.ben-manes.versions").version("0.53.0")
 
-            version("dua3-utility", "20.0.0-beta24")
+            version("dua3-utility", "20.0.0-beta25-SNAPSHOT")
             version("jspecify", "1.0.0")
             version("log4j-bom", "2.25.2")
             version("spotbugs", "4.9.6")

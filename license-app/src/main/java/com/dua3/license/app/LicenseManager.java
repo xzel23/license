@@ -59,7 +59,6 @@ public class LicenseManager {
     private static final Logger LOG = LogManager.getLogger(LicenseManager.class);
 
     private static final int FRAME_WIDTH = 1024;
-    private static final String DUMMY_PASSWORD = "************************";
 
     /**
      * A constant string representing an information symbol "ⓘ".
@@ -70,12 +69,11 @@ public class LicenseManager {
     private static final String APP_NAME = LicenseManager.class.getSimpleName();
     private static final String ERROR = "Error";
     private static final String PARENT_KEY_SELECTION_STANDALONE = "standalone (no parent)";
-    private static final String SUFFIX_PRIVATEKEY = "-pk";
 
     static {
         try {
             Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             LOG.error("Failed to register Bouncy Castle provider", e);
         }
     }
@@ -120,7 +118,7 @@ public class LicenseManager {
      *
      * @return the configured {@code JFrame} instance
      */
-    private static final JFrame createFrame() {
+    private static JFrame createFrame() {
         JFrame frame = new JFrame();
         frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         frame.setSize(FRAME_WIDTH, (int) Math.round(FRAME_WIDTH / MathUtil.GOLDEN_RATIO));
@@ -334,6 +332,36 @@ public class LicenseManager {
             addLabeledFieldWithTooltip(panel, "Key Alias:",
                     "A unique identifier for this key in the keystore", aliasField);
 
+            // Algorithm selection
+            JComboBox<AsymmetricAlgorithm> algorithmComboBox = new JComboBox<>(AsymmetricAlgorithm.values());
+            algorithmComboBox.setSelectedItem(AsymmetricAlgorithm.RSA);
+            addLabeledComboBoxWithTooltip(panel, "Algorithm:",
+                    "Select the asymmetric algorithm for the key pair (RSA, EC, or DSA)", algorithmComboBox);
+
+            // Key size selection (varies by algorithm)
+            JComboBox<Integer> keySizeComboBox = new JComboBox<>();
+            java.util.function.Consumer<AsymmetricAlgorithm> updateKeySizes = alg -> {
+                keySizeComboBox.removeAllItems();
+                switch (alg) {
+                    case RSA, DSA -> {
+                        for (int s : new int[]{2048, 3072, 4096}) {
+                            keySizeComboBox.addItem(s);
+                        }
+                        keySizeComboBox.setSelectedItem(4096);
+                    }
+                    case EC -> {
+                        for (int s : new int[]{256, 384, 521}) {
+                            keySizeComboBox.addItem(s);
+                        }
+                        keySizeComboBox.setSelectedItem(256);
+                    }
+                }
+            };
+            updateKeySizes.accept(AsymmetricAlgorithm.RSA);
+            algorithmComboBox.addActionListener(e2 -> updateKeySizes.accept((AsymmetricAlgorithm) algorithmComboBox.getSelectedItem()));
+            addLabeledComboBoxWithTooltip(panel, "Key Size:",
+                    "Select the key size. RSA/DSA: 2048+; EC: 256/384/521.", keySizeComboBox);
+
             // Create a combobox for parent key/certificate selection
             LOG.debug("[DEBUG_LOG] Creating parent certificate combobox in Add Key dialog");
             JComboBox<String> parentCertComboBox = new JComboBox<>();
@@ -516,8 +544,14 @@ public class LicenseManager {
                     // Get the CA checkbox value
                     boolean enableCA = enableCACheckbox.isSelected();
 
-                    // Generate certificate
-                    KeyPair keyPair = KeyUtil.generateKeyPair(AsymmetricAlgorithm.RSA, 4096);
+                    // Determine algorithm and key size from UI
+                    AsymmetricAlgorithm algorithm = (AsymmetricAlgorithm) algorithmComboBox.getSelectedItem();
+                    Integer keySize = (Integer) keySizeComboBox.getSelectedItem();
+
+                    // Generate key pair with selected algorithm and key size
+                    KeyPair keyPair = KeyUtil.generateKeyPair(algorithm, keySize);
+
+                    // Generate certificate using selected algorithm and key size
                     X509Certificate[] certificate;
                     if (parentCertificateChain.length == 0) {
                         // self-signed
