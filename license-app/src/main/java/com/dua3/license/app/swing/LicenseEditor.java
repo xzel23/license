@@ -1,4 +1,4 @@
-package com.dua3.license.app;
+package com.dua3.license.app.swing;
 
 import com.dua3.license.DynamicEnum;
 import com.dua3.license.License;
@@ -93,18 +93,18 @@ public class LicenseEditor {
     // instance data
     private final LocalDate today = LocalDate.now();
     private final JFrame parentFrame;
-    private final KeystoreManager keystoreManager;
+    private final KeystoreContainer keystoreContainer;
     private Runnable licenseCreationCallback;
 
     /**
      * Constructs a LicenseEditor object with the provided parent frame and keystore manager.
      *
      * @param parentFrame     the parent JFrame of this editor
-     * @param keystoreManager the KeystoreManager instance to manage cryptographic operations
+     * @param keystoreContainer the KeystoreManager instance to manage cryptographic operations
      */
-    public LicenseEditor(JFrame parentFrame, KeystoreManager keystoreManager) {
+    public LicenseEditor(JFrame parentFrame, KeystoreContainer keystoreContainer) {
         this.parentFrame = parentFrame;
-        this.keystoreManager = keystoreManager;
+        this.keystoreContainer = keystoreContainer;
     }
 
     /**
@@ -167,7 +167,7 @@ public class LicenseEditor {
 
     private Certificate[] getTrustedRoots() {
         try {
-            KeyStore keyStore = keystoreManager.getKeyStore();
+            KeyStore keyStore = keystoreContainer.getKeyStore();
             Set<Certificate> trustedRoots = new HashSet<>();
             for (var alias : Collections.list(keyStore.aliases())) {
                 if (keyStore.isCertificateEntry(alias)) {
@@ -760,7 +760,7 @@ public class LicenseEditor {
     private byte[] signData(byte[] data, String keyAlias) {
         try {
             // Get the keystore
-            KeyStore keyStore = keystoreManager.getKeyStore();
+            KeyStore keyStore = keystoreContainer.getKeyStore();
             return SignatureUtil.sign(getPrivateKey(keyStore, keyAlias), data, InputBufferHandling.PRESERVE);
         } catch (GeneralSecurityException e) {
             throw new IllegalStateException(e);
@@ -769,7 +769,7 @@ public class LicenseEditor {
 
     private PrivateKey getPrivateKey(KeyStore keyStore, String keyAlias) {
         try {
-            if (keyStore.getKey(keyAlias, keystoreManager.getPassword()) instanceof PrivateKey pk) {
+            if (keyStore.getKey(keyAlias, keystoreContainer.getPassword()) instanceof PrivateKey pk) {
                 return pk;
             } else {
                 throw new IllegalStateException("No private key found for alias '" + keyAlias + "'.");
@@ -819,7 +819,7 @@ public class LicenseEditor {
      * @param comboBox the combo box to populate
      */
     private void populateSigningKeyComboBox(JComboBox<String> comboBox) {
-        KeyStore keyStore = keystoreManager.getKeyStore();
+        KeyStore keyStore = keystoreContainer.getKeyStore();
 
         comboBox.removeAllItems();
 

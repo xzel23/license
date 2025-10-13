@@ -1,4 +1,4 @@
-package com.dua3.license.app;
+package com.dua3.license.app.swing;
 
 import com.dua3.utility.crypt.KeyStoreUtil;
 import com.dua3.utility.crypt.PasswordUtil;
@@ -37,8 +37,8 @@ import java.util.prefs.Preferences;
 /**
  * Dialog for selecting or creating a keystore.
  */
-public class KeystoreManager {
-    private static final Logger LOG = LogManager.getLogger(KeystoreManager.class);
+public class KeystoreContainer {
+    private static final Logger LOG = LogManager.getLogger(KeystoreContainer.class);
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final String PREF_KEYSTORE_PATH = "keystorePath";
     private static final String PREF_ENCRYPTION_KEY = "encryptionKey";
@@ -69,7 +69,7 @@ public class KeystoreManager {
      *
      * @param parent the parent component, typically used as the owner for dialog windows
      */
-    public KeystoreManager(Component parent) {
+    public KeystoreContainer(Component parent) {
         this(parent, getKeystorePathFromPreferences());
     }
 
@@ -79,7 +79,7 @@ public class KeystoreManager {
      * @param parent the parent component, typically used as the owner for dialog windows
      * @param keystorePath the file path to the keystore
      */
-    public KeystoreManager(Component parent, Path keystorePath) {
+    public KeystoreContainer(Component parent, Path keystorePath) {
         this.parent = parent;
         this.keystorePath = keystorePath;
     }
@@ -106,7 +106,7 @@ public class KeystoreManager {
         }
 
         // Load the logo
-        URL logoUrl = KeystoreManager.class.getResource(logoPath);
+        URL logoUrl = KeystoreContainer.class.getResource(logoPath);
         if (logoUrl != null) {
             return new ImageIcon(logoUrl);
         } else {
@@ -458,7 +458,7 @@ public class KeystoreManager {
     }
 
     private void load(Path path) throws GeneralSecurityException, IOException {
-        KeyStore loadedKeyStore = KeyStoreUtil.loadKeyStoreFromFile(path, getPassword());
+        KeyStore loadedKeyStore = KeyStoreUtil.loadKeyStore(path, getPassword());
 
         // Store the keystore path and instance
         this.keystorePath = path;
@@ -516,7 +516,7 @@ public class KeystoreManager {
             this.iv = ivBytes;
 
             // Persist the encryption key and IV in preferences
-            Preferences prefs = Preferences.userNodeForPackage(KeystoreManager.class);
+            Preferences prefs = Preferences.userNodeForPackage(KeystoreContainer.class);
             prefs.putByteArray(PREF_ENCRYPTION_KEY, encryptionKey);
             prefs.putByteArray(PREF_IV, iv);
 
@@ -537,7 +537,7 @@ public class KeystoreManager {
     public char[] getPassword() {
         // Try to load encryption key and IV from preferences if not available in memory
         if (encryptionKey == null || iv == null) {
-            Preferences prefs = Preferences.userNodeForPackage(KeystoreManager.class);
+            Preferences prefs = Preferences.userNodeForPackage(KeystoreContainer.class);
             encryptionKey = prefs.getByteArray(PREF_ENCRYPTION_KEY, null);
             iv = prefs.getByteArray(PREF_IV, null);
 
@@ -582,7 +582,7 @@ public class KeystoreManager {
             iv = null;
 
             // Clear preferences as well
-            Preferences prefs = Preferences.userNodeForPackage(KeystoreManager.class);
+            Preferences prefs = Preferences.userNodeForPackage(KeystoreContainer.class);
             prefs.remove(PREF_ENCRYPTION_KEY);
             prefs.remove(PREF_IV);
 
@@ -596,7 +596,7 @@ public class KeystoreManager {
      * @return the stored keystore path or a default path
      */
     public static Path getKeystorePathFromPreferences() {
-        Preferences prefs = Preferences.userNodeForPackage(KeystoreManager.class);
+        Preferences prefs = Preferences.userNodeForPackage(KeystoreContainer.class);
         String storedPath = prefs.get(PREF_KEYSTORE_PATH, null);
         return storedPath != null ? Paths.get(storedPath) : Paths.get(".");
     }
@@ -608,7 +608,7 @@ public class KeystoreManager {
      */
     public static void saveKeystorePathInPreferences(Path path) {
         if (path != null) {
-            Preferences prefs = Preferences.userNodeForPackage(KeystoreManager.class);
+            Preferences prefs = Preferences.userNodeForPackage(KeystoreContainer.class);
             prefs.put(PREF_KEYSTORE_PATH, path.toString());
             LOG.info("Keystore path set to {}", path);
         }

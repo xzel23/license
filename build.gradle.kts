@@ -147,7 +147,6 @@ tasks.register("showTaskIO") {
 
 dependencies {
     jacocoAggregation(rootProject)
-    jacocoAggregation(project(":license-app"))
 }
 
 tasks.named<JacocoReport>("testCodeCoverageReport") {

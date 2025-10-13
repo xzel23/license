@@ -1,4 +1,4 @@
-package com.dua3.license.app;
+package com.dua3.license.app.swing;
 
 import com.dua3.license.DynamicEnum;
 import com.dua3.utility.io.IoUtil;

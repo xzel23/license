@@ -1,4 +1,4 @@
-package com.dua3.license.app;
+package com.dua3.license.app.swing;
 
 import com.dua3.utility.crypt.AsymmetricAlgorithm;
 import com.dua3.utility.crypt.CertificateUtil;
@@ -54,9 +54,9 @@ import java.util.Optional;
  * a graphical user interface for interacting with license keys, keystores,
  * and licenses.
  */
-public class LicenseManager {
+public class KeystoreManager {
 
-    private static final Logger LOG = LogManager.getLogger(LicenseManager.class);
+    private static final Logger LOG = LogManager.getLogger(KeystoreManager.class);
 
     private static final int FRAME_WIDTH = 1024;
 
@@ -66,7 +66,7 @@ public class LicenseManager {
      * This symbol is used to add tooltips to input elements in the user interface.
      */
     public static final String INFO_SYMBOL = "ⓘ";
-    private static final String APP_NAME = LicenseManager.class.getSimpleName();
+    private static final String APP_NAME = KeystoreManager.class.getSimpleName();
     private static final String ERROR = "Error";
     private static final String PARENT_KEY_SELECTION_STANDALONE = "standalone (no parent)";
 
@@ -78,7 +78,7 @@ public class LicenseManager {
         }
     }
 
-    private final KeystoreManager keystoreManager;
+    private final KeystoreContainer keystoreContainer;
     private final JComboBox<String> licenseKeyAliasComboBox = new JComboBox<>();
     private final JFrame mainFrame;
 
@@ -87,11 +87,7 @@ public class LicenseManager {
     @Nullable
     private JPanel keysPanel;
     @Nullable
-    private JPanel licensesPanel;
-    @Nullable
     private JPanel certificatesPanel;
-    @Nullable
-    private LicenseEditor licenseEditor;
 
     // Table for displaying keys
     private javax.swing.JTable keysTable;
@@ -104,9 +100,9 @@ public class LicenseManager {
     /**
      * Constructs a new instance of the LicenseManager class.
      */
-    public LicenseManager() {
+    public KeystoreManager() {
         this.mainFrame = createFrame();
-        this.keystoreManager = new KeystoreManager(mainFrame);
+        this.keystoreContainer = new KeystoreContainer(mainFrame);
 
         createAndShowGUI();
     }
@@ -135,7 +131,7 @@ public class LicenseManager {
         LOG.debug("Starting License Manager application");
         SwingUtil.setNativeLookAndFeel(APP_NAME);
         SwingUtilities.invokeLater(() -> {
-            LicenseManager app = new LicenseManager();
+            KeystoreManager app = new KeystoreManager();
         });
     }
 
@@ -148,27 +144,20 @@ public class LicenseManager {
         LOG.debug("Creating and showing GUI");
 
         // Show startup dialog to load or create keystore
-        if (!keystoreManager.showDialog()) {
+        if (!keystoreContainer.showDialog()) {
             mainFrame.dispose();
             return;
         }
 
         LOG.debug("Keystore loaded successfully, initializing main window");
 
-        // Initialize the license editor
-        licenseEditor = new LicenseEditor(mainFrame, keystoreManager);
-        // Register callback to refresh keys table when a license is created
-        licenseEditor.setLicenseCreationCallback(this::updateKeysTable);
-
         tabbedPane = new JTabbedPane();
 
         // Create panels for each tab
         createKeysPanel();
-        createLicensesPanel();
 
         // Add the new tabs as required
         tabbedPane.addTab("Keys", keysPanel);
-        tabbedPane.addTab("Licenses", licensesPanel);
 
         mainFrame.getContentPane().add(tabbedPane, BorderLayout.CENTER);
 
@@ -180,7 +169,7 @@ public class LicenseManager {
      * Updates the keys table with the current keystore information.
      */
     private void updateKeysTable() {
-        KeyStore keyStore = keystoreManager.getKeyStore();
+        KeyStore keyStore = keystoreContainer.getKeyStore();
 
         // Clear the table
         keysTableModel.setRowCount(0);
@@ -191,7 +180,7 @@ public class LicenseManager {
                     // Process only key entries
                     if (keyStore.isKeyEntry(alias)) {
                         // Get certificate information
-                        java.security.cert.Certificate cert = keyStore.getCertificate(alias);
+                        Certificate cert = keyStore.getCertificate(alias);
                         String algorithm = "N/A";
                         int keySize = 0;
                         String subject = "N/A";
@@ -213,7 +202,7 @@ public class LicenseManager {
                             }
 
                             // Get subject from X509Certificate
-                            if (cert instanceof java.security.cert.X509Certificate x509Certificate) {
+                            if (cert instanceof X509Certificate x509Certificate) {
                                 subject = x509Certificate.getSubjectX500Principal().getName();
                             }
 
@@ -293,7 +282,7 @@ public class LicenseManager {
                     int row = keysTable.rowAtPoint(e.getPoint());
                     if (row >= 0) {
                         String alias = (String) keysTable.getValueAt(row, 0);
-                        new KeyDetailsDialog(mainFrame, keystoreManager.getKeyStore(), alias, keystoreManager.getKeystorePath()).showDialog();
+                        new KeyDetailsDialog(mainFrame, keystoreContainer.getKeyStore(), alias, keystoreContainer.getKeystorePath()).showDialog();
                     }
                 }
             }
@@ -310,7 +299,7 @@ public class LicenseManager {
         JButton addKeyButton = new JButton("Add Key");
         addKeyButton.addActionListener(evt -> {
             // Reuse the key generation functionality from the Key Management tab
-            KeyStore keyStore = keystoreManager.getKeyStore();
+            KeyStore keyStore = keystoreContainer.getKeyStore();
 
             // Show a dialog to get key information
             JTextField aliasField = new JTextField(20);
@@ -517,7 +506,7 @@ public class LicenseManager {
                     PrivateKey parentKey;
                     switch (parentCertComboBox.getSelectedItem()) {
                         case String s when !s.equals(PARENT_KEY_SELECTION_STANDALONE) -> {
-                            parentKey = (PrivateKey) keyStore.getKey(s, keystoreManager.getPassword());
+                            parentKey = (PrivateKey) keyStore.getKey(s, keystoreContainer.getPassword());
                             parentCertificateChain = keyStore.getCertificateChain(s);
                         }
                         default -> {
@@ -597,7 +586,7 @@ public class LicenseManager {
                     keyStore.setKeyEntry(
                             alias,
                             keyPair.getPrivate(),
-                            keystoreManager.getPassword(),
+                            keystoreContainer.getPassword(),
                             certificate
                     );
 
@@ -606,7 +595,7 @@ public class LicenseManager {
                     updateKeyAliasComboBox();
 
                     // save the keystore
-                    keystoreManager.save();
+                    keystoreContainer.save();
 
                     JOptionPane.showMessageDialog(mainFrame, "Key pair generated and stored successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
                 } catch (GeneralSecurityException | IOException ex) {
@@ -665,14 +654,6 @@ public class LicenseManager {
     }
 
     /**
-     * Creates the Licenses panel with buttons for creating and validating licenses.
-     */
-    private void createLicensesPanel() {
-        // Use the LicenseEditor to create the licenses panel
-        licensesPanel = licenseEditor.createLicensesPanel();
-    }
-
-    /**
      * Adds a labeled combobox with an information icon that shows a tooltip with the combobox's description.
      *
      * @param panel       The panel to add the components to
@@ -717,7 +698,7 @@ public class LicenseManager {
     }
 
     private void updateKeyAliasComboBox() {
-        KeyStore keyStore = keystoreManager.getKeyStore();
+        KeyStore keyStore = keystoreContainer.getKeyStore();
 
         LOG.debug("Updating key alias combo box");
         licenseKeyAliasComboBox.removeAllItems();
@@ -749,7 +730,7 @@ public class LicenseManager {
      * @param comboBox the combobox to populate
      */
     private void populateParentCertComboBox(JComboBox<String> comboBox) {
-        KeyStore keyStore = keystoreManager.getKeyStore();
+        KeyStore keyStore = keystoreContainer.getKeyStore();
 
         LOG.debug("Populating parent certificate combo box");
         comboBox.removeAllItems();
@@ -778,15 +759,15 @@ public class LicenseManager {
                     if (isCertEntry) {
                         // Get certificate information
                         LOG.debug("[DEBUG_LOG] Processing certificate entry: {}", alias);
-                        java.security.cert.Certificate cert = keyStore.getCertificate(alias);
+                        Certificate cert = keyStore.getCertificate(alias);
 
-                        if (cert instanceof java.security.cert.X509Certificate x509Cert) {
+                        if (cert instanceof X509Certificate x509Cert) {
                             // Check if this is a CA certificate
                             boolean[] keyUsage = x509Cert.getKeyUsage();
                             boolean isCA = false;
 
                             LOG.debug("[DEBUG_LOG] Certificate {} - keyUsage array: {}",
-                                    alias, keyUsage != null ? java.util.Arrays.toString(keyUsage) : "null");
+                                    alias, keyUsage != null ? Arrays.toString(keyUsage) : "null");
 
                             if (keyUsage != null && keyUsage.length > 5) {
                                 // Key usage bit 5 is for keyCertSign
@@ -819,7 +800,7 @@ public class LicenseManager {
                             boolean isCA = false;
 
                             LOG.debug("[DEBUG_LOG] Key {} - keyUsage array: {}",
-                                    alias, keyUsage != null ? java.util.Arrays.toString(keyUsage) : "null");
+                                    alias, keyUsage != null ? Arrays.toString(keyUsage) : "null");
 
                             if (keyUsage != null && keyUsage.length > 5) {
                                 // Key usage bit 5 is for keyCertSign
@@ -859,8 +840,8 @@ public class LicenseManager {
     }
 
     private void deleteKey(String alias) throws GeneralSecurityException, IOException {
-        keystoreManager.getKeyStore().deleteEntry(alias);
-        keystoreManager.save();
+        keystoreContainer.getKeyStore().deleteEntry(alias);
+        keystoreContainer.save();
         updateKeyAliasComboBox();
     }
 
@@ -873,7 +854,7 @@ public class LicenseManager {
      */
     private void exportKeystore(String alias) throws GeneralSecurityException, IOException {
         // Kept for backward compatibility if referenced elsewhere; delegate to multi-export with only this alias's public cert
-        KeyStore sourceKeyStore = keystoreManager.getKeyStore();
+        KeyStore sourceKeyStore = keystoreContainer.getKeyStore();
         ExportSelectionDialog dialog = new ExportSelectionDialog(mainFrame, sourceKeyStore);
         // preselect only this alias public
         dialog.getSelections().forEach(s -> {
@@ -887,7 +868,7 @@ public class LicenseManager {
     }
 
     private void exportKeystoreMulti() throws GeneralSecurityException, IOException {
-        KeyStore sourceKeyStore = keystoreManager.getKeyStore();
+        KeyStore sourceKeyStore = keystoreContainer.getKeyStore();
         ExportSelectionDialog dialog = new ExportSelectionDialog(mainFrame, sourceKeyStore);
         if (!dialog.showDialog()) {
             return;
@@ -896,7 +877,7 @@ public class LicenseManager {
     }
 
     private void exportAccordingToSelection(ExportSelectionDialog dialog) throws GeneralSecurityException, IOException {
-        KeyStore sourceKeyStore = keystoreManager.getKeyStore();
+        KeyStore sourceKeyStore = keystoreContainer.getKeyStore();
 
         // Ensure at least one item selected
         boolean anySelected = dialog.getSelections().stream().anyMatch(s -> s.exportPublic || s.exportPrivate);
@@ -908,7 +889,7 @@ public class LicenseManager {
         boolean anyPrivate = dialog.getSelections().stream().anyMatch(s -> s.exportPrivate);
 
         // Show a file save dialog with the current keystore directory as the initial directory
-        Path initialDir = keystoreManager.getKeystorePath().getParent();
+        Path initialDir = keystoreContainer.getKeystorePath().getParent();
         Optional<Path> selectedPath = SwingUtil.showFileSaveDialog(
                 mainFrame,
                 initialDir,
@@ -927,7 +908,7 @@ public class LicenseManager {
                 JOptionPane.showMessageDialog(mainFrame, "A password is required when exporting private keys.", ERROR, JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            var strength = com.dua3.utility.crypt.PasswordUtil.evaluatePasswordStrength(ksPassword);
+            var strength = PasswordUtil.evaluatePasswordStrength(ksPassword);
             if (!strength.isSecure()) {
                 JOptionPane.showMessageDialog(mainFrame, "Password is not strong enough: " + strength.strengthLevel().getDescription(), "Weak Password", JOptionPane.ERROR_MESSAGE);
                 return;
@@ -967,7 +948,7 @@ public class LicenseManager {
                 return;
             }
             // Enforce strong password
-            var strength = com.dua3.utility.crypt.PasswordUtil.evaluatePasswordStrength(pw1);
+            var strength = PasswordUtil.evaluatePasswordStrength(pw1);
             if (!strength.isSecure()) {
                 JOptionPane.showMessageDialog(mainFrame, "Password is not strong enough: " + strength.strengthLevel().getDescription(), "Weak Password", JOptionPane.ERROR_MESSAGE);
                 return;
@@ -980,7 +961,7 @@ public class LicenseManager {
             newKeyStore.load(null, ksPassword);
 
             // Source keystore password for retrieving private keys
-            char[] sourcePassword = keystoreManager.getPassword();
+            char[] sourcePassword = keystoreContainer.getPassword();
 
             for (var sel : dialog.getSelections()) {
                 if (!sel.exportPublic && !sel.exportPrivate) continue;
@@ -1028,7 +1009,7 @@ public class LicenseManager {
      */
     public static Path getTemplatesDirectory() {
         try {
-            return IoUtil.getApplicationDataDir(LicenseManager.class.getName()).resolve("templates");
+            return IoUtil.getApplicationDataDir(KeystoreManager.class.getName()).resolve("templates");
         } catch (IOException e) {
             LOG.error("Failed to create application data directory", e);
             // Fall back to local templates directory

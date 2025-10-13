@@ -1,4 +1,4 @@
-package com.dua3.license.app;
+package com.dua3.license.app.swing;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -10,7 +10,7 @@ import java.util.prefs.Preferences;
 /**
  * Test for KeystoreManager password storage and retrieval.
  */
-public class KeystoreManagerTest {
+public class KeystoreContainerTest {
 
     @TempDir
     Path tempDir;
@@ -18,7 +18,7 @@ public class KeystoreManagerTest {
     @AfterEach
     void tearDown() {
         // Clean up preferences after test
-        Preferences prefs = Preferences.userNodeForPackage(KeystoreManager.class);
+        Preferences prefs = Preferences.userNodeForPackage(KeystoreContainer.class);
         try {
             prefs.remove("encryptionKey");
             prefs.remove("iv");

@@ -3,6 +3,8 @@
  */
 module dua3.license.license.app.main {
     requires com.dua3.utility;
+    requires com.dua3.utility.fx;
+    requires com.dua3.utility.fx.controls;
     requires com.dua3.utility.swing;
     requires org.apache.logging.log4j;
     requires java.prefs;
@@ -14,4 +16,6 @@ module dua3.license.license.app.main {
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
     requires com.fasterxml.jackson.annotation;
+    requires javafx.graphics;
+    requires javafx.controls;
 }

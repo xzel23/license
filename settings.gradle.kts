@@ -4,9 +4,9 @@
 import org.gradle.internal.extensions.stdlib.toDefaultLowerCase
 
 rootProject.name = "license"
-val projectVersion = "0.1.0-beta15-SNAPSHOT"
+val projectVersion = "0.1.0-beta15"
 
-include("license-app")
+//include("license-app") TODO remove code
 
 plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
@@ -29,18 +29,17 @@ dependencyResolutionManagement {
             plugin("test-logger", "com.adarshr.test-logger").version("4.0.0")
             plugin("versions", "com.github.ben-manes.versions").version("0.53.0")
 
-            version("dua3-utility", "20.0.0-beta25")
+            version("dua3-utility", "20.0.0-beta26")
             version("jspecify", "1.0.0")
             version("log4j-bom", "2.25.2")
             version("spotbugs", "4.9.6")
             version("miglayout", "11.4.2")
             version("bouncycastle", "1.82")
             version("jackson", "2.20.0")
+            library("jspecify", "org.jspecify", "jspecify").versionRef("jspecify")
 
             library("dua3-utility-bom", "com.dua3.utility", "utility-bom").versionRef("dua3-utility")
             library("dua3-utility", "com.dua3.utility", "utility").withoutVersion()
-            library("dua3-utility-logging", "com.dua3.utility", "utility-logging").withoutVersion()
-            library("jspecify", "org.jspecify", "jspecify").versionRef("jspecify")
             library(
                 "dua3-utility-logging-log4j",
                 "com.dua3.utility",
@@ -53,7 +52,6 @@ dependencyResolutionManagement {
             library("log4j-core", "org.apache.logging.log4j", "log4j-core").withoutVersion()
             library("log4j-jul", "org.apache.logging.log4j", "log4j-jul").withoutVersion()
 
-            library("miglayout-swing", "com.miglayout", "miglayout-swing").versionRef("miglayout")
             library("bouncycastle-provider", "org.bouncycastle", "bcprov-jdk18on").versionRef("bouncycastle")
             library("bouncycastle-pkix", "org.bouncycastle", "bcpkix-jdk18on").versionRef("bouncycastle")
 

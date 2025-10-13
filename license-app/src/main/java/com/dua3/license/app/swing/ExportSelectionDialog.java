@@ -1,4 +1,4 @@
-package com.dua3.license.app;
+package com.dua3.license.app.swing;
 
 import com.dua3.utility.crypt.PasswordUtil;
 import net.miginfocom.swing.MigLayout;
