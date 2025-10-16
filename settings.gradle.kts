@@ -4,7 +4,7 @@
 import org.gradle.internal.extensions.stdlib.toDefaultLowerCase
 
 rootProject.name = "license"
-val projectVersion = "0.1.0-beta16"
+val projectVersion = "0.1.0-beta17-SNAPSHOT"
 
 plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
@@ -22,15 +22,15 @@ dependencyResolutionManagement {
             plugin("cabe", "com.dua3.cabe").version("3.3.0")
             plugin("forbiddenapis", "de.thetaphi.forbiddenapis").version("3.10")
             plugin("jreleaser", "org.jreleaser").version("1.20.0")
-            plugin("sonar", "org.sonarqube").version("6.3.1.5724")
-            plugin("spotbugs", "com.github.spotbugs").version("6.4.2")
+            plugin("sonar", "org.sonarqube").version("7.0.0.6105")
+            plugin("spotbugs", "com.github.spotbugs").version("6.4.3")
             plugin("test-logger", "com.adarshr.test-logger").version("4.0.0")
             plugin("versions", "com.github.ben-manes.versions").version("0.53.0")
 
-            version("dua3-utility", "20.0.0-beta27")
+            version("dua3-utility", "20.0.0-beta28-SNAPSHOT")
             version("jspecify", "1.0.0")
             version("log4j-bom", "2.25.2")
-            version("spotbugs", "4.9.6")
+            version("spotbugs", "4.9.7")
             version("miglayout", "11.4.2")
             version("bouncycastle", "1.82")
             version("jackson", "2.20.0")
