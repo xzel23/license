@@ -1,5 +1,6 @@
 package com.dua3.license;
 
+import com.dua3.utility.application.LicenseData;
 import com.dua3.utility.crypt.CertificateUtil;
 import com.dua3.utility.lang.Version;
 import org.apache.logging.log4j.LogManager;
@@ -23,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.SequencedMap;
 import java.util.Set;
 import java.util.function.Function;
@@ -42,6 +44,12 @@ public final class License {
     // required license fields
     public static final String LICENSE_ID_LICENSE_FIELD = "LICENSE_ID";
     /**
+     * Represents the field name for the licensee name.
+     * This constant is used as a key to access the licensee name within a license object
+     * or during license-related operations.
+     */
+    public static final String LICENSEE_LICENSE_FIELD = "LICENSEE";
+    /**
      * A constant representing the field name for the digital signature in the license data.
      * This field is used to reference the digital signature associated with the license.
      */
@@ -53,19 +61,18 @@ public final class License {
      */
     public static final String ISSUE_DATE_LICENSE_FIELD = "ISSUE_DATE";
     /**
-     * Represents the field name used to access the expiry date of a license.
-     * This constant is used to reference the expiry date
-     * in the license.
+     * Represents the field name used to access the last date the license is valid.
      */
-    public static final String EXPIRY_DATE_LICENSE_FIELD = "EXPIRY_DATE";
+    public static final String VALID_UNTIL_LICENSE_FIELD = "VALID_UNTIL";
 
     /**
      * Define the list of fields that have to be present in every license.
      */
     public static final List<String> REQUIRED_LICENSE_FIELDS = List.of(
             LICENSE_ID_LICENSE_FIELD,
+            LICENSEE_LICENSE_FIELD,
             ISSUE_DATE_LICENSE_FIELD,
-            EXPIRY_DATE_LICENSE_FIELD,
+            VALID_UNTIL_LICENSE_FIELD,
             SIGNATURE_LICENSE_FIELD
     );
     /**
@@ -84,7 +91,7 @@ public final class License {
 
     private final Object keyClass;
     private final Map<Object, Object> data;
-    private final String licenseString;
+    private final @Nullable String licenseText;
 
     /**
      * Constructs a new instance of the License class. This constructor verifies the signature of the license
@@ -132,7 +139,7 @@ public final class License {
                 throw new LicenseException("invalid signature");
             }
 
-            this.licenseString = data.toString();
+            this.licenseText = data.toString();
         } catch (InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
             throw new LicenseException("error in key class", e);
         }
@@ -263,7 +270,7 @@ public final class License {
             Object value = entry.getValue();
 
             // Try to parse dates
-            if (key.equals(EXPIRY_DATE_LICENSE_FIELD) || key.equals(ISSUE_DATE_LICENSE_FIELD)) {
+            if (key.equals(VALID_UNTIL_LICENSE_FIELD) || key.equals(ISSUE_DATE_LICENSE_FIELD)) {
                 try {
                     if (value instanceof String s) {
                         properties.put(key, LocalDate.parse(s));
@@ -282,12 +289,12 @@ public final class License {
     }
 
     /**
-     * Retrieves the license string associated with this instance.
+     * Retrieves the license text associated with this instance.
      *
-     * @return the license string, or null if it is not set
+     * @return an Optional holding the license text, or an empty Optional if it is not set
      */
-    public String getLicenseString() {
-        return licenseString;
+    public Optional<String> getLicenseText() {
+        return Optional.ofNullable(licenseText);
     }
 
     /**
@@ -416,7 +423,7 @@ public final class License {
                     LICENSE_ID_LICENSE_FIELD,
                     SIGNATURE_LICENSE_FIELD,
                     ISSUE_DATE_LICENSE_FIELD,
-                    EXPIRY_DATE_LICENSE_FIELD,
+                    VALID_UNTIL_LICENSE_FIELD,
                     MIN_VERSION_LICENSE_FIELD,
                     MAX_VERSION_LICENSE_FIELD
             };
@@ -548,7 +555,7 @@ public final class License {
             }
 
             // Check for expiration date
-            String expiryDateStr = Objects.requireNonNullElse(licenseData.get(EXPIRY_DATE_LICENSE_FIELD), "").toString();
+            String expiryDateStr = Objects.requireNonNullElse(licenseData.get(VALID_UNTIL_LICENSE_FIELD), "").toString();
             LocalDate expiryDate = null;
             try {
                 expiryDate = LocalDate.parse(expiryDateStr);
@@ -661,16 +668,35 @@ public final class License {
      */
     public int validDays() {
         LocalDate today = LocalDate.now();
-        LocalDate expiryDate = getExpiryDate();
+        LocalDate expiryDate = getValidUntil();
         return today.until(expiryDate).getDays();
     }
 
     /**
      * Retrieves the expiry date of the license.
      *
-     * @return the expiry date as a {@code LocalDate}, or null if the expiry date is not set
+     * @return the expiry date as a {@code LocalDate}
      */
-    public LocalDate getExpiryDate() {
-        return (LocalDate) get(toKey(EXPIRY_DATE_LICENSE_FIELD));
+    public LocalDate getValidUntil() {
+        return (LocalDate) get(toKey(VALID_UNTIL_LICENSE_FIELD));
     }
+
+    /**
+     * Retrieves the licensee of the license.
+     *
+     * @return the licensee
+     */
+    private String getLicensee() {
+        return (String) get(toKey(LICENSEE_LICENSE_FIELD));
+    }
+
+    public LicenseData getLicenseData() {
+        return new LicenseData(
+            getLicensee(),
+            getValidUntil(),
+                getLicenseId(),
+                getLicenseText().map(t -> () -> t)
+        );
+    }
+
 }
