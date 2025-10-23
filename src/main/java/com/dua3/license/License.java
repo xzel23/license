@@ -690,12 +690,18 @@ public final class License {
         return (String) get(toKey(LICENSEE_LICENSE_FIELD));
     }
 
+    /**
+     * Retrieves the license data associated with the current context.
+     *
+     * @return an instance of LicenseData containing details such as licensee information,
+     *         validity period, license ID, and the license text if available.
+     */
     public LicenseData getLicenseData() {
         return new LicenseData(
             getLicensee(),
             getValidUntil(),
-                getLicenseId(),
-                getLicenseText().map(t -> () -> t)
+            getLicenseId(),
+            getLicenseText().map(t -> () -> t)
         );
     }
 
