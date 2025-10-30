@@ -27,7 +27,7 @@ dependencyResolutionManagement {
             plugin("test-logger", "com.adarshr.test-logger").version("4.0.0")
             plugin("versions", "com.github.ben-manes.versions").version("0.53.0")
 
-            version("dua3-utility", "20.0.0-rc-1")
+            version("dua3-utility", "20.0.0-rc-3")
             version("jspecify", "1.0.0")
             version("log4j-bom", "2.25.2")
             version("spotbugs", "4.9.7")
