@@ -4,7 +4,7 @@
 import org.gradle.internal.extensions.stdlib.toDefaultLowerCase
 
 rootProject.name = "license"
-val projectVersion = "0.1.0-beta18"
+val projectVersion = "0.1.0-beta19-SNAPSHOT"
 
 plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
@@ -21,16 +21,17 @@ dependencyResolutionManagement {
 
             plugin("cabe", "com.dua3.cabe").version("3.3.0")
             plugin("forbiddenapis", "de.thetaphi.forbiddenapis").version("3.10")
-            plugin("jreleaser", "org.jreleaser").version("1.20.0")
+            plugin("jreleaser", "org.jreleaser").version("1.21.0")
             plugin("sonar", "org.sonarqube").version("7.0.1.6134")
-            plugin("spotbugs", "com.github.spotbugs").version("6.4.3")
+            plugin("spotbugs", "com.github.spotbugs").version("6.4.4")
             plugin("test-logger", "com.adarshr.test-logger").version("4.0.0")
             plugin("versions", "com.github.ben-manes.versions").version("0.53.0")
 
-            version("dua3-utility", "20.0.0-rc-3")
+            version("dua3-utility", "20.0.0-rc-5")
             version("jspecify", "1.0.0")
+            version("junit-bom", "6.0.1")
             version("log4j-bom", "2.25.2")
-            version("spotbugs", "4.9.7")
+            version("spotbugs", "4.9.8")
             version("miglayout", "11.4.2")
             version("bouncycastle", "1.82")
             version("jackson", "2.20.0")
@@ -57,6 +58,11 @@ dependencyResolutionManagement {
             library("jackson-core", "com.fasterxml.jackson.core", "jackson-core").withoutVersion()
             library("jackson-databind", "com.fasterxml.jackson.core", "jackson-databind").withoutVersion()
             library("jackson-annotations", "com.fasterxml.jackson.core", "jackson-annotations").withoutVersion()
+
+            library("junit-bom", "org.junit", "junit-bom").versionRef("junit-bom")
+            library("junit-jupiter-api", "org.junit.jupiter", "junit-jupiter-api").withoutVersion()
+            library("junit-jupiter-engine", "org.junit.jupiter", "junit-jupiter-engine").withoutVersion()
+            library("junit-platform-launcher", "org.junit.platform", "junit-platform-launcher").withoutVersion()
         }
     }
 

@@ -256,6 +256,11 @@ allprojects {
 
             implementation(platform(rootProject.libs.dua3.utility.bom))
             implementation(rootProject.libs.dua3.utility)
+
+            testImplementation(platform(rootProject.libs.junit.bom))
+            testImplementation(rootProject.libs.junit.jupiter.api)
+            testRuntimeOnly(rootProject.libs.junit.platform.launcher)
+            testRuntimeOnly(rootProject.libs.junit.jupiter.engine)
         }
 
         idea {
