@@ -601,7 +601,7 @@ public final class License {
 
             if (minVersion != null && maxVersion != null) {
                 if (minVersion.compareTo(maxVersion) > 0) {
-                    validationOutput.append("❌ Mimimum version is greater than maximum version: " + minVersion + " > " + maxVersion + "\n");
+                    validationOutput.append("❌ Mimimum version is greater than maximum version: ").append(String.valueOf(minVersion)).append(" > ").append(String.valueOf(maxVersion)).append("\n");
                 } else {
                     validationOutput.append("✓ Minimum version <= maximum version.\n");
                 }
@@ -609,7 +609,8 @@ public final class License {
 
             if (minVersion != null && maxVersion != null) {
                 if (!currentVersion.isBetween(minVersion, maxVersion)) {
-                    validationOutput.append("❌ Version is not covered by this license: " + currentVersion + "\n");
+                    validationOutput.append("❌ Version is not covered by this license: ")
+                            .append(String.valueOf(currentVersion)).append("\n");
                 } else {
                     validationOutput.append("✓ Version is covered by this license.\n");
                 }
