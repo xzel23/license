@@ -121,7 +121,7 @@ public final class License {
             }
 
             if (keys.stream().map(enumName).anyMatch(SIGNATURE::equalsIgnoreCase)) {
-                throw new LicenseException("invalid keyClass");
+                throw new LicenseException("license data contains reserved key: " + SIGNATURE);
             }
 
             this.keyClass = keyClass;
@@ -620,7 +620,7 @@ public final class License {
                 }
             }
 
-            if (minVersion != null && maxVersion != null) {
+            if (currentVersion != null && minVersion != null && maxVersion != null) {
                 if (!currentVersion.isBetween(minVersion, maxVersion)) {
                     validationOutput.append("❌ Version is not covered by this license: ")
                             .append(String.valueOf(currentVersion)).append("\n");
