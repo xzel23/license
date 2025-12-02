@@ -18,7 +18,6 @@ import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -152,13 +151,15 @@ public final class License {
      * @param licenseFieldsEnum the enum class defining the license fields
      * @param licenseData       the license data
      * @param signer            the signing function
+     * @param trustedRoots      the root certificates trusted by the application
      * @return an unmodifiable sequenced map containing the signed license data
      * @throws LicenseException if an error occurs
      */
-    public static SequencedMap<String, Object> createLicense(
+    public static License createLicense(
             Class<? extends Enum> licenseFieldsEnum,
             Map<String, Object> licenseData,
-            Function<byte[], byte[]> signer
+            Function<byte[], byte[]> signer,
+            Certificate... trustedRoots
     ) throws LicenseException {
         try {
             // Get enum values using reflection
@@ -168,60 +169,15 @@ public final class License {
                     .toList();
 
             return createLicense(
+                    licenseFieldsEnum,
                     licenseFields,
                     licenseData,
-                    signer
+                    signer,
+                    trustedRoots
             );
         } catch (InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
             throw new LicenseException("internal error during license creation", e);
         }
-    }
-
-    /**
-     * Creates a license with the specified license fields and data, signs it with the provided key,
-     * and returns the signed license data.
-     *
-     * @param licenseFields the list of license field names
-     * @param licenseData   the license data
-     * @param signer        the signing function
-     * @return an unmodifiable sequenced map containing the signed license data
-     */
-    private static SequencedMap<String, Object> createLicense(
-            List<String> licenseFields,
-            Map<String, Object> licenseData,
-            Function<byte[], byte[]> signer
-    ) {
-        // Validate that all license data keys are in the license fields
-        for (String key : licenseData.keySet()) {
-            if (!licenseFields.contains(key) && !key.equals(SIGNATURE)) {
-                throw new IllegalArgumentException("License data contains key not in license fields: " + key);
-            }
-        }
-
-        // Create a copy of the license data without the signature
-        Map<String, Object> dataToSign = new LinkedHashMap<>(licenseData);
-        dataToSign.remove(SIGNATURE);
-
-        // Sign the data
-        byte[] dataToSignBytes = prepareSigningData(dataToSign);
-        byte[] signatureBytes = signer.apply(dataToSignBytes);
-        String signatureBase64 = Base64.getEncoder().encodeToString(signatureBytes);
-
-        // Add the signature to the license data
-        SequencedMap<String, Object> finalLicenseData = new LinkedHashMap<>(licenseData);
-        finalLicenseData.put(SIGNATURE, signatureBase64);
-
-        return Collections.unmodifiableSequencedMap(finalLicenseData);
-    }
-
-    /**
-     * Prepares the data for signing.
-     *
-     * @param data the license data
-     * @return the data to be signed as a byte array
-     */
-    public static byte[] prepareSigningData(Map<?, ?> data) {
-        return data.toString().getBytes(StandardCharsets.UTF_8);
     }
 
     /**
@@ -231,21 +187,28 @@ public final class License {
      * @param licenseFieldsEnum the dynamic enum defining the license fields
      * @param licenseData       the license data
      * @param signer            the signing function
+     * @param trustedRoots  the root certificates trusted by the application
      * @return an unmodifiable sequenced map containing the signed license data
+     * @throws LicenseException if the license could not be created
      */
-    public static SequencedMap<String, Object> createLicense(
+    public static License createLicense(
             DynamicEnum licenseFieldsEnum,
             Map<String, Object> licenseData,
-            Function<byte[], byte[]> signer
-    ) {
-        List<String> licenseFields = Arrays.stream(licenseFieldsEnum.values())
-                .map(DynamicEnum.EnumValue::name)
+            Function<byte[], byte[]> signer,
+            Certificate... trustedRoots
+    ) throws LicenseException {
+        // Get 'fake' enum values
+        Object[] enumValues = licenseFieldsEnum.values();
+        List<String> licenseFields = Arrays.stream(enumValues)
+                .map(v -> ((Enum<?>) v).name())
                 .toList();
 
         return createLicense(
+                String.class,
                 licenseFields,
                 licenseData,
-                signer
+                signer,
+                trustedRoots
         );
     }
 
@@ -286,6 +249,56 @@ public final class License {
         }
 
         return new License(keyClass.asSubclass(Enum.class), properties, trustedRoots);
+    }
+
+    /**
+     * Creates a license with the specified license fields and data, signs it with the provided key,
+     * and returns the signed license data.
+     *
+     * @param keyClass      the key class defining the license fields
+     * @param licenseFields the list of license field names
+     * @param licenseData   the license data
+     * @param signer        the signing function
+     * @param trustedRoots  the root certificates trusted by the application
+     * @return an unmodifiable sequenced map containing the signed license data
+     */
+    private static License createLicense(
+            Class<?> keyClass,
+            List<String> licenseFields,
+            Map<String, Object> licenseData,
+            Function<byte[], byte[]> signer,
+            Certificate... trustedRoots) throws LicenseException {
+        // Validate that all license data keys are in the license fields
+        for (String key : licenseData.keySet()) {
+            if (!licenseFields.contains(key) && !key.equals(SIGNATURE)) {
+                throw new IllegalArgumentException("License data contains key not in license fields: " + key);
+            }
+        }
+
+        // Create a copy of the license data without the signature
+        Map<String, Object> dataToSign = new LinkedHashMap<>(licenseData);
+        dataToSign.remove(SIGNATURE);
+
+        // Sign the data
+        byte[] dataToSignBytes = prepareSigningData(dataToSign);
+        byte[] signatureBytes = signer.apply(dataToSignBytes);
+        String signatureBase64 = Base64.getEncoder().encodeToString(signatureBytes);
+
+        // Add the signature to the license data
+        SequencedMap<String, Object> finalLicenseData = new LinkedHashMap<>(licenseData);
+        finalLicenseData.put(SIGNATURE, signatureBase64);
+
+        return new License(keyClass, finalLicenseData, trustedRoots);
+    }
+
+    /**
+     * Prepares the data for signing.
+     *
+     * @param data the license data
+     * @return the data to be signed as a byte array
+     */
+    public static byte[] prepareSigningData(Map<?, ?> data) {
+        return data.toString().getBytes(StandardCharsets.UTF_8);
     }
 
     /**

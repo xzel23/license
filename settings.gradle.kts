@@ -4,7 +4,7 @@
 import org.gradle.internal.extensions.stdlib.toDefaultLowerCase
 
 rootProject.name = "license"
-val projectVersion = "0.1.0-beta20"
+val projectVersion = "0.1.0-beta21"
 
 plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"

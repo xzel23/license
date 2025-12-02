@@ -9,6 +9,9 @@ import java.util.Optional;
  * This exception can optionally include additional details about the error.
  */
 public class LicenseException extends Exception {
+    /**
+     * An optional string containing additional information about the license-related error.
+     */
     private final @Nullable String detail;
 
     /**
