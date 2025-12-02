@@ -14,6 +14,7 @@ import java.security.GeneralSecurityException;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Arrays;
@@ -62,7 +63,7 @@ public final class License {
     /**
      * Represents the field name used to access the last date the license is valid.
      */
-    public static final String VALID_UNTIL_LICENSE_FIELD = "VALID_UNTIL";
+    public static final String EXPIRY_DATE_LICENSE_FIELD = "EXPIRY_DATE";
 
     /**
      * Define the list of fields that have to be present in every license.
@@ -71,7 +72,7 @@ public final class License {
             LICENSE_ID_LICENSE_FIELD,
             LICENSEE_LICENSE_FIELD,
             ISSUE_DATE_LICENSE_FIELD,
-            VALID_UNTIL_LICENSE_FIELD,
+            EXPIRY_DATE_LICENSE_FIELD,
             SIGNATURE_LICENSE_FIELD
     );
     /**
@@ -86,7 +87,6 @@ public final class License {
      * that the license is compatible with.
      */
     public static final String MAX_VERSION_LICENSE_FIELD = "MAX_VERSION";
-    private static final String SIGNATURE = "signature";
 
     private final Object keyClass;
     private final Map<Object, Object> data;
@@ -120,8 +120,8 @@ public final class License {
                 default -> throw new IllegalArgumentException("invalid keyClass");
             }
 
-            if (keys.stream().map(enumName).anyMatch(SIGNATURE::equalsIgnoreCase)) {
-                throw new LicenseException("license data contains reserved key: " + SIGNATURE);
+            if (keys.stream().map(enumName).anyMatch(SIGNATURE_LICENSE_FIELD::equalsIgnoreCase)) {
+                throw new LicenseException("license data contains reserved key: " + SIGNATURE_LICENSE_FIELD);
             }
 
             this.keyClass = keyClass;
@@ -134,7 +134,9 @@ public final class License {
                 throw new LicenseException("invalid license data", properties.toString());
             }
 
-            if (!validate(properties, trustedRoots, null, new StringBuilder())) {
+            StringBuilder validationResult = new StringBuilder();
+            if (!validate(properties, trustedRoots, null, validationResult)) {
+                LOG.warn("License validation failed:\n{}", validationResult.toString());
                 throw new LicenseException("invalid signature");
             }
 
@@ -233,7 +235,7 @@ public final class License {
             Object value = entry.getValue();
 
             // Try to parse dates
-            if (key.equals(VALID_UNTIL_LICENSE_FIELD) || key.equals(ISSUE_DATE_LICENSE_FIELD)) {
+            if (key.equals(EXPIRY_DATE_LICENSE_FIELD) || key.equals(ISSUE_DATE_LICENSE_FIELD)) {
                 try {
                     if (value instanceof String s) {
                         properties.put(key, LocalDate.parse(s));
@@ -267,28 +269,36 @@ public final class License {
             List<String> licenseFields,
             Map<String, Object> licenseData,
             Function<byte[], byte[]> signer,
-            Certificate... trustedRoots) throws LicenseException {
-        // Validate that all license data keys are in the license fields
-        for (String key : licenseData.keySet()) {
-            if (!licenseFields.contains(key) && !key.equals(SIGNATURE)) {
-                throw new IllegalArgumentException("License data contains key not in license fields: " + key);
+            Certificate... trustedRoots
+    ) throws LicenseException {
+        try {
+            // Validate that all license data keys are in the license fields
+            for (String key : licenseData.keySet()) {
+                if (!licenseFields.contains(key) && !key.equals(SIGNATURE_LICENSE_FIELD)) {
+                    throw new IllegalArgumentException("License data contains key not in license fields: " + key);
+                }
             }
+
+            // Create a copy of the license data without the signature
+            Map<String, Object> dataToSign = new LinkedHashMap<>(licenseData);
+            dataToSign.remove(SIGNATURE_LICENSE_FIELD);
+
+            // Sign the data
+            byte[] dataToSignBytes = prepareSigningData(dataToSign);
+            byte[] signatureBytes = signer.apply(dataToSignBytes);
+            String signatureBase64 = Base64.getEncoder().encodeToString(signatureBytes);
+
+            byte[] certChainBytes = CertificateUtil.toPkcs7Bytes(trustedRoots);
+            String certChainBase64 = Base64.getEncoder().encodeToString(certChainBytes);
+
+            // Add the signature to the license data
+            SequencedMap<String, Object> finalLicenseData = new LinkedHashMap<>(licenseData);
+            finalLicenseData.put(SIGNATURE_LICENSE_FIELD, signatureBase64 + ":" + certChainBase64);
+
+            return new License(keyClass, finalLicenseData, trustedRoots);
+        } catch (CertificateException e) {
+            throw new LicenseException("could not create license", e);
         }
-
-        // Create a copy of the license data without the signature
-        Map<String, Object> dataToSign = new LinkedHashMap<>(licenseData);
-        dataToSign.remove(SIGNATURE);
-
-        // Sign the data
-        byte[] dataToSignBytes = prepareSigningData(dataToSign);
-        byte[] signatureBytes = signer.apply(dataToSignBytes);
-        String signatureBase64 = Base64.getEncoder().encodeToString(signatureBytes);
-
-        // Add the signature to the license data
-        SequencedMap<String, Object> finalLicenseData = new LinkedHashMap<>(licenseData);
-        finalLicenseData.put(SIGNATURE, signatureBase64);
-
-        return new License(keyClass, finalLicenseData, trustedRoots);
     }
 
     /**
@@ -436,7 +446,7 @@ public final class License {
                     LICENSE_ID_LICENSE_FIELD,
                     SIGNATURE_LICENSE_FIELD,
                     ISSUE_DATE_LICENSE_FIELD,
-                    VALID_UNTIL_LICENSE_FIELD,
+                    EXPIRY_DATE_LICENSE_FIELD,
                     MIN_VERSION_LICENSE_FIELD,
                     MAX_VERSION_LICENSE_FIELD
             };
@@ -568,7 +578,7 @@ public final class License {
             }
 
             // Check for expiration date
-            String expiryDateStr = Objects.requireNonNullElse(licenseData.get(VALID_UNTIL_LICENSE_FIELD), "").toString();
+            String expiryDateStr = Objects.requireNonNullElse(licenseData.get(EXPIRY_DATE_LICENSE_FIELD), "").toString();
             LocalDate expiryDate = null;
             try {
                 expiryDate = LocalDate.parse(expiryDateStr);
@@ -590,7 +600,7 @@ public final class License {
                 validationOutput.append("❌ License has expired on ").append(expiryDateStr).append("\n");
                 isValid = false;
             } else if (expiryDate != null) {
-                validationOutput.append("✓ License is valid until ").append(expiryDateStr).append("\n");
+                validationOutput.append("✓ License expires on ").append(expiryDateStr).append("\n");
             }
 
             // Check for minimum version
@@ -692,7 +702,7 @@ public final class License {
      * @return the expiry date as a {@code LocalDate}
      */
     public LocalDate getValidUntil() {
-        return (LocalDate) get(toKey(VALID_UNTIL_LICENSE_FIELD));
+        return (LocalDate) get(toKey(EXPIRY_DATE_LICENSE_FIELD));
     }
 
     /**
