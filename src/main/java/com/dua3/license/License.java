@@ -478,10 +478,11 @@ public final class License {
             try {
                 String[] signatureParts = signatureValue.split(":");
 
-                certChain = CertificateUtil.pkcs7BytesToCertificateChain(Base64.getDecoder().decode(signatureParts[0]));
-                signatureBytes = Base64.getDecoder().decode(signatureParts[1]);
+                signatureBytes = Base64.getDecoder().decode(signatureParts[0]);
+                certChain = CertificateUtil.pkcs7BytesToCertificateChain(Base64.getDecoder().decode(signatureParts[1]));
                 validationOutput.append("✓ Signature format is valid.\n");
             } catch (GeneralSecurityException | ArrayIndexOutOfBoundsException e) {
+                LOG.warn("Invalid signature format: {}", signatureValue, e);
                 validationOutput.append("❌ Invalid signature format.\n");
                 certChain = null;
                 signatureBytes = null;
@@ -521,6 +522,7 @@ public final class License {
                         }
                     }
                 } catch (Exception e) {
+                    LOG.warn("Error verifying signature: ", signatureValue, e.getMessage(), e);
                     validationOutput.append("❌ Error verifying signature: ").append(e.getMessage()).append("\n");
                     isValid = false;
                 }
