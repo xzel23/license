@@ -2,7 +2,9 @@ package com.dua3.license;
 
 import com.dua3.utility.application.LicenseData;
 import com.dua3.utility.crypt.CertificateUtil;
+import com.dua3.utility.lang.LangUtil;
 import com.dua3.utility.lang.Version;
+import com.dua3.utility.text.TextUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
@@ -11,15 +13,25 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
-import java.security.PublicKey;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.NoSuchAlgorithmException;
 import java.security.Signature;
+import java.security.cert.CertPath;
+import java.security.cert.CertPathValidator;
+import java.security.cert.CertPathValidatorException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.PKIXParameters;
+import java.security.cert.TrustAnchor;
+import java.security.cert.X509Certificate;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -91,17 +103,19 @@ public final class License {
     private final Object keyClass;
     private final Map<Object, Object> data;
     private final @Nullable String licenseText;
+    private final byte[] signatureBytes;
+    private final Certificate[] certChain;
 
     /**
      * Constructs a new instance of the License class. This constructor verifies the signature of the license
      * properties against the provided public key and initializes the license data.
      *
-     * @param keyClass     the class defining the keys used in the license; this must be an enum class or a DynamicEnum
-     * @param properties   a map of license properties, including the signature and other license data
-     * @param trustedRoots the trusted root certificates
+     * @param keyClass        the class defining the keys used in the license; this must be an enum class or a DynamicEnum
+     * @param properties      a map of license properties, including the signature and other license data
+     * @param trustedRoots    the certificates trusted by the application
      * @throws LicenseException if the key class is invalid, the license signature is invalid, or any other error occurs during processing
      */
-    private License(Object keyClass, Map<String, Object> properties, Certificate... trustedRoots) throws LicenseException {
+    private License(Object keyClass, Map<String, Object> properties, Certificate[] trustedRoots) throws LicenseException {
         try {
             Set<Object> keys;
             Function<Object, String> enumName;
@@ -126,6 +140,13 @@ public final class License {
 
             this.keyClass = keyClass;
 
+            // store signing details
+            String[] signatureParts = properties.get(SIGNATURE_LICENSE_FIELD).toString().split(":");
+            LangUtil.check(signatureParts.length == 2, "signature format error");
+
+            this.signatureBytes = TextUtil.base64Decode(signatureParts[0]);
+            this.certChain = CertificateUtil.parsePkiPathBytes(TextUtil.base64Decode(signatureParts[1]));
+
             // copy the signature data
             this.data = LinkedHashMap.newLinkedHashMap(keys.size());
             keys.forEach(key -> data.put(enumName.apply(key), properties.get(key.toString())));
@@ -140,10 +161,31 @@ public final class License {
                 throw new LicenseException("invalid signature");
             }
 
+            // set the license text
             this.licenseText = data.toString();
         } catch (InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
             throw new LicenseException("error in key class", e);
+        } catch (CertificateException e) {
+            throw new LicenseException("error in certificate chain", e);
         }
+    }
+
+    /**
+     * Retrieves the byte array representing the signature.
+     *
+     * @return a byte array containing the signature data
+     */
+    public byte[] getSignatureBytes() {
+        return signatureBytes;
+    }
+
+    /**
+     * Retrieves the RSA public key used for the license.
+     *
+     * @return the RSA public key associated with signing operations
+     */
+    public Certificate[] getCertChain() {
+        return Arrays.copyOf(certChain, certChain.length);
     }
 
     /**
@@ -153,6 +195,7 @@ public final class License {
      * @param licenseFieldsEnum the enum class defining the license fields
      * @param licenseData       the license data
      * @param signer            the signing function
+     * @param certChain     the certificate chain used for signing
      * @param trustedRoots      the root certificates trusted by the application
      * @return an unmodifiable sequenced map containing the signed license data
      * @throws LicenseException if an error occurs
@@ -161,7 +204,8 @@ public final class License {
             Class<? extends Enum> licenseFieldsEnum,
             Map<String, Object> licenseData,
             Function<byte[], byte[]> signer,
-            Certificate... trustedRoots
+            Certificate[] certChain,
+            Certificate[] trustedRoots
     ) throws LicenseException {
         try {
             // Get enum values using reflection
@@ -175,6 +219,7 @@ public final class License {
                     licenseFields,
                     licenseData,
                     signer,
+                    certChain,
                     trustedRoots
             );
         } catch (InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
@@ -189,6 +234,7 @@ public final class License {
      * @param licenseFieldsEnum the dynamic enum defining the license fields
      * @param licenseData       the license data
      * @param signer            the signing function
+     * @param certChain     the certificate chain used for signing
      * @param trustedRoots  the root certificates trusted by the application
      * @return an unmodifiable sequenced map containing the signed license data
      * @throws LicenseException if the license could not be created
@@ -197,7 +243,8 @@ public final class License {
             DynamicEnum licenseFieldsEnum,
             Map<String, Object> licenseData,
             Function<byte[], byte[]> signer,
-            Certificate... trustedRoots
+            Certificate[] certChain,
+            Certificate[] trustedRoots
     ) throws LicenseException {
         // Get 'fake' enum values
         Object[] enumValues = licenseFieldsEnum.values();
@@ -210,6 +257,7 @@ public final class License {
                 licenseFields,
                 licenseData,
                 signer,
+                certChain,
                 trustedRoots
         );
     }
@@ -226,7 +274,7 @@ public final class License {
     public static License load(
             Class<? extends Enum<?>> keyClass,
             SequencedMap<String, Object> licenseData,
-            Certificate... trustedRoots
+            Certificate[] trustedRoots
     ) throws LicenseException {
         // Convert JSON data to a map of string to object with proper types
         Map<String, Object> properties = new HashMap<>();
@@ -261,7 +309,8 @@ public final class License {
      * @param licenseFields the list of license field names
      * @param licenseData   the license data
      * @param signer        the signing function
-     * @param trustedRoots  the root certificates trusted by the application
+     * @param certChain     the certificate chain used for signing
+     * @param trustedRoots  the trusted certificates
      * @return an unmodifiable sequenced map containing the signed license data
      */
     private static License createLicense(
@@ -269,9 +318,16 @@ public final class License {
             List<String> licenseFields,
             Map<String, Object> licenseData,
             Function<byte[], byte[]> signer,
-            Certificate... trustedRoots
+            Certificate[] certChain,
+            Certificate[] trustedRoots
     ) throws LicenseException {
         try {
+            // check that the certificate chain is not empty and its root certificate is trusted
+            LangUtil.check(validateCertificateChain(certChain, trustedRoots), "invalid certificate chain");
+
+            // validate the certificate chain
+            CertificateUtil.verifyCertificateChain(certChain);
+
             // Validate that all license data keys are in the license fields
             for (String key : licenseData.keySet()) {
                 if (!licenseFields.contains(key) && !key.equals(SIGNATURE_LICENSE_FIELD)) {
@@ -286,10 +342,10 @@ public final class License {
             // Sign the data
             byte[] dataToSignBytes = prepareSigningData(dataToSign);
             byte[] signatureBytes = signer.apply(dataToSignBytes);
-            String signatureBase64 = Base64.getEncoder().encodeToString(signatureBytes);
+            String signatureBase64 = TextUtil.base64Encode(signatureBytes);
 
-            byte[] certChainBytes = CertificateUtil.toPkcs7Bytes(trustedRoots);
-            String certChainBase64 = Base64.getEncoder().encodeToString(certChainBytes);
+            byte[] certChainBytes = CertificateUtil.toPkiPathBytes(certChain);
+            String certChainBase64 = TextUtil.base64Encode(certChainBytes);
 
             // Add the signature to the license data
             SequencedMap<String, Object> finalLicenseData = new LinkedHashMap<>(licenseData);
@@ -478,8 +534,9 @@ public final class License {
             try {
                 String[] signatureParts = signatureValue.split(":");
 
-                signatureBytes = Base64.getDecoder().decode(signatureParts[0]);
-                certChain = CertificateUtil.pkcs7BytesToCertificateChain(Base64.getDecoder().decode(signatureParts[1]));
+                signatureBytes = TextUtil.base64Decode(signatureParts[0]);
+                certChain = CertificateUtil.parsePkiPathBytes(TextUtil.base64Decode(signatureParts[1]));
+                CertificateUtil.verifyCertificateChain(certChain);
                 validationOutput.append("✓ Signature format is valid.\n");
             } catch (GeneralSecurityException | ArrayIndexOutOfBoundsException e) {
                 LOG.warn("Invalid signature format: {}", signatureValue, e);
@@ -498,15 +555,15 @@ public final class License {
                     if (certChain.length == 0) {
                         validationOutput.append("❌ Certificate chain is empty.\n");
                         isValid = false;
-                    } else if (!isTrusted(certChain[0], trustedRoots)) {
-                        validationOutput.append("❌ Root certificate is not trusted.\n");
-                        isValid = false;
                     } else {
-                        PublicKey publicKey = certChain[0].getPublicKey();
+                        if (!validateCertificateChain(certChain, trustedRoots)) {
+                            validationOutput.append("❌ Invalid or untrusted certificate chain .\n");
+                            isValid = false;
+                        }
 
                         // Create signature instance
                         Signature signature = Signature.getInstance("SHA256withRSA");
-                        signature.initVerify(publicKey);
+                        signature.initVerify(certChain[0].getPublicKey());
 
                         // Update with the data to verify
                         signature.update(unsignedLicenseData);
@@ -648,13 +705,51 @@ public final class License {
         return isValid;
     }
 
-    private static boolean isTrusted(Certificate certificate, Certificate[] trustedRooots) {
-        for (Certificate trustedRooot : trustedRooots) {
-            if (certificate.equals(trustedRooot)) {
-                return true;
-            }
+    private static boolean validateCertificateChain(Certificate[] certChain, Certificate[] trustedRoots) throws CertificateException {
+        if (certChain.length == 0) {
+            LOG.warn("Certificate chain is empty");
+            return false;
         }
-        return false;
+
+        try {
+            // Remove server-provided root; CertPath must *not* include trust anchor
+            List<X509Certificate> x509Chain = Arrays.stream(certChain).map(X509Certificate.class::cast).toList();
+            List<X509Certificate> x509Roots = Arrays.stream(trustedRoots).map(X509Certificate.class::cast).toList();
+/*
+            X509Certificate last = x509Chain.getLast();
+            for (X509Certificate root : x509Roots) {
+                if (root.getSubjectX500Principal().equals(last.getSubjectX500Principal()) &&
+                        root.getPublicKey().equals(last.getPublicKey())) {
+                    x509Chain = x509Chain.subList(0, x509Chain.size() - 1);
+                    break;
+                }
+            }
+*/
+            // Convert trusted roots into trust anchors
+            Set<TrustAnchor> trustAnchors = new HashSet<>();
+            for (X509Certificate root : x509Roots) {
+                trustAnchors.add(new TrustAnchor(root, null));
+            }
+
+            // Build CertPath from the provided chain
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            CertPath certPath = cf.generateCertPath(x509Chain);
+
+            // PKIX parameters with trust anchors
+            PKIXParameters params = new PKIXParameters(trustAnchors);
+            params.setRevocationEnabled(false); // or true if you add CRL/OCSP support
+
+            // Validate
+            CertPathValidator validator = CertPathValidator.getInstance("PKIX");
+            validator.validate(certPath, params);
+            return true;
+        } catch (CertPathValidatorException e) {
+            LOG.warn("Invalid certificate chain: {}", e.getMessage(), e);
+            return false;
+        } catch (InvalidAlgorithmParameterException | NoSuchAlgorithmException | CertificateException e) {
+            LOG.warn("Error validating certificate chain: {}", e.getMessage(), e);
+            return false;
+        }
     }
 
     /**
