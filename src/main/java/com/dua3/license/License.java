@@ -715,16 +715,7 @@ public final class License {
             // Remove server-provided root; CertPath must *not* include trust anchor
             List<X509Certificate> x509Chain = Arrays.stream(certChain).map(X509Certificate.class::cast).toList();
             List<X509Certificate> x509Roots = Arrays.stream(trustedRoots).map(X509Certificate.class::cast).toList();
-/*
-            X509Certificate last = x509Chain.getLast();
-            for (X509Certificate root : x509Roots) {
-                if (root.getSubjectX500Principal().equals(last.getSubjectX500Principal()) &&
-                        root.getPublicKey().equals(last.getPublicKey())) {
-                    x509Chain = x509Chain.subList(0, x509Chain.size() - 1);
-                    break;
-                }
-            }
-*/
+
             // Convert trusted roots into trust anchors
             Set<TrustAnchor> trustAnchors = new HashSet<>();
             for (X509Certificate root : x509Roots) {
