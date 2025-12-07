@@ -6,7 +6,7 @@ import com.dua3.utility.lang.LangUtil;
 import com.dua3.utility.lang.Version;
 import com.dua3.utility.text.TextUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SequenceWriter;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
@@ -162,7 +162,7 @@ public final class License {
             StringBuilder validationResult = new StringBuilder();
             if (!validate(properties, trustedRoots, null, validationResult)) {
                 LOG.warn("License validation failed:\n{}", validationResult.toString());
-                throw new LicenseException("invalid signature");
+                throw new LicenseException("License validation failed: " + validationResult.toString());
             }
 
             // set the license text
@@ -250,14 +250,14 @@ public final class License {
             Certificate[] certChain,
             Certificate[] trustedRoots
     ) throws LicenseException {
-        // Get 'fake' enum values
-        Object[] enumValues = licenseFieldsEnum.values();
+        // Get dynamic enum value names
+        DynamicEnum.EnumValue[] enumValues = licenseFieldsEnum.values();
         List<String> licenseFields = Arrays.stream(enumValues)
-                .map(v -> ((Enum<?>) v).name())
+                .map(DynamicEnum.EnumValue::name)
                 .toList();
 
         return createLicense(
-                String.class,
+                licenseFieldsEnum,
                 licenseFields,
                 licenseData,
                 signer,
@@ -362,7 +362,32 @@ public final class License {
      * @throws IOException if an I/O error occurs during writing to the OutputStream
      */
     public void save(OutputStream out) throws IOException {
-        new ObjectMapper().writerWithDefaultPrettyPrinter().writeValue(out, data);
+        // build a properties map including signature and data, converting values to JSON-friendly types
+        Map<String, Object> props = new LinkedHashMap<>(data.size() + 1);
+        for (Map.Entry<Object, Object> e : data.entrySet()) {
+            String k = e.getKey().toString();
+            Object v = e.getValue();
+            if (v instanceof LocalDate ld) {
+                props.put(k, ld.toString());
+            } else if (v instanceof Version ver) {
+                props.put(k, ver.toString());
+            } else {
+                props.put(k, v);
+            }
+        }
+        try {
+            String sig = TextUtil.base64Encode(signatureBytes);
+            String chain = TextUtil.base64Encode(CertificateUtil.toPkiPathBytes(certChain));
+            props.put(SIGNATURE_LICENSE_FIELD, sig + ":" + chain);
+        } catch (CertificateException e) {
+            throw new IOException("could not serialize certificate chain", e);
+        }
+
+        new ObjectMapper()
+                .findAndRegisterModules()
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+                .writerWithDefaultPrettyPrinter()
+                .writeValue(out, props);
     }
 
     /**
@@ -378,7 +403,7 @@ public final class License {
      * @return an unmodifiable sequenced map containing the signed license data
      */
     private static License createLicense(
-            Class<?> keyClass,
+            Object keyClass,
             List<String> licenseFields,
             Map<String, Object> licenseData,
             Function<byte[], byte[]> signer,
@@ -428,7 +453,20 @@ public final class License {
      * @return the data to be signed as a byte array
      */
     public static byte[] prepareSigningData(Map<?, ?> data) {
-        return data.toString().getBytes(StandardCharsets.UTF_8);
+        // create deterministic representation independent of map iteration order
+        Map<String, Object> sorted = new java.util.TreeMap<>();
+        for (Map.Entry<?, ?> e : data.entrySet()) {
+            String k = String.valueOf(e.getKey());
+            Object v = e.getValue();
+            if (v instanceof LocalDate ld) {
+                sorted.put(k, ld.toString());
+            } else if (v instanceof Version ver) {
+                sorted.put(k, ver.toString());
+            } else {
+                sorted.put(k, v);
+            }
+        }
+        return sorted.toString().getBytes(StandardCharsets.UTF_8);
     }
 
     /**
@@ -463,11 +501,10 @@ public final class License {
      */
     Object get(Object key) {
         return switch (keyClass) {
-            case DynamicEnum de
-                    when key instanceof DynamicEnum.EnumValue enumValue && enumValue.parent() == keyClass ->
-                    data.get(key);
-            case Class<?> cls
-                    when cls.isEnum() && cls.isAssignableFrom(key.getClass()) -> data.get(key);
+            case DynamicEnum de when key instanceof DynamicEnum.EnumValue enumValue && enumValue.parent() == keyClass ->
+                    data.get(enumValue.name());
+            case Class<?> cls when cls.isEnum() && cls.isAssignableFrom(key.getClass()) ->
+                    data.get(((Enum<?>) key).name());
             default -> throw new IllegalArgumentException("invalid key");
         };
     }
@@ -495,7 +532,13 @@ public final class License {
      * @return the signature as a string, or null if no signature is associated
      */
     public String getSignature() {
-        return (String) get(toKey(SIGNATURE_LICENSE_FIELD));
+        String sig = TextUtil.base64Encode(signatureBytes);
+        try {
+            String chain = TextUtil.base64Encode(CertificateUtil.toPkiPathBytes(certChain));
+            return sig + ":" + chain;
+        } catch (CertificateException e) {
+            throw new IllegalStateException("could not encode certificate chain", e);
+        }
     }
 
     /**
@@ -539,10 +582,21 @@ public final class License {
     public boolean validate(Certificate[] trustedRoots, Version currentVersion, Appendable validationOutput) {
         Map<String, Object> licenseData = new LinkedHashMap<>();
 
-        // Convert internal data to a map of strings
+        // Convert internal data to a map of strings with JSON-friendly values
         for (Map.Entry<Object, Object> entry : data.entrySet()) {
-            licenseData.put(entry.getKey().toString(), entry.getValue());
+            String k = entry.getKey().toString();
+            Object v = entry.getValue();
+            if (v instanceof LocalDate ld) {
+                licenseData.put(k, ld.toString());
+            } else if (v instanceof Version ver) {
+                licenseData.put(k, ver.toString());
+            } else {
+                licenseData.put(k, v);
+            }
         }
+
+        // add signature field from internal state
+        licenseData.put(SIGNATURE_LICENSE_FIELD, getSignature());
 
         // Use the static validate method to validate the license data
         return validate(licenseData, trustedRoots, currentVersion, validationOutput);
@@ -602,7 +656,7 @@ public final class License {
                 certChain = CertificateUtil.parsePkiPathBytes(TextUtil.base64Decode(signatureParts[1]));
                 CertificateUtil.verifyCertificateChain(certChain);
                 validationOutput.append("✓ Signature format is valid.\n");
-            } catch (GeneralSecurityException | ArrayIndexOutOfBoundsException e) {
+            } catch (GeneralSecurityException | ArrayIndexOutOfBoundsException | IllegalArgumentException e) {
                 LOG.warn("Invalid signature format: {}", signatureValue, e);
                 validationOutput.append("❌ Invalid signature format.\n");
                 certChain = null;
@@ -755,6 +809,7 @@ public final class License {
 
             if (currentVersion != null && minVersion != null && maxVersion != null) {
                 if (!currentVersion.isBetween(minVersion, maxVersion)) {
+                    isValid = false;
                     validationOutput.append("❌ Version is not covered by this license: ")
                             .append(String.valueOf(currentVersion)).append("\n");
                 } else {
@@ -817,7 +872,7 @@ public final class License {
      * @return a byte array representing the unsigned license data in UTF-8 encoding
      */
     public static byte[] getUnsignedLicenseData(Map<String, Object> licenseData) {
-        Map<String, Object> dataToVerify = new LinkedHashMap<>(licenseData);
+        Map<String, Object> dataToVerify = new java.util.TreeMap<>(licenseData);
         dataToVerify.remove(SIGNATURE_LICENSE_FIELD);
         return dataToVerify.toString().getBytes(StandardCharsets.UTF_8);
     }

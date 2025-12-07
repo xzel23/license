@@ -264,6 +264,9 @@ allprojects {
 
             testImplementation(platform(rootProject.libs.junit.bom))
             testImplementation(rootProject.libs.junit.jupiter.api)
+            // Needed for generating/testing X.509 certificates in unit tests
+            testImplementation(rootProject.libs.bouncycastle.provider)
+            testImplementation(rootProject.libs.bouncycastle.pkix)
             testRuntimeOnly(rootProject.libs.junit.platform.launcher)
             testRuntimeOnly(rootProject.libs.junit.jupiter.engine)
         }
