@@ -251,6 +251,11 @@ allprojects {
         dependencies {
             implementation(rootProject.libs.jspecify)
 
+            implementation(platform(rootProject.libs.jackson.bom))
+            implementation(libs.jackson.annotations)
+            implementation(libs.jackson.core)
+            implementation(libs.jackson.databind)
+
             implementation(platform(rootProject.libs.log4j.bom))
             implementation(rootProject.libs.log4j.api)
 

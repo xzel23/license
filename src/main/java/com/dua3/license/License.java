@@ -5,13 +5,19 @@ import com.dua3.utility.crypt.CertificateUtil;
 import com.dua3.utility.lang.LangUtil;
 import com.dua3.utility.lang.Version;
 import com.dua3.utility.text.TextUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SequenceWriter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.NoSuchAlgorithmException;
@@ -27,9 +33,7 @@ import java.security.cert.TrustAnchor;
 import java.security.cert.X509Certificate;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -265,15 +269,15 @@ public final class License {
     /**
      * Loads a license from a sequenced map containing the license data.
      *
-     * @param keyClass     the enum class defining the keys used in the license
      * @param licenseData  the map containing the license data
+     * @param keyClass     the enum class defining the keys used in the license
      * @param trustedRoots the trusted root certificates
      * @return a {@code License} instance created using the provided properties and public key
      * @throws LicenseException if a problem occurs while loading or processing the license
      */
     public static License load(
-            Class<? extends Enum<?>> keyClass,
             SequencedMap<String, Object> licenseData,
+            Class<? extends Enum<?>> keyClass,
             Certificate[] trustedRoots
     ) throws LicenseException {
         // Convert JSON data to a map of string to object with proper types
@@ -299,6 +303,66 @@ public final class License {
         }
 
         return new License(keyClass.asSubclass(Enum.class), properties, trustedRoots);
+    }
+
+    /**
+     * Loads a license from the specified file path.
+     *
+     * @param path the path to the license file.
+     * @param keyClass the class of the enum used for license keys.
+     * @param trustedRoots an array of trusted root certificates for
+     *                     validating the license.
+     * @return the loaded license.
+     * @throws IOException if an I/O error occurs while reading the license file.
+     * @throws LicenseException if the license is invalid or cannot be loaded.
+     */
+    public static License load(Path path, Class<? extends Enum<?>> keyClass, Certificate[] trustedRoots) throws IOException, LicenseException {
+        try (InputStream in = Files.newInputStream(path)) {
+            return load(in, keyClass, trustedRoots);
+        }
+    }
+
+    /**
+     * Loads a license from an input stream and validates it against the provided key class and trusted root certificates.
+     *
+     * @param in the input stream containing the license data
+     * @param keyClass the class type of the enum used for license keys
+     * @param trustedRoots an array of trusted root certificates for license validation
+     * @return the loaded and validated License object
+     * @throws IOException if an I/O error occurs while reading from the input stream
+     * @throws LicenseException if the license is invalid or cannot be validated
+     */
+    public static License load(InputStream in, Class<? extends Enum<?>> keyClass, Certificate[] trustedRoots) throws IOException, LicenseException {
+        return load(
+                new ObjectMapper().reader().forType(SequencedMap.class).<SequencedMap<String, Object>>readValue(in),
+                keyClass,
+                trustedRoots
+        );
+    }
+
+    /**
+     * Saves the current state to the specified file path.
+     *
+     * The method opens an output stream to the provided file path
+     * and delegates the actual save operation to the {@code save(OutputStream)} method.
+     *
+     * @param path the file path where the current state should be saved
+     * @throws IOException if an I/O error occurs while saving
+     */
+    public void save(Path path) throws IOException {
+        try (OutputStream out = Files.newOutputStream(path)) {
+            save(out);
+        }
+    }
+
+    /**
+     * Serializes the data object into JSON format and writes it to the provided OutputStream.
+     *
+     * @param out the OutputStream where the JSON representation of the data will be written
+     * @throws IOException if an I/O error occurs during writing to the OutputStream
+     */
+    public void save(OutputStream out) throws IOException {
+        new ObjectMapper().writerWithDefaultPrettyPrinter().writeValue(out, data);
     }
 
     /**
