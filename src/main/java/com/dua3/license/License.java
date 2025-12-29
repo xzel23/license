@@ -342,7 +342,7 @@ public final class License {
 
     /**
      * Saves the current state to the specified file path.
-     *
+     * <p>
      * The method opens an output stream to the provided file path
      * and delegates the actual save operation to the {@code save(OutputStream)} method.
      *
