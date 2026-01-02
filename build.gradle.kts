@@ -19,11 +19,11 @@ plugins {
     id("signing")
     id("idea")
     id("jacoco-report-aggregation")
+    alias(libs.plugins.jdk)
     alias(libs.plugins.versions)
     alias(libs.plugins.test.logger)
     alias(libs.plugins.spotbugs)
     alias(libs.plugins.cabe)
-    alias(libs.plugins.forbiddenapis)
     alias(libs.plugins.sonar)
     alias(libs.plugins.jreleaser)
 }
@@ -187,6 +187,7 @@ allprojects {
     apply(plugin = "version-catalog")
     apply(plugin = "signing")
     apply(plugin = "idea")
+    apply(plugin = rootProject.libs.plugins.jdk.get().pluginId)
     apply(plugin = rootProject.libs.plugins.versions.get().pluginId)
     apply(plugin = rootProject.libs.plugins.test.logger.get().pluginId)
 
@@ -196,7 +197,6 @@ allprojects {
         apply(plugin = "java-library")
         apply(plugin = "jvm-test-suite")
         apply(plugin = rootProject.libs.plugins.spotbugs.get().pluginId)
-        apply(plugin = rootProject.libs.plugins.forbiddenapis.get().pluginId)
         if (project.name != "license-plugin") {
             apply(plugin = rootProject.libs.plugins.cabe.get().pluginId)
 
@@ -211,15 +211,13 @@ allprojects {
         }
     }
 
+    jdk {
+        version = 25
+    }
+
     // Java configuration for non-BOM projects
     if (!project.name.endsWith("-bom")) {
         java {
-            toolchain {
-                languageVersion.set(JavaLanguageVersion.of(21))
-            }
-            targetCompatibility = JavaVersion.VERSION_21
-            sourceCompatibility = targetCompatibility
-
             withJavadocJar()
             withSourcesJar()
         }
@@ -330,14 +328,8 @@ allprojects {
         }
     }
 
-    // Forbidden APIs and SpotBugs for non-BOM projects
+    // SpotBugs for non-BOM projects
     if (!project.name.endsWith("-bom")) {
-        // === FORBIDDEN APIS ===
-        tasks.withType(de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis::class).configureEach {
-            bundledSignatures = setOf("jdk-internal", "jdk-deprecated")
-            ignoreFailures = false
-        }
-
         // === SPOTBUGS ===
         spotbugs {
             toolVersion.set(rootProject.libs.versions.spotbugs)

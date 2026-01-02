@@ -6,10 +6,6 @@ import org.gradle.internal.extensions.stdlib.toDefaultLowerCase
 rootProject.name = "license"
 val projectVersion = "0.1.0-rc2"
 
-plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
-}
-
 dependencyResolutionManagement {
 
     val isSnapshot = projectVersion.toDefaultLowerCase().contains("-snapshot")
@@ -19,15 +15,15 @@ dependencyResolutionManagement {
         create("libs") {
             version("projectVersion", projectVersion)
 
+            plugin("jdk", "com.dua3.gradle.jdkprovider").version("0.4.0")
             plugin("cabe", "com.dua3.cabe").version("3.3.0")
-            plugin("forbiddenapis", "de.thetaphi.forbiddenapis").version("3.10")
             plugin("jreleaser", "org.jreleaser").version("1.22.0")
             plugin("sonar", "org.sonarqube").version("7.2.2.6593")
             plugin("spotbugs", "com.github.spotbugs").version("6.4.8")
             plugin("test-logger", "com.adarshr.test-logger").version("4.0.0")
             plugin("versions", "com.github.ben-manes.versions").version("0.53.0")
 
-            version("dua3-utility", "20.4.0")
+            version("dua3-utility", "20.4.1")
             version("jspecify", "1.0.0")
             version("junit-bom", "6.0.1")
             version("log4j-bom", "2.25.3")
