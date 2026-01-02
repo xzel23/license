@@ -47,7 +47,7 @@ import java.util.function.Function;
 
 /**
  * Represents a License with associated metadata and functionality for validation and processing.
- * The License class provides mfunctionality load, validate, and manage license data, supporting
+ * The License class provides functionality to load, validate, and manage license data, supporting
  * cryptographic operations such as signing and signature verification.
  */
 public final class License {
@@ -162,7 +162,7 @@ public final class License {
             StringBuilder validationResult = new StringBuilder();
             if (!validate(properties, trustedRoots, null, validationResult)) {
                 LOG.warn("License validation failed:\n{}", validationResult.toString());
-                throw new LicenseException("License validation failed: " + validationResult.toString());
+                throw new LicenseException("License validation failed: " + validationResult);
             }
 
             // set the license text
@@ -367,12 +367,10 @@ public final class License {
         for (Map.Entry<Object, Object> e : data.entrySet()) {
             String k = e.getKey().toString();
             Object v = e.getValue();
-            if (v instanceof LocalDate ld) {
-                props.put(k, ld.toString());
-            } else if (v instanceof Version ver) {
-                props.put(k, ver.toString());
-            } else {
-                props.put(k, v);
+            switch (v) {
+                case LocalDate ld -> props.put(k, ld.toString());
+                case Version ver -> props.put(k, ver.toString());
+                case null, default -> props.put(k, v);
             }
         }
         try {
@@ -458,12 +456,10 @@ public final class License {
         for (Map.Entry<?, ?> e : data.entrySet()) {
             String k = String.valueOf(e.getKey());
             Object v = e.getValue();
-            if (v instanceof LocalDate ld) {
-                sorted.put(k, ld.toString());
-            } else if (v instanceof Version ver) {
-                sorted.put(k, ver.toString());
-            } else {
-                sorted.put(k, v);
+            switch (v) {
+                case LocalDate ld -> sorted.put(k, ld.toString());
+                case Version ver -> sorted.put(k, ver.toString());
+                case null, default -> sorted.put(k, v);
             }
         }
         return sorted.toString().getBytes(StandardCharsets.UTF_8);
@@ -586,12 +582,10 @@ public final class License {
         for (Map.Entry<Object, Object> entry : data.entrySet()) {
             String k = entry.getKey().toString();
             Object v = entry.getValue();
-            if (v instanceof LocalDate ld) {
-                licenseData.put(k, ld.toString());
-            } else if (v instanceof Version ver) {
-                licenseData.put(k, ver.toString());
-            } else {
-                licenseData.put(k, v);
+            switch (v) {
+                case LocalDate ld -> licenseData.put(k, ld.toString());
+                case Version ver -> licenseData.put(k, ver.toString());
+                case null, default -> licenseData.put(k, v);
             }
         }
 
