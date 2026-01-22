@@ -282,7 +282,7 @@ allprojects {
                 val test by getting(JvmTestSuite::class) {
                     useJUnitJupiter()
                     dependencies {
-                        implementation(rootProject.libs.log4j.core)
+                        implementation(rootProject.libs.slb4j)
                     }
                     targets {
                         all {
