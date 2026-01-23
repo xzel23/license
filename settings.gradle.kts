@@ -4,7 +4,7 @@
 import org.gradle.internal.extensions.stdlib.toDefaultLowerCase
 
 rootProject.name = "license"
-val projectVersion = "0.1.0-rc2"
+val projectVersion = "0.1.0-rc3"
 
 dependencyResolutionManagement {
 
@@ -13,52 +13,8 @@ dependencyResolutionManagement {
 
     versionCatalogs {
         create("libs") {
+            from(files("gradle/libs.toml"))
             version("projectVersion", projectVersion)
-
-            plugin("jdk", "com.dua3.gradle.jdkprovider").version("0.4.0")
-            plugin("cabe", "com.dua3.cabe").version("3.3.0")
-            plugin("jreleaser", "org.jreleaser").version("1.22.0")
-            plugin("sonar", "org.sonarqube").version("7.2.2.6593")
-            plugin("spotbugs", "com.github.spotbugs").version("6.4.8")
-            plugin("test-logger", "com.adarshr.test-logger").version("4.0.0")
-            plugin("versions", "com.github.ben-manes.versions").version("0.53.0")
-
-            version("dua3-utility", "20.4.2")
-            version("jspecify", "1.0.0")
-            version("junit-bom", "6.0.1")
-            version("log4j-bom", "2.25.3")
-            version("spotbugs", "4.9.8")
-            version("miglayout", "11.4.2")
-            version("bouncycastle", "1.83")
-            version("jackson", "2.20.1")
-            library("jspecify", "org.jspecify", "jspecify").versionRef("jspecify")
-
-            library("dua3-utility-bom", "com.dua3.utility", "utility-bom").versionRef("dua3-utility")
-            library("dua3-utility", "com.dua3.utility", "utility").withoutVersion()
-            library(
-                "dua3-utility-logging-log4j",
-                "com.dua3.utility",
-                "utility-logging-log4j"
-            ).withoutVersion()
-            library("dua3-utility-swing", "com.dua3.utility", "utility-swing").withoutVersion()
-
-            library("log4j-bom", "org.apache.logging.log4j", "log4j-bom").versionRef("log4j-bom")
-            library("log4j-api", "org.apache.logging.log4j", "log4j-api").withoutVersion()
-            library("log4j-core", "org.apache.logging.log4j", "log4j-core").withoutVersion()
-            library("log4j-jul", "org.apache.logging.log4j", "log4j-jul").withoutVersion()
-
-            library("bouncycastle-provider", "org.bouncycastle", "bcprov-jdk18on").versionRef("bouncycastle")
-            library("bouncycastle-pkix", "org.bouncycastle", "bcpkix-jdk18on").versionRef("bouncycastle")
-
-            library("jackson-bom", "com.fasterxml.jackson", "jackson-bom").versionRef("jackson")
-            library("jackson-core", "com.fasterxml.jackson.core", "jackson-core").withoutVersion()
-            library("jackson-databind", "com.fasterxml.jackson.core", "jackson-databind").withoutVersion()
-            library("jackson-annotations", "com.fasterxml.jackson.core", "jackson-annotations").withoutVersion()
-
-            library("junit-bom", "org.junit", "junit-bom").versionRef("junit-bom")
-            library("junit-jupiter-api", "org.junit.jupiter", "junit-jupiter-api").withoutVersion()
-            library("junit-jupiter-engine", "org.junit.jupiter", "junit-jupiter-engine").withoutVersion()
-            library("junit-platform-launcher", "org.junit.platform", "junit-platform-launcher").withoutVersion()
         }
     }
 

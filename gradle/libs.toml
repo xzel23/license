@@ -1,0 +1,46 @@
+[versions]
+cabe = "3.3.0"
+jdk = "0.4.0"
+jreleaser = "1.22.0"
+sonar = "7.2.2.6593"
+spotbugs-plugin = "6.4.8"
+test-logger = "4.0.0"
+versions = "0.53.0"
+
+dua3-utility = "21-rc"
+jspecify = "1.0.0"
+junit-bom = "6.0.2"
+log4j-bom = "2.25.3"
+spotbugs = "4.9.8"
+miglayout = "11.4.2"
+bouncycastle = "1.83"
+jackson = "2.21.0"
+slb4j = "0.1-rc"
+
+[libraries]
+jspecify = { group = "org.jspecify", name = "jspecify", version.ref = "jspecify" }
+dua3-utility-bom = { group = "com.dua3.utility", name = "utility-bom", version.ref = "dua3-utility" }
+dua3-utility = { group = "com.dua3.utility", name = "utility" }
+dua3-utility-swing = { group = "com.dua3.utility", name = "utility-swing" }
+log4j-bom = { group = "org.apache.logging.log4j", name = "log4j-bom", version.ref = "log4j-bom" }
+log4j-api = { group = "org.apache.logging.log4j", name = "log4j-api" }
+slb4j = { group = "org.slb4j", name = "slb4j", version.ref = "slb4j" }
+bouncycastle-provider = { group = "org.bouncycastle", name = "bcprov-jdk18on", version.ref = "bouncycastle" }
+bouncycastle-pkix = { group = "org.bouncycastle", name = "bcpkix-jdk18on", version.ref = "bouncycastle" }
+jackson-bom = { group = "com.fasterxml.jackson", name = "jackson-bom", version.ref = "jackson" }
+jackson-core = { group = "com.fasterxml.jackson.core", name = "jackson-core" }
+jackson-databind = { group = "com.fasterxml.jackson.core", name = "jackson-databind" }
+jackson-annotations = { group = "com.fasterxml.jackson.core", name = "jackson-annotations" }
+junit-bom = { group = "org.junit", name = "junit-bom", version.ref = "junit-bom" }
+junit-jupiter-api = { group = "org.junit.jupiter", name = "junit-jupiter-api" }
+junit-jupiter-engine = { group = "org.junit.jupiter", name = "junit-jupiter-engine" }
+junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform-launcher" }
+
+[plugins]
+jdk = { id = "com.dua3.gradle.jdkprovider", version.ref = "jdk" }
+cabe = { id = "com.dua3.cabe", version.ref = "cabe" }
+jreleaser = { id = "org.jreleaser", version.ref = "jreleaser" }
+sonar = { id = "org.sonarqube", version.ref = "sonar" }
+spotbugs = { id = "com.github.spotbugs", version.ref = "spotbugs-plugin" }
+test-logger = { id = "com.adarshr.test-logger", version.ref = "test-logger" }
+versions = { id = "com.github.ben-manes.versions", version.ref = "versions" }

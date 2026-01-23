@@ -332,7 +332,7 @@ allprojects {
     if (!project.name.endsWith("-bom")) {
         // === SPOTBUGS ===
         spotbugs {
-            toolVersion.set(rootProject.libs.versions.spotbugs)
+            toolVersion.set(rootProject.extensions.getByType<VersionCatalogsExtension>().named("libs").findVersion("spotbugs").get().requiredVersion)
             excludeFilter.set(rootProject.file("spotbugs-exclude.xml"))
         }
 
