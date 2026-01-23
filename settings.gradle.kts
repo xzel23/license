@@ -4,7 +4,7 @@
 import org.gradle.internal.extensions.stdlib.toDefaultLowerCase
 
 rootProject.name = "license"
-val projectVersion = "0.1.0-rc3"
+val projectVersion = "0.1.0-rc4"
 
 dependencyResolutionManagement {
 
