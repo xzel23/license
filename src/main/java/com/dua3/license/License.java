@@ -598,16 +598,16 @@ public final class License {
         return validate(licenseData, trustedRoots, currentVersion);
     }
 
-    record ValidationDetail(String key, boolean valid, String detail) {}
+    public record ValidationDetail(String key, boolean valid, String detail) {}
 
-    record ValidationResult(List<ValidationDetail> details, boolean isValid) {
+    public record ValidationResult(List<ValidationDetail> details, boolean isValid) {
         static ValidationResult of(Collection<ValidationDetail> details) {
             boolean valid = details.stream().allMatch(ValidationDetail::valid);
             List<ValidationDetail> detailsList = List.copyOf(details);
             return new ValidationResult(detailsList, valid);
         }
 
-        ValidationResult {
+        public ValidationResult {
             boolean listValid = details.stream().allMatch(detail -> detail.valid);
 
             if (listValid != isValid) {
