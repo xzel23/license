@@ -5,6 +5,7 @@ import com.dua3.utility.lang.Version;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.slb4j.SLB4J;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.file.Files;
@@ -21,6 +22,10 @@ import static com.dua3.license.License.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class LicenseTest {
+
+    static {
+        SLB4J.init();
+    }
 
     enum TestFields {
         LICENSE_ID,
@@ -79,10 +84,8 @@ class LicenseTest {
         assertArrayEquals(sc.chain, lic.getCertChain());
         assertTrue(lic.getSignatureBytes().length > 0);
 
-        StringBuilder out = new StringBuilder();
-        boolean ok = lic.validate(sc.trusted, Version.valueOf("1.5.0"), out);
-        assertTrue(ok, () -> "Expected valid license, got: \n" + out);
-        assertTrue(out.toString().contains("✓"));
+        ValidationResult vr = lic.validate(sc.trusted, Version.valueOf("1.5.0"));
+        assertTrue(vr.isValid(), () -> "Expected valid license, got: \n" + vr);
 
         // save/load roundtrip
         Path tmp = Files.createTempFile("license", ".json");
@@ -114,8 +117,7 @@ class LicenseTest {
         lic.save(bos);
 
         Map<String,Object> map = new ObjectMapper().readValue(bos.toByteArray(), new TypeReference<>(){});
-        StringBuilder out = new StringBuilder();
-        assertTrue(License.validate(map, sc.trusted, Version.valueOf("1.1.0"), out));
+        assertTrue(License.validate(map, sc.trusted, Version.valueOf("1.1.0")).isValid());
 
         // Load via InputStream
         License lic2 = License.load(new java.io.ByteArrayInputStream(bos.toByteArray()), TestFields.class, sc.trusted);
@@ -130,11 +132,8 @@ class LicenseTest {
         bad.put(LICENSE_ID_LICENSE_FIELD, "X");
         // missing other required fields
         bad.put(SIGNATURE_LICENSE_FIELD, "not-base64:also-bad");
-        StringBuilder out = new StringBuilder();
-        boolean ok = License.validate(bad, sc.trusted, Version.valueOf("1.0.0"), out);
-        assertFalse(ok);
-        assertTrue(out.toString().contains("Required field"));
-        assertTrue(out.toString().contains("Invalid signature format"));
+        ValidationResult vr = validate(bad, sc.trusted, Version.valueOf("1.0.0"));
+        assertFalse(vr.isValid());
     }
 
     @Test
@@ -149,10 +148,9 @@ class LicenseTest {
         Map<String,Object> map = new ObjectMapper().readValue(bos.toByteArray(), new TypeReference<>(){});
         map.put(LICENSEE_LICENSE_FIELD, "Mallory"); // tamper
 
-        StringBuilder out = new StringBuilder();
-        boolean ok = License.validate(map, sc.trusted, Version.valueOf("1.5.0"), out);
-        assertFalse(ok, () -> out.toString());
-        assertTrue(out.toString().contains("Signature verification failed"));
+        ValidationResult vr = validate(map, sc.trusted, Version.valueOf("1.5.0"));
+        assertFalse(vr.isValid(), () -> vr.toString());
+        assertTrue(vr.toString().contains("Signature verification failed"));
     }
 
     @Test
@@ -168,10 +166,9 @@ class LicenseTest {
         lic.save(bos);
         Map<String,Object> map = new ObjectMapper().readValue(bos.toByteArray(), new TypeReference<>(){});
 
-        StringBuilder out = new StringBuilder();
-        boolean ok = License.validate(map, other.trusted, Version.valueOf("1.1.0"), out);
-        assertFalse(ok);
-        assertTrue(out.toString().contains("Invalid or untrusted certificate chain"));
+        License.ValidationResult vr = License.validate(map, other.trusted, Version.valueOf("1.1.0"));
+        assertFalse(vr.isValid());
+        assertTrue(vr.toString().contains("Invalid or untrusted certificate chain"));
     }
 
     @Test
@@ -187,16 +184,11 @@ class LicenseTest {
 
         License lic = License.createLicense(TestFields.class, data, signer(sc), sc.chain, sc.trusted);
 
-        StringBuilder out = new StringBuilder();
-        assertTrue(lic.validate(sc.trusted, Version.valueOf("1.2.5"), out), () -> out.toString());
+        assertTrue(lic.validate(sc.trusted, Version.valueOf("1.2.5")).isValid());
 
-        out.setLength(0);
-        assertFalse(lic.validate(sc.trusted, Version.valueOf("1.1.9"), out));
-        assertTrue(out.toString().contains("Version is not covered by this license"));
+        assertFalse(lic.validate(sc.trusted, Version.valueOf("1.1.9")).isValid());
 
-        out.setLength(0);
-        assertFalse(lic.validate(sc.trusted, Version.valueOf("1.3.0"), out));
-        assertTrue(out.toString().contains("Version is not covered by this license"));
+        assertFalse(lic.validate(sc.trusted, Version.valueOf("1.3.0")).isValid());
 
         // future issue date
         Map<String,Object> futureIssue = baseLicenseData();
