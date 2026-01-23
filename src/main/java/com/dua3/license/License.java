@@ -165,7 +165,7 @@ public final class License {
             ValidationResult validationResult = validate(properties, trustedRoots, null);
             if (!validationResult.isValid()) {
                 LOG.warn("License validation failed:\n{}", validationResult.toString());
-                throw new LicenseException("License validation failed: " + validationResult);
+                throw new LicenseException("License validation failed.", validationResult.failuresToString());
             }
 
             // set the license text
@@ -626,7 +626,7 @@ public final class License {
             StringBuilder appendable = new StringBuilder(512);
             for (ValidationDetail detail : details) {
                 if (detail.valid) continue;
-                appendable.append(detail.valid ? "✓" : "❌").append(" ").append(detail.detail).append("\n");
+                appendable.append("❌").append(" ").append(detail.detail).append("\n");
             }
             return appendable.toString();
         }
