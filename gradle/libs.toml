@@ -1,5 +1,5 @@
 [versions]
-cabe = "4.0.1"
+cabe = "4.0.2"
 jdk = "0.4.0"
 jreleaser = "1.22.0"
 sonar = "7.2.2.6593"
