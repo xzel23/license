@@ -5,7 +5,6 @@ import com.dua3.utility.lang.Version;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
-import org.slb4j.SLB4J;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.file.Files;
@@ -22,10 +21,6 @@ import static com.dua3.license.License.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class LicenseTest {
-
-    static {
-        SLB4J.init();
-    }
 
     enum TestFields {
         LICENSE_ID,
