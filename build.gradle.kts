@@ -581,11 +581,13 @@ jreleaser {
     }
 
     signing {
-        publicKey.set(System.getenv("SIGNING_PUBLIC_KEY"))
-        secretKey.set(System.getenv("SIGNING_SECRET_KEY"))
-        passphrase.set(System.getenv("SIGNING_PASSWORD"))
         active.set(org.jreleaser.model.Active.ALWAYS)
-        armored.set(true)
+        pgp {
+            publicKey.set(System.getenv("SIGNING_PUBLIC_KEY"))
+            secretKey.set(System.getenv("SIGNING_SECRET_KEY"))
+            passphrase.set(System.getenv("SIGNING_PASSWORD"))
+            armored.set(true)
+        }
     }
 
     deploy {
