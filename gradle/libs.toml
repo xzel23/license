@@ -15,7 +15,7 @@ spotbugs = "4.9.8"
 miglayout = "11.4.2"
 bouncycastle = "1.83"
 jackson = "2.21.0"
-slb4j = "0.1"
+slb4j = "0.3"
 
 [libraries]
 jspecify = { group = "org.jspecify", name = "jspecify", version.ref = "jspecify" }
