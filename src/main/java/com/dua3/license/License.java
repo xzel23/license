@@ -598,8 +598,21 @@ public final class License {
         return validate(licenseData, trustedRoots, currentVersion);
     }
 
+    /**
+     * Represents a single validation detail for a license field.
+     *
+     * @param key    the name of the license field being validated
+     * @param valid  true if the validation was successful, false otherwise
+     * @param detail a description of the validation result or failure reason
+     */
     public record ValidationDetail(String key, boolean valid, String detail) {}
 
+    /**
+     * Represents the overall result of a license validation process.
+     *
+     * @param details a list of {@link ValidationDetail} objects representing the validation of individual fields
+     * @param isValid true if all fields were successfully validated, false otherwise
+     */
     public record ValidationResult(List<ValidationDetail> details, boolean isValid) {
         static ValidationResult of(Collection<ValidationDetail> details) {
             boolean valid = details.stream().allMatch(ValidationDetail::valid);
