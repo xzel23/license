@@ -107,6 +107,24 @@ public final class License {
      */
     public static final String MAX_VERSION_LICENSE_FIELD = "MAX_VERSION";
 
+    // key constants
+    static final String EXPIRY_DATE_VALIDITY = "expiry.date.validity";
+    static final String ISSUE_DATE = "issue.date";
+    static final String ISSUE_DATE_VALIDITY = "issue.date.validity";
+    static final String LICENSE_FIELDS = "license.fields";
+    static final String LICENSE_ID = "license_id";
+    static final String LICENSE_ID_FORMAT = "license_id.format";
+    static final String LICENSE_VALID = "license.valid";
+    static final String LICENSE_VALIDITY = "license.validity";
+    static final String LICENSE_VERSION_CONSISTENCY = "license.version.consistency";
+    static final String LICENSE_VERSION_MAX = "license.version.max";
+    static final String LICENSE_VERSION_MIN = "license.version.min";
+    static final String LICENSE_VERSION_VALID = "license.version.valid";
+    static final String SIGNATURE = "signature";
+    static final String SIGNATURE_CERTCHAIN = "signature.certchain";
+    static final String SIGNATURE_FORMAT = "signature.format";
+    static final String SIGNATURE_VALIDATION = "signature.validation";
+
     private final Object keyClass;
     private final Map<Object, Object> data;
     private final @Nullable String licenseText;
@@ -164,7 +182,7 @@ public final class License {
 
             ValidationResult validationResult = validate(properties, trustedRoots, null);
             if (!validationResult.isValid()) {
-                LOG.warn("License validation failed:\n{}", validationResult.toString());
+                LOG.warn("License validation failed:\n{}", validationResult);
                 throw new LicenseException("License validation failed.", validationResult.failuresToString());
             }
 
@@ -366,7 +384,7 @@ public final class License {
      */
     public void save(OutputStream out) throws IOException {
         // build a properties map including signature and data, converting values to JSON-friendly types
-        Map<String, Object> props = new LinkedHashMap<>(data.size() + 1);
+        Map<String, Object> props = LinkedHashMap.newLinkedHashMap(data.size() + 1);
         for (Map.Entry<Object, Object> e : data.entrySet()) {
             String k = e.getKey().toString();
             Object v = e.getValue();
@@ -681,7 +699,7 @@ public final class License {
             for (String field : requiredFields) {
                 if (!licenseData.containsKey(field)) {
                     validationDetails.add(new ValidationDetail(
-                            "license fields[" + field + "]",
+                            LICENSE_FIELDS + "[" + field + "]",
                             false,
                             "Required field missing: " + field
                     ));
@@ -691,7 +709,7 @@ public final class License {
 
             if (allRequiredFieldsPresent) {
                 validationDetails.add(new ValidationDetail(
-                        "license fields",
+                        LICENSE_FIELDS,
                         true,
                         "All required fields are present in the license."
                 ));
@@ -701,13 +719,13 @@ public final class License {
             String signatureValue = Objects.requireNonNullElse(licenseData.get(SIGNATURE_LICENSE_FIELD), "").toString();
             if (signatureValue.isBlank()) {
                 validationDetails.add(new ValidationDetail(
-                        "signature",
+                        SIGNATURE,
                         false,
                         "No signature found in the license file."
                 ));
             } else {
                 validationDetails.add(new ValidationDetail(
-                        "signature",
+                        SIGNATURE,
                         true,
                         "Signature found."
                 ));
@@ -723,13 +741,13 @@ public final class License {
                 CertificateUtil.verifyCertificateChain(certChain);
 
                 validationDetails.add(new ValidationDetail(
-                        "signature.format",
+                        SIGNATURE_FORMAT,
                         true,
                         "Signature format is valid."
                 ));
-            } catch (GeneralSecurityException | ArrayIndexOutOfBoundsException | IllegalArgumentException e) {
+            } catch (GeneralSecurityException | ArrayIndexOutOfBoundsException | IllegalArgumentException _) {
                 validationDetails.add(new ValidationDetail(
-                        "signature.format",
+                        SIGNATURE_FORMAT,
                         false,
                         "Invalid signature format."
                 ));
@@ -745,14 +763,14 @@ public final class License {
                 try {
                     if (certChain.length == 0) {
                         validationDetails.add(new ValidationDetail(
-                                "signature.certchain",
+                                SIGNATURE_CERTCHAIN,
                                 false,
                                 "Certificate chain is empty."
                         ));
                     } else {
                         if (!validateCertificateChain(certChain, trustedRoots)) {
                             validationDetails.add(new ValidationDetail(
-                                    "signature.certchain",
+                                    SIGNATURE_CERTCHAIN,
                                     false,
                                     "Invalid or untrusted certificate chain."
                             ));
@@ -770,13 +788,13 @@ public final class License {
 
                         if (signatureValid) {
                             validationDetails.add(new ValidationDetail(
-                                    "signature.validation",
+                                    SIGNATURE_VALIDATION,
                                     true,
                                     "Signature is valid."
                             ));
                         } else {
                             validationDetails.add(new ValidationDetail(
-                                    "signature.validation",
+                                    SIGNATURE_VALIDATION,
                                     false,
                                     "Signature verification failed."
                             ));
@@ -784,7 +802,7 @@ public final class License {
                     }
                 } catch (Exception e) {
                     validationDetails.add(new ValidationDetail(
-                            "signature.validation",
+                            SIGNATURE_VALIDATION,
                             false,
                             "Error verifying signature."
                     ));
@@ -797,7 +815,7 @@ public final class License {
 
             if (licenseId.isBlank()) {
                 validationDetails.add(new ValidationDetail(
-                        "license_id",
+                        LICENSE_ID,
                         false,
                         "No license ID field in the license file or it is empty."
                 ));
@@ -806,7 +824,7 @@ public final class License {
                 boolean isTrimmed = licenseId.equals(licenseId.trim());
                 if (!isTrimmed) {
                     validationDetails.add(new ValidationDetail(
-                            "license_id.format",
+                            LICENSE_ID_FORMAT,
                             false,
                             "License ID contains leading or trailing whitespace."
                     ));
@@ -816,7 +834,7 @@ public final class License {
                 boolean isAsciiOnly = licenseId.matches("\\A\\p{ASCII}*\\z");
                 if (!isAsciiOnly) {
                     validationDetails.add(new ValidationDetail(
-                            "license_id.format",
+                            LICENSE_ID_FORMAT,
                             false,
                             "License ID contains non-ASCII characters."
                     ));
@@ -824,7 +842,7 @@ public final class License {
 
                 if (isTrimmed && isAsciiOnly) {
                     validationDetails.add(new ValidationDetail(
-                            "license_id.format",
+                            LICENSE_ID_FORMAT,
                             true,
                             "License ID is valid."
                     ));
@@ -837,25 +855,25 @@ public final class License {
             LocalDate issueDate = null;
             try {
                 issueDate = LocalDate.parse(issueDateStr);
-            } catch (DateTimeParseException e) {
+            } catch (DateTimeParseException _) {
                 // Error parsing issue date
             }
 
             if (issueDateStr.isBlank()) {
                 validationDetails.add(new ValidationDetail(
-                        "issue.date",
+                        ISSUE_DATE,
                         false,
                         "No issue date field in the license file."
                 ));
             } else if (issueDate == null) {
                 validationDetails.add(new ValidationDetail(
-                        "issue.date",
+                        ISSUE_DATE,
                         false,
                         "Invalid issue date."
                 ));
             } else {
                 validationDetails.add(new ValidationDetail(
-                        "issue.date",
+                        ISSUE_DATE,
                         true,
                         "Issue date found."
                 ));
@@ -863,13 +881,13 @@ public final class License {
 
             if (issueDate != null && today.isBefore(issueDate)) {
                 validationDetails.add(new ValidationDetail(
-                        "issue.date.validity",
+                        ISSUE_DATE_VALIDITY,
                         false,
                         "License issue date is in the future: " + issueDateStr
                 ));
             } else if (issueDate != null) {
                 validationDetails.add(new ValidationDetail(
-                        "issue.date.validity",
+                        ISSUE_DATE_VALIDITY,
                         true,
                         "License issue date is valid: " + issueDateStr
                 ));
@@ -886,19 +904,19 @@ public final class License {
 
             if (expiryDateStr.isBlank()) {
                 validationDetails.add(new ValidationDetail(
-                        "expiry.date.validity",
+                        EXPIRY_DATE_VALIDITY,
                         false,
                         "No expiry field in the license file."
                 ));
             } else if (expiryDate == null) {
                 validationDetails.add(new ValidationDetail(
-                        "expiry.date.validity",
+                        EXPIRY_DATE_VALIDITY,
                         false,
                         "Invalid Expiry date."
                 ));
             } else {
                 validationDetails.add(new ValidationDetail(
-                        "expiry.date.validity",
+                        EXPIRY_DATE_VALIDITY,
                         true,
                         "Expiry date found."
                 ));
@@ -906,13 +924,13 @@ public final class License {
 
             if (expiryDate != null && today.isAfter(expiryDate)) {
                 validationDetails.add(new ValidationDetail(
-                        "license.validity",
+                        LICENSE_VALIDITY,
                         false,
                         "License has expired on " + expiryDateStr
                 ));
             } else if (expiryDate != null) {
                 validationDetails.add(new ValidationDetail(
-                        "license.validity",
+                        LICENSE_VALIDITY,
                         true,
                         "License expires on " + expiryDateStr
                 ));
@@ -923,13 +941,13 @@ public final class License {
 
             if (minVersion == null) {
                 validationDetails.add(new ValidationDetail(
-                        "license.version.min",
+                        LICENSE_VERSION_MIN,
                         false,
                         "No valid minimum version field in the license file."
                 ));
             } else {
                 validationDetails.add(new ValidationDetail(
-                        "license.version.min",
+                        LICENSE_VERSION_MIN,
                         true,
                         "Minimum version found."
                 ));
@@ -939,13 +957,13 @@ public final class License {
 
             if (maxVersion == null) {
                 validationDetails.add(new ValidationDetail(
-                        "license.version.max",
+                        LICENSE_VERSION_MAX,
                         false,
                         "No valid maximum version field in the license file."
                 ));
             } else {
                 validationDetails.add(new ValidationDetail(
-                        "license.version.max",
+                        LICENSE_VERSION_MAX,
                         true,
                         "Maximum version found."
                 ));
@@ -954,13 +972,13 @@ public final class License {
             if (minVersion != null && maxVersion != null) {
                 if (minVersion.compareTo(maxVersion) > 0) {
                     validationDetails.add(new ValidationDetail(
-                            "license.version.consistency",
+                            LICENSE_VERSION_CONSISTENCY,
                             false,
                             "Mimimum version is greater than maximum version: " + minVersion + " > " + maxVersion
                     ));
                 } else {
                     validationDetails.add(new ValidationDetail(
-                            "license.version.consistency",
+                            LICENSE_VERSION_CONSISTENCY,
                             true,
                             "Minimum version <= maximum version"
                     ));
@@ -970,13 +988,13 @@ public final class License {
             if (currentVersion != null && minVersion != null && maxVersion != null) {
                 if (!currentVersion.isBetween(minVersion, maxVersion)) {
                     validationDetails.add(new ValidationDetail(
-                            "license.version.valid",
+                            LICENSE_VERSION_VALID,
                             false,
                             "Version is not covered by this license: " + currentVersion
                     ));
                 } else {
                     validationDetails.add(new ValidationDetail(
-                            "license.version.valid",
+                            LICENSE_VERSION_VALID,
                             true,
                             "Version is covered by this license."
                     ));
@@ -985,7 +1003,7 @@ public final class License {
         } catch (RuntimeException e) {
             LOG.warn("Error during license validation: {}", e.getMessage(), e);
             validationDetails.add(new ValidationDetail(
-                    "license.valid",
+                    LICENSE_VALID,
                     false,
                     "The license could not be verified."
             ));
