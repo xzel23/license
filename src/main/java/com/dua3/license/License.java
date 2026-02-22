@@ -5,11 +5,12 @@ import com.dua3.utility.crypt.CertificateUtil;
 import com.dua3.utility.lang.LangUtil;
 import com.dua3.utility.lang.Version;
 import com.dua3.utility.text.TextUtil;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -402,10 +403,12 @@ public final class License {
             throw new IOException("could not serialize certificate chain", e);
         }
 
-        new ObjectMapper()
-                .findAndRegisterModules()
-                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
-                .writerWithDefaultPrettyPrinter()
+        ObjectMapper mapper = JsonMapper.builder()
+                //.findAndRegisterModules()
+                .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
+                .build(); // Finish the builder here
+
+        mapper.writerWithDefaultPrettyPrinter()
                 .writeValue(out, props);
     }
 
@@ -638,6 +641,21 @@ public final class License {
             return new ValidationResult(detailsList, valid);
         }
 
+        /**
+         * Represents the validation result of a collection of {@link ValidationDetail} items,
+         * ensuring consistency between the validation state and individual detail validations.
+         * <p>
+         * During construction, this validation ensures that the overall validation state
+         * {@code isValid} aligns with the validation statuses of all {@code ValidationDetail} instances
+         * in the provided {@code details}. If there is a mismatch, an {@link IllegalStateException}
+         * is thrown.
+         *
+         * @param details the collection of {@link ValidationDetail} instances containing validation
+         *                information
+         * @param isValid the overall validation result indicating if all details are valid
+         * @throws IllegalStateException if there is an inconsistency between {@code isValid}
+         *                               and the validation results of the individual details
+         */
         public ValidationResult {
             boolean listValid = details.stream().allMatch(detail -> detail.valid);
 
@@ -646,6 +664,17 @@ public final class License {
             }
         }
 
+        /**
+         * Appends a textual representation of the validation details to the provided
+         * {@link Appendable}. Each validation detail is represented as a line,
+         * starting with a checkmark ("✓") if the validation was successful or a
+         * cross ("❌") if it was not, followed by the detail description.
+         *
+         * @param <T>        the type of the {@code Appendable} to which the data will be appended
+         * @param appendable the {@code Appendable} instance to append the validation details to
+         * @return the same {@code Appendable} instance provided as input, with the validation details appended
+         * @throws IOException if an I/O error occurs while appending to the {@code Appendable}
+         */
         public <T extends Appendable> T appendTo(T appendable) throws IOException {
             for (ValidationDetail detail : details) {
                 appendable.append(detail.valid ? "✓" : "❌").append(" ").append(detail.detail).append("\n");
@@ -653,6 +682,15 @@ public final class License {
             return appendable;
         }
 
+        /**
+         * Converts the failed validation details from the validation result
+         * into a formatted string representation. Each failed validation is
+         * represented as a line prefixed with a failure icon ("❌") followed
+         * by the associated validation message.
+         *
+         * @return a string containing the details of all failed validations.
+         *         If there are no failures, the resulting string will be empty.
+         */
         public String failuresToString() {
             StringBuilder appendable = new StringBuilder(512);
             for (ValidationDetail detail : details) {

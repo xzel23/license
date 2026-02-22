@@ -2,9 +2,9 @@ package com.dua3.license;
 
 import com.dua3.utility.crypt.CertificateUtil;
 import com.dua3.utility.lang.Version;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.file.Files;
