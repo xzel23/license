@@ -211,7 +211,7 @@ allprojects {
     }
 
     jdk {
-        version = 25
+        version = "25.0.2"
     }
 
     // Java configuration for non-BOM projects
