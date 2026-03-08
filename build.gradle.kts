@@ -8,6 +8,7 @@
 import com.adarshr.gradle.testlogger.theme.ThemeType
 import com.dua3.cabe.processor.Configuration
 import com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask
+import java.io.File
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.external.javadoc.StandardJavadocDocletOptions
@@ -153,6 +154,26 @@ tasks.named<JacocoReport>("testCodeCoverageReport") {
         xml.required.set(true)
         html.required.set(true)
     }
+
+    // use Cabe instrumented classes if they exist
+    classDirectories.setFrom(project.provider {
+        val aggregatedProjectPaths = listOf(
+            ":"
+        )
+
+        aggregatedProjectPaths.flatMap { path ->
+            val p = project.project(path)
+            val cabeClasses = p.layout.buildDirectory.dir("classes-cabe/main").get().asFile
+            val mainClasses = p.layout.buildDirectory.dir("classes/java/main").get().asFile
+            if (cabeClasses.exists()) {
+                listOf<File>(cabeClasses)
+            } else if (mainClasses.exists()) {
+                listOf<File>(mainClasses)
+            } else {
+                emptyList<File>()
+            }
+        }
+    })
 }
 
 // SonarQube root project config
@@ -160,6 +181,12 @@ sonar {
     properties {
         property("sonar.coverage.jacoco.xmlReportPaths", "${layout.buildDirectory.get()}/reports/jacoco/testCodeCoverageReport/testCodeCoverageReport.xml")
         property("sonar.coverage.exclusions", "**/samples/**")
+
+        // use Cabe instrumented classes if they exist
+        val cabeClassesDir = project.layout.buildDirectory.dir("classes-cabe/main").get().asFile
+        if (cabeClassesDir.exists()) {
+            property("sonar.java.binaries", "build/classes-cabe/main")
+        }
     }
 }
 
@@ -227,6 +254,17 @@ allprojects {
                 xml.required.set(true)
                 html.required.set(false)
             }
+
+            // use Cabe instrumented classes if they exist
+            val cabeClasses = project.layout.buildDirectory.dir("classes-cabe/main")
+            classDirectories.setFrom(project.provider {
+                if (cabeClasses.get().asFile.exists()) {
+                    val mainClassesDir = project.layout.buildDirectory.dir("classes/java/main").get().asFile
+                    sourceSets.main.get().output.classesDirs.filter { it != mainClassesDir } + cabeClasses.get().asFile
+                } else {
+                    sourceSets.main.get().output.classesDirs
+                }
+            })
         }
 
         tasks.withType<Test> {
@@ -240,6 +278,12 @@ allprojects {
         properties {
             property("sonar.coverage.jacoco.xmlReportPaths", "**/build/reports/jacoco/test/jacocoTestReport.xml")
             property("sonar.coverage.exclusions", "**/samples/**")
+
+            // use Cabe instrumented classes if they exist
+            val cabeClassesDir = project.layout.buildDirectory.dir("classes-cabe/main").get().asFile
+            if (cabeClassesDir.exists()) {
+                property("sonar.java.binaries", "build/classes-cabe/main")
+            }
         }
     }
 

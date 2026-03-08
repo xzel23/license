@@ -2,6 +2,7 @@ name: CI
 on:
   push:
     branches: [ "main" ]
+    tags: [ "v*" ]
   pull_request:
     branches: [ "main" ]
 
@@ -58,8 +59,7 @@ jobs:
           path: |
             **/build/libs/*.jar
             **/build/classes/
-            **/build/classes/java/test/
-            **/build/classes/kotlin/test/
+            **/build/classes-cabe/
             build/gradle-version/version.txt
           path-root: ${{ github.workspace }}
           if-no-files-found: error
@@ -233,6 +233,7 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: coverage-reports
+          path: ${{ github.workspace }}
 
       - name: 'Cache SonarCloud packages'
         uses: actions/cache@v4
@@ -249,7 +250,7 @@ jobs:
           -Dsonar.projectKey=xzel23_license
           -Dsonar.organization=xzel23
           -Dsonar.host.url=https://sonarcloud.io
-          -Dsonar.coverage.jacoco.xmlReportPaths=**/build/reports/jacoco/test/jacocoTestReport.xml
+          -Dsonar.coverage.jacoco.xmlReportPaths=**/build/reports/jacoco/**/*.xml
 
   qodana:
     needs: build
@@ -313,6 +314,7 @@ jobs:
           QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
 
   publish:
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: [test-linux, test-windows]
     runs-on: ubuntu-latest
     permissions:
