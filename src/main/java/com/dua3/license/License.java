@@ -8,6 +8,8 @@ import com.dua3.utility.text.TextUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.exc.JacksonIOException;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.cfg.DateTimeFeature;
 import tools.jackson.databind.json.JsonMapper;
@@ -355,11 +357,17 @@ public final class License {
      * @throws LicenseException if the license is invalid or cannot be validated
      */
     public static License load(InputStream in, Class<? extends Enum<?>> keyClass, Certificate[] trustedRoots) throws IOException, LicenseException {
-        return load(
-                new ObjectMapper().reader().forType(SequencedMap.class).<SequencedMap<String, Object>>readValue(in),
-                keyClass,
-                trustedRoots
-        );
+        try {
+            return load(
+                    new ObjectMapper().reader().forType(SequencedMap.class).<SequencedMap<String, Object>>readValue(in),
+                    keyClass,
+                    trustedRoots
+            );
+        } catch (JacksonIOException e) {
+            throw e.getCause();
+        } catch (JacksonException e) {
+            throw new LicenseException("could not load license", e);
+        }
     }
 
     /**
@@ -937,7 +945,7 @@ public final class License {
             try {
                 expiryDate = LocalDate.parse(expiryDateStr);
             } catch (DateTimeParseException e) {
-                // Error parsing expiry date
+                LOG.warn("Invalid expiry date format: {}", expiryDateStr, e);
             }
 
             if (expiryDateStr.isBlank()) {
@@ -1050,7 +1058,7 @@ public final class License {
         return ValidationResult.of(validationDetails);
     }
 
-    private static boolean validateCertificateChain(Certificate[] certChain, Certificate[] trustedRoots) throws CertificateException {
+    private static boolean validateCertificateChain(Certificate[] certChain, Certificate[] trustedRoots) {
         if (certChain.length == 0) {
             LOG.warn("Certificate chain is empty");
             return false;
@@ -1109,7 +1117,7 @@ public final class License {
         try {
             version = Version.valueOf(versionStr);
         } catch (IllegalArgumentException e) {
-            // Error parsing version
+            LOG.warn("Invalid version format: {}", versionStr, e);
         }
         return version;
     }
