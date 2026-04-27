@@ -1,6 +1,6 @@
 [versions]
 cabe = "4.2.0"
-jdk = "0.5.2"
+jdk = "0.6.0"
 jreleaser = "1.23.0"
 sonar = "7.2.3.7755"
 spotbugs-plugin = "6.4.8"
