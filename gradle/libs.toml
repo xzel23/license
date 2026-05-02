@@ -2,7 +2,7 @@
 cabe = "4.2.0"
 jdk = "0.6.0"
 jreleaser = "1.23.0"
-sonar = "7.2.3.7755"
+sonar = "7.3.0.8198"
 spotbugs-plugin = "6.5.1"
 test-logger = "4.0.0"
 versions = "0.54.0"
@@ -13,7 +13,7 @@ junit-bom = "6.0.3"
 log4j-bom = "2.25.4"
 bouncycastle = "1.84"
 jackson = "3.1.2"
-slb4j = "0.8.0"
+slb4j = "0.8.1"
 
 [libraries]
 jspecify = { group = "org.jspecify", name = "jspecify", version.ref = "jspecify" }
