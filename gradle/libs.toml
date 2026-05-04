@@ -1,4 +1,5 @@
 [versions]
+projectVersion = "0.3.4-SNAPSHOT"
 cabe = "4.2.0"
 jdk = "0.6.0"
 jreleaser = "1.24.0"

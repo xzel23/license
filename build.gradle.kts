@@ -55,7 +55,8 @@ project.description = Meta.DESCRIPTION
 tasks.register("printVersion") {
     description = "Print the project version to stdout."
     group = HelpTasksPlugin.HELP_GROUP
-    doLast { println(project.version) }
+    val version = project.version.toString()
+    doLast { println(version) }
 }
 
 // Task to display inputs and outputs of a specified task
@@ -204,10 +205,6 @@ val isSnapshot = project.version.toString().toDefaultLowerCase().contains("snaps
 /////////////////////////////////////////////////////////////////////////////
 
 allprojects {
-
-    // Set project version from root libs.versions
-    project.version = rootProject.libs.versions.projectVersion.get()
-
     // Apply common plugins
     apply(plugin = "maven-publish")
     apply(plugin = "version-catalog")
