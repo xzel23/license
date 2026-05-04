@@ -7,6 +7,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.ByteArrayOutputStream;
+import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyPair;
@@ -108,14 +109,20 @@ class LicenseTest {
         Map<String, Object> data = baseLicenseData();
         License lic = License.createLicense(TestFields.class, data, signer(sc), sc.chain, sc.trusted);
 
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        lic.save(bos);
+        byte[] bytes;
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+            lic.save(bos);
+            bytes = bos.toByteArray();
+        }
 
-        Map<String,Object> map = new ObjectMapper().readValue(bos.toByteArray(), new TypeReference<>(){});
+        Map<String,Object> map = new ObjectMapper().readValue(bytes, new TypeReference<>(){});
         assertTrue(License.validate(map, sc.trusted, Version.valueOf("1.1.0")).isValid());
 
         // Load via InputStream
-        License lic2 = License.load(new java.io.ByteArrayInputStream(bos.toByteArray()), TestFields.class, sc.trusted);
+        License lic2;
+        try (ByteArrayInputStream in = new ByteArrayInputStream(bytes)) {
+            lic2 = License.load(in, TestFields.class, sc.trusted);
+        }
         assertEquals(lic.getLicenseId(), lic2.getLicenseId());
         assertEquals(lic.getLicenseData().validUntil(), lic2.getLicenseData().validUntil());
     }
@@ -138,9 +145,11 @@ class LicenseTest {
         License lic = License.createLicense(TestFields.class, data, signer(sc), sc.chain, sc.trusted);
 
         // serialize and tamper
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        lic.save(bos);
-        Map<String,Object> map = new ObjectMapper().readValue(bos.toByteArray(), new TypeReference<>(){});
+        Map<String,Object> map;
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+            lic.save(bos);
+            map = new ObjectMapper().readValue(bos.toByteArray(), new TypeReference<>(){});
+        }
         map.put(LICENSEE_LICENSE_FIELD, "Mallory"); // tamper
 
         ValidationResult vr = validate(map, sc.trusted, Version.valueOf("1.5.0"));
@@ -157,9 +166,11 @@ class LicenseTest {
         // Use different trusted root (new self-signed cert)
         SigningContext other = createSigningContext();
 
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        lic.save(bos);
-        Map<String,Object> map = new ObjectMapper().readValue(bos.toByteArray(), new TypeReference<>(){});
+        Map<String,Object> map;
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+            lic.save(bos);
+            map = new ObjectMapper().readValue(bos.toByteArray(), new TypeReference<>(){});
+        }
 
         License.ValidationResult vr = License.validate(map, other.trusted, Version.valueOf("1.1.0"));
         assertFalse(vr.isValid());
@@ -207,9 +218,11 @@ class LicenseTest {
         License lic = License.createLicense(TestFields.class, data, signer(sc), sc.chain, sc.trusted);
 
         // Serialize to map
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        lic.save(bos);
-        Map<String,Object> map = new ObjectMapper().readValue(bos.toByteArray(), new TypeReference<>(){});
+        Map<String,Object> map;
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+            lic.save(bos);
+            map = new ObjectMapper().readValue(bos.toByteArray(), new TypeReference<>(){});
+        }
 
         byte[] unsignedFromMap = License.getUnsignedLicenseData(map);
         map.remove(SIGNATURE_LICENSE_FIELD);
