@@ -3,7 +3,7 @@
 import org.gradle.internal.extensions.stdlib.toDefaultLowerCase
 
 rootProject.name = "license"
-val projectVersion = "0.3.2"
+val projectVersion = "0.3.3"
 
 dependencyResolutionManagement {
 
