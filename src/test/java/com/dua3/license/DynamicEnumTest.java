@@ -80,9 +80,7 @@ class DynamicEnumTest {
         Properties emptyProps = new Properties();
 
         // Verify that creating a DynamicEnum from empty properties throws an exception
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            DynamicEnum.fromProperties(emptyProps);
-        });
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> DynamicEnum.fromProperties(emptyProps));
 
         assertTrue(exception.getMessage().contains("cannot be empty"),
                 "Exception message should mention that properties cannot be empty");
@@ -94,9 +92,7 @@ class DynamicEnumTest {
         Properties emptyProps = new Properties();
 
         // Verify that creating a DynamicEnum from empty properties throws an exception
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            DynamicEnum.fromPropertiesWithValues(emptyProps);
-        });
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> DynamicEnum.fromPropertiesWithValues(emptyProps));
 
         assertTrue(exception.getMessage().contains("cannot be empty"),
                 "Exception message should mention that properties cannot be empty");

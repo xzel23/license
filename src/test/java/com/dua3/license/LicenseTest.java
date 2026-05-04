@@ -38,7 +38,7 @@ class LicenseTest {
     private static SigningContext createSigningContext() throws Exception {
         KeyPair kp = com.dua3.utility.crypt.KeyUtil.generateRSAKeyPair();
         X509Certificate[] chain = CertificateUtil.createSelfSignedX509Certificate(kp, "CN=Test", 365, true);
-        Certificate[] trusted = new Certificate[]{chain[chain.length - 1]};
+        Certificate[] trusted = {chain[chain.length - 1]};
         return new SigningContext(kp, chain, trusted);
     }
 
@@ -96,7 +96,7 @@ class LicenseTest {
     void testCreateLicense_dynamicEnumOverload() throws Exception {
         SigningContext sc = createSigningContext();
         Map<String, Object> data = baseLicenseData();
-        DynamicEnum dyn = DynamicEnum.ofNames("LICENSE_ID","LICENSEE","ISSUE_DATE","EXPIRY_DATE","MIN_VERSION","MAX_VERSION","FEATURE");
+        DynamicEnum dyn = DynamicEnum.ofNames("LICENSE_ID", "LICENSEE", "ISSUE_DATE", "EXPIRY_DATE", "MIN_VERSION", "MAX_VERSION", "FEATURE");
 
         License lic = License.createLicense(dyn, data, signer(sc), sc.chain, sc.trusted);
         assertEquals("LIC-123", lic.getLicenseId());
@@ -115,7 +115,7 @@ class LicenseTest {
             bytes = bos.toByteArray();
         }
 
-        Map<String,Object> map = new ObjectMapper().readValue(bytes, new TypeReference<>(){});
+        Map<String, Object> map = new ObjectMapper().readValue(bytes, new TypeReference<>() {});
         assertTrue(License.validate(map, sc.trusted, Version.valueOf("1.1.0")).isValid());
 
         // Load via InputStream
@@ -145,10 +145,10 @@ class LicenseTest {
         License lic = License.createLicense(TestFields.class, data, signer(sc), sc.chain, sc.trusted);
 
         // serialize and tamper
-        Map<String,Object> map;
+        Map<String, Object> map;
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
             lic.save(bos);
-            map = new ObjectMapper().readValue(bos.toByteArray(), new TypeReference<>(){});
+            map = new ObjectMapper().readValue(bos.toByteArray(), new TypeReference<>() {});
         }
         map.put(LICENSEE_LICENSE_FIELD, "Mallory"); // tamper
 
@@ -166,10 +166,10 @@ class LicenseTest {
         // Use different trusted root (new self-signed cert)
         SigningContext other = createSigningContext();
 
-        Map<String,Object> map;
+        Map<String, Object> map;
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
             lic.save(bos);
-            map = new ObjectMapper().readValue(bos.toByteArray(), new TypeReference<>(){});
+            map = new ObjectMapper().readValue(bos.toByteArray(), new TypeReference<>() {});
         }
 
         License.ValidationResult vr = License.validate(map, other.trusted, Version.valueOf("1.1.0"));
@@ -197,12 +197,12 @@ class LicenseTest {
         assertFalse(lic.validate(sc.trusted, Version.valueOf("1.3.0")).isValid());
 
         // future issue date
-        Map<String,Object> futureIssue = baseLicenseData();
+        Map<String, Object> futureIssue = baseLicenseData();
         futureIssue.put(ISSUE_DATE_LICENSE_FIELD, LocalDate.now().plusDays(2));
         assertThrows(LicenseException.class, () -> License.createLicense(TestFields.class, futureIssue, signer(sc), sc.chain, sc.trusted));
 
         // expired
-        Map<String,Object> expired = baseLicenseData();
+        Map<String, Object> expired = baseLicenseData();
         expired.put(EXPIRY_DATE_LICENSE_FIELD, LocalDate.now().minusDays(1));
         assertThrows(LicenseException.class, () -> License.createLicense(TestFields.class, expired, signer(sc), sc.chain, sc.trusted));
 
@@ -218,10 +218,10 @@ class LicenseTest {
         License lic = License.createLicense(TestFields.class, data, signer(sc), sc.chain, sc.trusted);
 
         // Serialize to map
-        Map<String,Object> map;
+        Map<String, Object> map;
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
             lic.save(bos);
-            map = new ObjectMapper().readValue(bos.toByteArray(), new TypeReference<>(){});
+            map = new ObjectMapper().readValue(bos.toByteArray(), new TypeReference<>() {});
         }
 
         byte[] unsignedFromMap = License.getUnsignedLicenseData(map);
@@ -234,7 +234,7 @@ class LicenseTest {
     void testReservedSignatureKeyInEnumCausesException() throws Exception {
         SigningContext sc = createSigningContext();
         // Define enum that illegally contains SIGNATURE name and includes all used fields
-        enum BadFields { LICENSE_ID, LICENSEE, ISSUE_DATE, EXPIRY_DATE, MIN_VERSION, MAX_VERSION, FEATURE, SIGNATURE }
+        enum BadFields {LICENSE_ID, LICENSEE, ISSUE_DATE, EXPIRY_DATE, MIN_VERSION, MAX_VERSION, FEATURE, SIGNATURE}
         Map<String, Object> data = baseLicenseData();
         var ex = assertThrows(LicenseException.class, () -> License.createLicense(BadFields.class, data, signer(sc), sc.chain, sc.trusted));
         assertTrue(ex.getMessage().toLowerCase().contains("reserved"));

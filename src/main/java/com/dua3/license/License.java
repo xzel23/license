@@ -1163,10 +1163,10 @@ public final class License {
      */
     public LicenseData getLicenseData() {
         return new LicenseData(
-            getLicensee(),
-            getValidUntil(),
-            getLicenseId(),
-            getLicenseText().map(t -> () -> t)
+                getLicensee(),
+                getValidUntil(),
+                getLicenseId(),
+                getLicenseText().map(t -> () -> t)
         );
     }
 
