@@ -1,7 +1,7 @@
 [versions]
 projectVersion = "0.3.4-SNAPSHOT"
 cabe = "4.2.0"
-jdk = "0.6.0"
+jdk = "0.7.0-beta5"
 jreleaser = "1.24.0"
 sonar = "7.3.0.8198"
 spotbugs-plugin = "6.5.4"
