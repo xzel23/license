@@ -1,5 +1,5 @@
 [versions]
-projectVersion = "0.3.4-SNAPSHOT"
+projectVersion = "0.3.4"
 cabe = "4.2.0"
 jdk = "0.7.0"
 jreleaser = "1.24.0"
@@ -8,7 +8,7 @@ spotbugs-plugin = "6.5.4"
 test-logger = "4.0.0"
 versions = "0.54.0"
 
-dua3-utility = "22.2.0-SNAPSHOT"
+dua3-utility = "22.2.1"
 jspecify = "1.0.0"
 junit-bom = "6.0.3"
 log4j-bom = "2.26.0"
