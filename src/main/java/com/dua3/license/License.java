@@ -50,6 +50,8 @@ import java.util.Optional;
 import java.util.SequencedMap;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 /**
  * Represents a License with associated metadata and functionality for validation and processing.
@@ -109,6 +111,15 @@ public final class License {
      * that the license is compatible with.
      */
     public static final String MAX_VERSION_LICENSE_FIELD = "MAX_VERSION";
+
+    /**
+     * A compiled regular expression pattern that matches strings composed entirely
+     * of ASCII characters. The pattern uses the \p{ASCII} predefined character class
+     * to enforce ASCII-only character matching and anchors the match to the beginning
+     * and end of the input using \A and \z, ensuring the entire input string conforms
+     * to this restriction.
+     */
+    private static final Predicate<String> IS_ONLY_ASCII = Pattern.compile("\\A\\p{ASCII}*\\z").asMatchPredicate();
 
     // key constants
     static final String EXPIRY_DATE_VALIDITY = "expiry.date.validity";
@@ -395,12 +406,12 @@ public final class License {
         // build a properties map including signature and data, converting values to JSON-friendly types
         Map<String, Object> props = LinkedHashMap.newLinkedHashMap(data.size() + 1);
         for (Map.Entry<Object, Object> e : data.entrySet()) {
-            String k = e.getKey().toString();
-            Object v = e.getValue();
-            switch (v) {
-                case LocalDate ld -> props.put(k, ld.toString());
-                case Version ver -> props.put(k, ver.toString());
-                case null, default -> props.put(k, v);
+            String key = e.getKey().toString();
+            Object value = e.getValue();
+            switch (value) {
+                case LocalDate ld -> props.put(key, ld.toString());
+                case Version ver -> props.put(key, ver.toString());
+                default -> props.put(key, value);
             }
         }
         try {
@@ -486,12 +497,12 @@ public final class License {
         // create deterministic representation independent of map iteration order
         Map<String, Object> sorted = new java.util.TreeMap<>();
         for (Map.Entry<?, ?> e : data.entrySet()) {
-            String k = String.valueOf(e.getKey());
-            Object v = e.getValue();
-            switch (v) {
-                case LocalDate ld -> sorted.put(k, ld.toString());
-                case Version ver -> sorted.put(k, ver.toString());
-                case null, default -> sorted.put(k, v);
+            String key = String.valueOf(e.getKey());
+            Object value = e.getValue();
+            switch (value) {
+                case LocalDate ld -> sorted.put(key, ld.toString());
+                case Version ver -> sorted.put(key, ver.toString());
+                case null, default -> sorted.put(key, value);
             }
         }
         return sorted.toString().getBytes(StandardCharsets.UTF_8);
@@ -611,12 +622,12 @@ public final class License {
 
         // Convert internal data to a map of strings with JSON-friendly values
         for (Map.Entry<Object, Object> entry : data.entrySet()) {
-            String k = entry.getKey().toString();
-            Object v = entry.getValue();
-            switch (v) {
-                case LocalDate ld -> licenseData.put(k, ld.toString());
-                case Version ver -> licenseData.put(k, ver.toString());
-                case null, default -> licenseData.put(k, v);
+            String key = entry.getKey().toString();
+            Object value = entry.getValue();
+            switch (value) {
+                case LocalDate ld -> licenseData.put(key, ld.toString());
+                case Version ver -> licenseData.put(key, ver.toString());
+                default -> licenseData.put(key, value);
             }
         }
 
@@ -877,7 +888,7 @@ public final class License {
                 }
 
                 // Check if the license ID contains only ASCII characters
-                boolean isAsciiOnly = licenseId.matches("\\A\\p{ASCII}*\\z");
+                boolean isAsciiOnly = IS_ONLY_ASCII.test(licenseId);
                 if (!isAsciiOnly) {
                     validationDetails.add(new ValidationDetail(
                             LICENSE_ID_FORMAT,

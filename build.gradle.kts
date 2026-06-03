@@ -3,8 +3,6 @@
 // This software is released under the MIT License.
 // https://opensource.org/licenses/MIT
 
-@file:Suppress("UnstableApiUsage")
-
 import com.adarshr.gradle.testlogger.theme.ThemeType
 import com.dua3.cabe.processor.Configuration
 import com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask
@@ -180,7 +178,10 @@ tasks.named<JacocoReport>("testCodeCoverageReport") {
 // SonarQube root project config
 sonar {
     properties {
-        property("sonar.coverage.jacoco.xmlReportPaths", "${layout.buildDirectory.get()}/reports/jacoco/testCodeCoverageReport/testCodeCoverageReport.xml")
+        property(
+            "sonar.coverage.jacoco.xmlReportPaths",
+            "${layout.buildDirectory.get()}/reports/jacoco/testCodeCoverageReport/testCodeCoverageReport.xml"
+        )
         property("sonar.coverage.exclusions", "**/samples/**")
 
         // use Cabe instrumented classes if they exist

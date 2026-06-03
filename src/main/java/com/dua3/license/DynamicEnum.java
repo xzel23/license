@@ -83,7 +83,7 @@ public final class DynamicEnum {
             throw new IllegalArgumentException("properties cannot be empty");
         }
 
-        String[] names = properties.stringPropertyNames().toArray(new String[0]);
+        String[] names = properties.stringPropertyNames().toArray(String[]::new);
         return new DynamicEnum(names);
     }
 
@@ -120,10 +120,10 @@ public final class DynamicEnum {
      * For each String, an {@code EnumValue} instance will be created that uses the uppercase name as {@code name()}
      * and the original name as {@code toString()} value.
      *
-     * @param names an array of Strings representing the enum values {}@code toString()} values
+     * @param values an array of Strings representing the enum values {}@code toString()} values
      */
-    private DynamicEnum(String[] names) {
-        this(names, names);
+    private DynamicEnum(String[] values) {
+        this(values, values);
     }
 
     /**
