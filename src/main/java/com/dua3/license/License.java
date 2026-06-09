@@ -4,6 +4,9 @@ import com.dua3.utility.application.LicenseData;
 import com.dua3.utility.crypt.CertificateUtil;
 import com.dua3.utility.lang.LangUtil;
 import com.dua3.utility.lang.Version;
+import com.dua3.utility.text.RichText;
+import com.dua3.utility.text.RichTextBuilder;
+import com.dua3.utility.text.Style;
 import com.dua3.utility.text.TextUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -128,11 +131,25 @@ public final class License {
      * @param reservedFields present field names that are reserved and must not be used
      */
     public record LicenseFieldSchemaValidation(List<String> missingRequiredFields, List<String> reservedFields) {
+
+        /**
+         * Constructs a new {@code LicenseFieldSchemaValidation} instance.
+         *
+         * @param missingRequiredFields A list of required field names that are not present in the schema.
+         * @param reservedFields A list of field names that are present in the schema but are reserved and must not be used.
+         */
         public LicenseFieldSchemaValidation {
             missingRequiredFields = List.copyOf(missingRequiredFields);
             reservedFields = List.copyOf(reservedFields);
         }
 
+        /**
+         * Checks whether the schema validation result is valid.
+         * A validation result is considered valid if there are no missing required fields
+         * and no reserved fields are present in the schema.
+         *
+         * @return true if the schema validation result is valid; false otherwise
+         */
         public boolean isValid() {
             return missingRequiredFields.isEmpty() && reservedFields.isEmpty();
         }
@@ -158,7 +175,7 @@ public final class License {
 
     private final Object keyClass;
     private final Map<Object, Object> data;
-    private final @Nullable String licenseText;
+    private final @Nullable CharSequence licenseText;
     private final byte[] signatureBytes;
     private final Certificate[] certChain;
 
@@ -292,12 +309,25 @@ public final class License {
             }
 
             // set the license text
-            this.licenseText = data.toString();
+            this.licenseText = formatLicenseText(data);
         } catch (InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
             throw new LicenseException("error in key class", e);
         } catch (CertificateException e) {
             throw new LicenseException("error in certificate chain", e);
         }
+    }
+
+    private CharSequence formatLicenseText(Map<Object, Object> data) {
+        RichTextBuilder rtb = new RichTextBuilder();
+        data.forEach((k, v) -> {
+            rtb.push(Style.BOLD);
+            rtb.append(RichText.valueOf(k));
+            rtb.pop(Style.BOLD);
+            rtb.append(": ");
+            rtb.append(v.toString().indent(4).stripLeading());
+            rtb.append("\n\n");
+        });
+        return rtb;
     }
 
     /**
@@ -607,7 +637,7 @@ public final class License {
      *
      * @return an Optional holding the license text, or an empty Optional if it is not set
      */
-    public Optional<String> getLicenseText() {
+    public Optional<CharSequence> getLicenseText() {
         return Optional.ofNullable(licenseText);
     }
 
