@@ -121,6 +121,23 @@ public final class License {
      */
     private static final Predicate<String> IS_ONLY_ASCII = Pattern.compile("\\A\\p{ASCII}*\\z").asMatchPredicate();
 
+    /**
+     * Result type for validating whether a license field schema is compatible with the standard license fields.
+     *
+     * @param missingRequiredFields required field names that are not present
+     * @param reservedFields present field names that are reserved and must not be used
+     */
+    public record LicenseFieldSchemaValidation(List<String> missingRequiredFields, List<String> reservedFields) {
+        public LicenseFieldSchemaValidation {
+            missingRequiredFields = List.copyOf(missingRequiredFields);
+            reservedFields = List.copyOf(reservedFields);
+        }
+
+        public boolean isValid() {
+            return missingRequiredFields.isEmpty() && reservedFields.isEmpty();
+        }
+    }
+
     // key constants
     static final String EXPIRY_DATE_VALIDITY = "expiry.date.validity";
     static final String ISSUE_DATE = "issue.date";
@@ -144,6 +161,80 @@ public final class License {
     private final @Nullable String licenseText;
     private final byte[] signatureBytes;
     private final Certificate[] certChain;
+
+    /**
+     * Validates whether the provided enum class contains all required standard license field names and no reserved names.
+     *
+     * @param licenseFieldsEnum enum class defining license fields
+     * @return validation result
+     */
+    public static LicenseFieldSchemaValidation validateLicenseFieldSchema(Class<? extends Enum> licenseFieldsEnum) {
+        Objects.requireNonNull(licenseFieldsEnum, "licenseFieldsEnum");
+        Enum<?>[] values = licenseFieldsEnum.getEnumConstants();
+        if (values == null) {
+            throw new IllegalArgumentException("not an enum class: " + licenseFieldsEnum);
+        }
+
+        Set<String> fieldNames = new HashSet<>(values.length);
+        for (Enum<?> value : values) {
+            fieldNames.add(value.name());
+        }
+        return validateLicenseFieldNames(fieldNames);
+    }
+
+    /**
+     * Validates whether the provided dynamic enum contains all required standard license field names and no reserved names.
+     *
+     * @param licenseFieldsEnum dynamic enum defining license fields
+     * @return validation result
+     */
+    public static LicenseFieldSchemaValidation validateLicenseFieldSchema(DynamicEnum licenseFieldsEnum) {
+        Objects.requireNonNull(licenseFieldsEnum, "licenseFieldsEnum");
+        DynamicEnum.EnumValue[] values = licenseFieldsEnum.values();
+        Set<String> fieldNames = new HashSet<>(values.length);
+        for (DynamicEnum.EnumValue value : values) {
+            fieldNames.add(value.name());
+        }
+        return validateLicenseFieldNames(fieldNames);
+    }
+
+    /**
+     * Ensures the provided enum class is compatible with the standard license field schema.
+     *
+     * @param licenseFieldsEnum enum class defining license fields
+     * @throws IllegalArgumentException if required fields are missing or reserved fields are used
+     */
+    public static void requireCompatibleLicenseFields(Class<? extends Enum> licenseFieldsEnum) {
+        LicenseFieldSchemaValidation validation = validateLicenseFieldSchema(licenseFieldsEnum);
+        if (!validation.isValid()) {
+            throw new IllegalArgumentException("incompatible license field schema for " + licenseFieldsEnum.getName() + ": " + validation);
+        }
+    }
+
+    /**
+     * Ensures the provided dynamic enum is compatible with the standard license field schema.
+     *
+     * @param licenseFieldsEnum dynamic enum defining license fields
+     * @throws IllegalArgumentException if required fields are missing or reserved fields are used
+     */
+    public static void requireCompatibleLicenseFields(DynamicEnum licenseFieldsEnum) {
+        LicenseFieldSchemaValidation validation = validateLicenseFieldSchema(licenseFieldsEnum);
+        if (!validation.isValid()) {
+            throw new IllegalArgumentException("incompatible license field schema: " + validation);
+        }
+    }
+
+    private static LicenseFieldSchemaValidation validateLicenseFieldNames(Collection<String> fieldNames) {
+        List<String> missingRequiredFields = REQUIRED_LICENSE_FIELDS.stream()
+                .filter(required -> !required.equals(SIGNATURE_LICENSE_FIELD))
+                .filter(required -> !fieldNames.contains(required))
+                .toList();
+        List<String> reservedFields = fieldNames.stream()
+                .filter(name -> SIGNATURE_LICENSE_FIELD.equalsIgnoreCase(name))
+                .sorted()
+                .toList();
+        return new LicenseFieldSchemaValidation(missingRequiredFields, reservedFields);
+    }
 
     /**
      * Constructs a new instance of the License class. This constructor verifies the signature of the license
@@ -246,6 +337,7 @@ public final class License {
             Certificate[] certChain,
             Certificate[] trustedRoots
     ) throws LicenseException {
+        requireCompatibleLicenseFields(licenseFieldsEnum);
         try {
             // Get enum values using reflection
             Object[] enumValues = (Object[]) licenseFieldsEnum.getMethod("values").invoke(null);
@@ -285,6 +377,7 @@ public final class License {
             Certificate[] certChain,
             Certificate[] trustedRoots
     ) throws LicenseException {
+        requireCompatibleLicenseFields(licenseFieldsEnum);
         // Get dynamic enum value names
         DynamicEnum.EnumValue[] enumValues = licenseFieldsEnum.values();
         List<String> licenseFields = Arrays.stream(enumValues)
@@ -315,6 +408,7 @@ public final class License {
             Class<? extends Enum<?>> keyClass,
             Certificate[] trustedRoots
     ) throws LicenseException {
+        requireCompatibleLicenseFields(keyClass);
         // Convert JSON data to a map of string to object with proper types
         Map<String, Object> properties = new HashMap<>();
         for (Map.Entry<String, Object> entry : licenseData.entrySet()) {

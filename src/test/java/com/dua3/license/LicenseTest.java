@@ -33,6 +33,15 @@ class LicenseTest {
         FEATURE
     }
 
+    enum MissingLicenseeFields {
+        LICENSE_ID,
+        ISSUE_DATE,
+        EXPIRY_DATE,
+        MIN_VERSION,
+        MAX_VERSION,
+        FEATURE
+    }
+
     private record SigningContext(KeyPair keyPair, X509Certificate[] chain, Certificate[] trusted) {}
 
     private static SigningContext createSigningContext() throws Exception {
@@ -236,7 +245,16 @@ class LicenseTest {
         // Define enum that illegally contains SIGNATURE name and includes all used fields
         enum BadFields {LICENSE_ID, LICENSEE, ISSUE_DATE, EXPIRY_DATE, MIN_VERSION, MAX_VERSION, FEATURE, SIGNATURE}
         Map<String, Object> data = baseLicenseData();
-        var ex = assertThrows(LicenseException.class, () -> License.createLicense(BadFields.class, data, signer(sc), sc.chain, sc.trusted));
+        var ex = assertThrows(IllegalArgumentException.class, () -> License.createLicense(BadFields.class, data, signer(sc), sc.chain, sc.trusted));
         assertTrue(ex.getMessage().toLowerCase().contains("reserved"));
+    }
+
+    @Test
+    void testValidateLicenseFieldSchema_detectsMissingRequiredFields() {
+        License.LicenseFieldSchemaValidation validation = License.validateLicenseFieldSchema(MissingLicenseeFields.class);
+
+        assertFalse(validation.isValid());
+        assertTrue(validation.missingRequiredFields().contains(LICENSEE_LICENSE_FIELD));
+        assertThrows(IllegalArgumentException.class, () -> License.requireCompatibleLicenseFields(MissingLicenseeFields.class));
     }
 }
