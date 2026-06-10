@@ -1167,7 +1167,7 @@ public final class License {
             }
 
             if (currentVersion != null && minVersion != null && maxVersion != null) {
-                if (!currentVersion.isBetween(minVersion, maxVersion)) {
+                if (!currentVersion.withoutSuffix().isBetween(minVersion, maxVersion)) {
                     validationDetails.add(new ValidationDetail(
                             LICENSE_VERSION_VALID,
                             false,
