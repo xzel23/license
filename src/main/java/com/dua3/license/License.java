@@ -186,7 +186,6 @@ public final class License {
      * @return validation result
      */
     public static LicenseFieldSchemaValidation validateLicenseFieldSchema(Class<? extends Enum> licenseFieldsEnum) {
-        Objects.requireNonNull(licenseFieldsEnum, "licenseFieldsEnum");
         Enum<?>[] values = licenseFieldsEnum.getEnumConstants();
         if (values == null) {
             throw new IllegalArgumentException("not an enum class: " + licenseFieldsEnum);
@@ -206,7 +205,6 @@ public final class License {
      * @return validation result
      */
     public static LicenseFieldSchemaValidation validateLicenseFieldSchema(DynamicEnum licenseFieldsEnum) {
-        Objects.requireNonNull(licenseFieldsEnum, "licenseFieldsEnum");
         DynamicEnum.EnumValue[] values = licenseFieldsEnum.values();
         Set<String> fieldNames = new HashSet<>(values.length);
         for (DynamicEnum.EnumValue value : values) {
