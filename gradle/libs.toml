@@ -1,5 +1,5 @@
 [versions]
-projectVersion = "0.7.0-SNAPSHOT"
+projectVersion = "0.7.0"
 cabe-plugin = "4.4.0"
 jdkprovider-plugin = "0.8.0"
 jreleaser-plugin = "1.23.0"
