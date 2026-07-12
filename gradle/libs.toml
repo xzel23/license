@@ -4,17 +4,17 @@ cabe-plugin = "4.4.0"
 jdkprovider-plugin = "0.8.0"
 jreleaser-plugin = "1.23.0"
 sonar-plugin = "7.3.1.8318"
-spotbugs-plugin = "6.5.6"
+spotbugs-plugin = "6.5.8"
 test-logger-plugin = "4.0.0"
 versions-plugin = "0.54.0"
 
 dua3-utility = "23.0.1"
 
 jspecify = "1.0.0"
-junit-bom = "6.1.0"
-log4j-bom = "2.26.0"
+junit-bom = "6.1.1"
+log4j-bom = "2.26.1"
 bouncycastle = "1.84"
-jackson = "3.2.0"
+jackson = "3.2.1"
 slb4j = "0.12.2"
 
 [libraries]
