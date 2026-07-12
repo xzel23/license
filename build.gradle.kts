@@ -236,7 +236,7 @@ allprojects {
     }
 
     jdk {
-        version = 25
+        version = rootProject.libs.versions.jdkVersion.get().toInt()
     }
 
     // Java configuration for non-BOM projects
