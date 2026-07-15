@@ -9,7 +9,7 @@ spotbugs-plugin = "6.5.9"
 test-logger-plugin = "4.0.0"
 versions-plugin = "0.54.0"
 
-dua3-utility = "23.0.2"
+dua3-utility = "23.0.3"
 
 jspecify = "1.0.0"
 junit-bom = "6.1.1"
