@@ -1,5 +1,5 @@
 [versions]
-projectVersion = "0.7.0"
+projectVersion = "0.7.1"
 jdkVersion = "25"
 cabe-plugin = "4.5.0"
 jdkprovider-plugin = "0.10.0"
