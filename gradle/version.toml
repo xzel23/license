@@ -2,7 +2,7 @@
 projectVersion = "0.7.1"
 jdkVersion = "25"
 cabe-plugin = "4.5.0"
-jdkprovider-plugin = "0.10.0"
+jdkprovider-plugin = "0.11.0-rc2"
 jreleaser-plugin = "1.23.0"
 sonar-plugin = "7.3.1.8318"
 spotbugs-plugin = "6.5.9"
