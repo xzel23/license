@@ -302,6 +302,7 @@ allprojects {
             testImplementation(platform(rootProject.libs.junit.bom))
             testImplementation(rootProject.libs.junit.jupiter.api)
             // Needed for generating/testing X.509 certificates in unit tests
+            testImplementation(platform(rootProject.libs.bouncycastle.bom))
             testImplementation(rootProject.libs.bouncycastle.provider)
             testImplementation(rootProject.libs.bouncycastle.pkix)
             testRuntimeOnly(rootProject.libs.junit.platform.launcher)
@@ -321,6 +322,7 @@ allprojects {
                 val test by getting(JvmTestSuite::class) {
                     useJUnitJupiter()
                     dependencies {
+                        implementation(platform(rootProject.libs.slb4j.bom))
                         implementation(rootProject.libs.slb4j)
                     }
                     targets {

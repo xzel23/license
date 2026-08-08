@@ -7,7 +7,7 @@ jreleaser-plugin = "1.23.0"
 sonar-plugin = "7.4.0.8496"
 spotbugs-plugin = "6.5.9"
 test-logger-plugin = "4.0.0"
-versions-plugin = "0.57.0"
+versions-plugin = "0.60.0"
 
 dua3-utility = "24.0.0"
 
@@ -16,7 +16,7 @@ junit-bom = "6.1.2"
 log4j-bom = "2.26.1"
 bouncycastle = "1.85"
 jackson = "3.2.1"
-slb4j = "0.12.3"
+slb4j = "0.12.4"
 
 [libraries]
 jspecify = { group = "org.jspecify", name = "jspecify", version.ref = "jspecify" }
@@ -24,9 +24,11 @@ dua3-utility-bom = { group = "com.dua3.utility", name = "utility-bom", version.r
 dua3-utility = { group = "com.dua3.utility", name = "utility" }
 log4j-bom = { group = "org.apache.logging.log4j", name = "log4j-bom", version.ref = "log4j-bom" }
 log4j-api = { group = "org.apache.logging.log4j", name = "log4j-api" }
-slb4j = { group = "org.slb4j", name = "slb4j", version.ref = "slb4j" }
-bouncycastle-provider = { group = "org.bouncycastle", name = "bcprov-jdk18on", version.ref = "bouncycastle" }
-bouncycastle-pkix = { group = "org.bouncycastle", name = "bcpkix-jdk18on", version.ref = "bouncycastle" }
+slb4j-bom = { group = "org.slb4j", name = "slb4j-bom", version.ref = "slb4j" }
+slb4j = { group = "org.slb4j", name = "slb4j" }
+bouncycastle-bom = { group = "org.bouncycastle", name = "bc-jdk18on-bom", version.ref = "bouncycastle" }
+bouncycastle-provider = { group = "org.bouncycastle", name = "bcprov-jdk18on" }
+bouncycastle-pkix = { group = "org.bouncycastle", name = "bcpkix-jdk18on" }
 jackson-bom = { group = "tools.jackson", name = "jackson-bom", version.ref = "jackson" }
 jackson-core = { group = "tools.jackson.core", name = "jackson-core" }
 jackson-databind = { group = "tools.jackson.core", name = "jackson-databind" }
