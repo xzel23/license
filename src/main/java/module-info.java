@@ -11,7 +11,6 @@ open module com.dua3.license {
 
     requires org.apache.logging.log4j;
 
-    requires java.prefs;
     requires org.jspecify;
     requires tools.jackson.databind;
 }
