@@ -21,7 +21,7 @@ fun versionCatalogVersion(alias: String): String {
         .drop(1)
         .takeWhile { !it.trim().startsWith("[") }
 
-    val versionDeclaration = Regex("""^\s*${Regex.escape(alias)}\s*=\s*"([^"]+)"\s*(?:#.*)?$""")
+    val versionDeclaration = Regex("""\h*${Regex.escape(alias)}\h*=\h*"([^"\r\n]+)"\h*(?:#.*)?""")
     return versions.firstNotNullOfOrNull { line ->
         versionDeclaration.matchEntire(line)?.groupValues?.get(1)
     } ?: throw GradleException("version '$alias' not found in ${catalog.path}")

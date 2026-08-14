@@ -43,6 +43,8 @@ object Meta {
     const val ORGANIZATION_URL = "https://www.dua3.com"
 }
 
+private val NON_STABLE_VERSION_PATTERN = Regex("[0-9,.v-]+-(?:rc|ea|alpha|beta|b|M|SNAPSHOT)(?:[+-]?[0-9]+)?", RegexOption.IGNORE_CASE)
+
 /////////////////////////////////////////////////////////////////////////////
 // Root project configuration
 /////////////////////////////////////////////////////////////////////////////
@@ -671,8 +673,7 @@ jreleaser {
 allprojects {
     fun isStable(version: String): Boolean {
         val stableKeyword = listOf("RELEASE", "FINAL", "GA").any { version.uppercase().contains(it) }
-        val regex = "[0-9,.v-]+-(rc|ea|alpha|beta|b|M|SNAPSHOT)([+-]?[0-9]*)?".toRegex(RegexOption.IGNORE_CASE)
-        return stableKeyword || !regex.matches(version)
+        return stableKeyword || !NON_STABLE_VERSION_PATTERN.matches(version)
     }
 
     tasks.withType<DependencyUpdatesTask> {
