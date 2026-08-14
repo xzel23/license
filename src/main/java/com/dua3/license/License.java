@@ -122,7 +122,7 @@ public final class License {
      * and end of the input using \A and \z, ensuring the entire input string conforms
      * to this restriction.
      */
-    private static final Predicate<String> IS_ONLY_ASCII = Pattern.compile("\\A\\p{ASCII}*\\z").asMatchPredicate();
+    private static final Predicate<String> IS_ONLY_ASCII = Pattern.compile("\\p{ASCII}*").asMatchPredicate();
 
     /**
      * Result type for validating whether a license field schema is compatible with the standard license fields.
