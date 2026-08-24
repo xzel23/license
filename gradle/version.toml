@@ -1,15 +1,15 @@
 [versions]
-projectVersion = "0.7.2"
+projectVersion = "0.7.3-SNAPSHOT"
 jdkVersion = "25"
 cabe-plugin = "4.5.0"
 jdkprovider-plugin = "0.11.0"
 jreleaser-plugin = "1.25.0"
 sonar-plugin = "7.4.0.8496"
-spotbugs-plugin = "6.5.10"
+spotbugs-plugin = "6.5.11"
 test-logger-plugin = "4.0.0"
 versions-plugin = "0.60.0"
 
-dua3-utility = "24.3.2"
+dua3-utility = "24.3.3-SNAPSHOT"
 
 jspecify = "1.0.1"
 junit-bom = "6.1.3"
