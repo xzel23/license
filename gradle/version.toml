@@ -7,15 +7,14 @@ jreleaser-plugin = "1.25.0"
 sonar-plugin = "7.4.0.8496"
 spotbugs-plugin = "6.5.11"
 test-logger-plugin = "4.0.0"
-versions-plugin = "0.60.0"
 
-dua3-utility = "24.3.3-SNAPSHOT"
+dua3-utility = "24.4.0"
 
 jspecify = "1.0.1"
 junit-bom = "6.1.3"
 log4j-bom = "2.26.1"
 bouncycastle = "1.85.2"
-jackson = "3.2.1"
+jackson = "3.2.2"
 slb4j = "0.13.0"
 
 [libraries]
