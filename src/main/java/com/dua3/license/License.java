@@ -185,6 +185,7 @@ public final class License {
      * @param licenseFieldsEnum enum class defining license fields
      * @return validation result
      */
+    @SuppressWarnings("rawtypes")
     public static LicenseFieldSchemaValidation validateLicenseFieldSchema(Class<? extends Enum> licenseFieldsEnum) {
         Enum<?>[] values = licenseFieldsEnum.getEnumConstants();
         if (values == null) {
@@ -219,6 +220,7 @@ public final class License {
      * @param licenseFieldsEnum enum class defining license fields
      * @throws IllegalArgumentException if required fields are missing or reserved fields are used
      */
+    @SuppressWarnings("rawtypes")
     public static void requireCompatibleLicenseFields(Class<? extends Enum> licenseFieldsEnum) {
         LicenseFieldSchemaValidation validation = validateLicenseFieldSchema(licenseFieldsEnum);
         if (!validation.isValid()) {
@@ -678,7 +680,7 @@ public final class License {
      * @return the key as an object, which may be an Enum or DynamicEnum value
      * @throws IllegalArgumentException if the key class is invalid or the key cannot be converted
      */
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "rawtypes"})
     private Object toKey(String name) {
         return switch (keyClass) {
             case DynamicEnum de -> de.valueOf(name);
