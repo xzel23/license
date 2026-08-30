@@ -247,7 +247,7 @@ public final class License {
                 .filter(required -> !fieldNames.contains(required))
                 .toList();
         List<String> reservedFields = fieldNames.stream()
-                .filter(name -> SIGNATURE_LICENSE_FIELD.equalsIgnoreCase(name))
+                .filter(SIGNATURE_LICENSE_FIELD::equalsIgnoreCase)
                 .sorted()
                 .toList();
         return new LicenseFieldSchemaValidation(missingRequiredFields, reservedFields);
@@ -317,7 +317,7 @@ public final class License {
         }
     }
 
-    private CharSequence formatLicenseText(Map<Object, Object> data) {
+    private static CharSequence formatLicenseText(Map<Object, Object> data) {
         RichTextBuilder rtb = new RichTextBuilder();
         data.forEach((k, v) -> {
             rtb.push(Style.BOLD);
@@ -360,6 +360,7 @@ public final class License {
      * @return an unmodifiable sequenced map containing the signed license data
      * @throws LicenseException if an error occurs
      */
+    @SuppressWarnings("rawtypes")
     public static License createLicense(
             Class<? extends Enum> licenseFieldsEnum,
             Map<String, Object> licenseData,
