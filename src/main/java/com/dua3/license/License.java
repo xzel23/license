@@ -39,6 +39,7 @@ import java.security.cert.PKIXParameters;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509Certificate;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -178,7 +179,7 @@ public final class License {
 
     private final Object keyClass;
     private final Map<Object, Object> data;
-    private final @Nullable CharSequence licenseText;
+    private final RichText licenseText;
     private final byte[] signatureBytes;
     private final Certificate[] certChain;
 
@@ -195,7 +196,7 @@ public final class License {
             throw new IllegalArgumentException("not an enum class: " + licenseFieldsEnum);
         }
 
-        Set<String> fieldNames = new HashSet<>(values.length);
+        Set<String> fieldNames = HashSet.newHashSet(values.length);
         for (Enum<?> value : values) {
             fieldNames.add(value.name());
         }
@@ -210,7 +211,7 @@ public final class License {
      */
     public static LicenseFieldSchemaValidation validateLicenseFieldSchema(DynamicEnum licenseFieldsEnum) {
         DynamicEnum.EnumValue[] values = licenseFieldsEnum.values();
-        Set<String> fieldNames = new HashSet<>(values.length);
+        Set<String> fieldNames = HashSet.newHashSet(values.length);
         for (DynamicEnum.EnumValue value : values) {
             fieldNames.add(value.name());
         }
@@ -324,7 +325,7 @@ public final class License {
         }
     }
 
-    private static CharSequence formatLicenseText(Map<Object, Object> data) {
+    private static RichText formatLicenseText(Map<Object, Object> data) {
         RichTextBuilder rtb = new RichTextBuilder();
         data.forEach((k, v) -> {
             rtb.push(Style.BOLD);
@@ -652,8 +653,8 @@ public final class License {
      *
      * @return an Optional holding the license text, or an empty Optional if it is not set
      */
-    public Optional<CharSequence> getLicenseText() {
-        return Optional.ofNullable(licenseText);
+    public RichText getLicenseText() {
+        return licenseText;
     }
 
     /**
@@ -677,9 +678,9 @@ public final class License {
      * @throws IllegalArgumentException if the key is of an invalid type or not
      *                                  compatible with the key class
      */
-    Object get(Object key) {
+    public Object get(Object key) {
         return switch (keyClass) {
-            case DynamicEnum de when key instanceof DynamicEnum.EnumValue enumValue && enumValue.parent() == keyClass ->
+            case DynamicEnum _ when key instanceof DynamicEnum.EnumValue enumValue && enumValue.parent() == keyClass ->
                     data.get(enumValue.name());
             case Class<?> cls when cls.isEnum() && cls.isAssignableFrom(key.getClass()) ->
                     data.get(((Enum<?>) key).name());
@@ -1046,7 +1047,7 @@ public final class License {
             }
 
             // Check for issue date
-            LocalDate today = LocalDate.now();
+            LocalDate today = LocalDate.now(ZoneId.systemDefault());
             String issueDateStr = Objects.requireNonNullElse(licenseData.get(ISSUE_DATE_LICENSE_FIELD), "").toString();
             LocalDate issueDate = null;
             try {
@@ -1282,7 +1283,7 @@ public final class License {
      * @return the number of valid days remaining, or a non-positive number if the license is expired
      */
     public int validDays() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(ZoneId.systemDefault());
         LocalDate expiryDate = getValidUntil();
         return today.until(expiryDate).getDays();
     }
@@ -1316,7 +1317,7 @@ public final class License {
                 getLicensee(),
                 getValidUntil(),
                 getLicenseId(),
-                getLicenseText().map(t -> () -> t)
+                Optional.of(this::getLicenseText)
         );
     }
 
