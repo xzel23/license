@@ -43,14 +43,17 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.SequencedMap;
+import java.util.SequencedSet;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -264,18 +267,22 @@ public final class License {
      */
     private License(Object keyClass, Map<String, Object> properties, Certificate[] trustedRoots) throws LicenseException {
         try {
-            Set<Object> keys;
+            SequencedSet<Object> keys;
             Function<Object, String> enumName;
             switch (keyClass) {
                 case Class<?> cls -> {
                     if (!cls.isEnum()) {
                         throw new IllegalArgumentException("not an enum class");
                     }
-                    keys = Set.copyOf(Arrays.asList((Object[]) (cls.getMethod("values").invoke(null))));
+                    keys = Collections.unmodifiableSequencedSet(new LinkedHashSet<>(
+                            Arrays.asList((Object[]) (cls.getMethod("values").invoke(null)))
+                    ));
                     enumName = v -> ((Enum<?>) v).name();
                 }
                 case DynamicEnum de -> {
-                    keys = Set.copyOf(Arrays.asList(de.values()));
+                    keys = Collections.unmodifiableSequencedSet(new LinkedHashSet<>(
+                            Arrays.asList(de.values())
+                    ));
                     enumName = v -> ((DynamicEnum.EnumValue) v).name();
                 }
                 default -> throw new IllegalArgumentException("invalid keyClass");
@@ -322,12 +329,19 @@ public final class License {
         data.forEach((k, v) -> {
             rtb.push(Style.BOLD);
             rtb.append(RichText.valueOf(k));
+            rtb.append(':');
             rtb.pop(Style.BOLD);
-            rtb.append(": ");
-            rtb.append(v.toString().indent(4).stripLeading());
-            rtb.append("\n\n");
+            String vtxt = v.toString();
+            if (vtxt.indexOf('\n') == -1) {
+                rtb.append(' ');
+                rtb.append(vtxt);
+            } else {
+                rtb.append("\n");
+                rtb.append(vtxt.indent(4));
+            }
+            rtb.append("\n");
         });
-        return rtb;
+        return rtb.toRichText();
     }
 
     /**
