@@ -543,17 +543,8 @@ public final class License {
      * @throws IOException if an I/O error occurs during writing to the OutputStream
      */
     public void save(OutputStream out) throws IOException {
-        // build a properties map including signature and data, converting values to JSON-friendly types
-        Map<String, Object> props = LinkedHashMap.newLinkedHashMap(data.size() + 1);
-        for (Map.Entry<Object, Object> e : data.entrySet()) {
-            String key = e.getKey().toString();
-            Object value = e.getValue();
-            switch (value) {
-                case LocalDate ld -> props.put(key, ld.toString());
-                case Version ver -> props.put(key, ver.toString());
-                default -> props.put(key, value);
-            }
-        }
+        // build a property map including signature and data, converting values to JSON-friendly types
+        Map<String, Object> props = getPropertyMap();
         try {
             String sig = TextUtil.base64Encode(signatureBytes);
             String chain = TextUtil.base64Encode(CertificateUtil.toPkiPathBytes(certChain));
@@ -569,6 +560,30 @@ public final class License {
 
         mapper.writerWithDefaultPrettyPrinter()
                 .writeValue(out, props);
+    }
+
+    /**
+     * Constructs and returns a map of properties where each key is a string
+     * representation of the original key from the input data, and each value
+     * is either the string representation of certain object types or the original value.
+     * If the value is of type LocalDate or Version, it is converted to a string
+     * using its toString method. All other values are stored as is.
+     *
+     * @return a map with string keys and object values, with special handling
+     *         for LocalDate and Version objects to convert them to strings.
+     */
+    private Map<String, Object> getPropertyMap() {
+        Map<String, Object> props = LinkedHashMap.newLinkedHashMap(data.size() + 1);
+        for (Map.Entry<Object, Object> e : data.entrySet()) {
+            String key = e.getKey().toString();
+            Object value = e.getValue();
+            switch (value) {
+                case LocalDate ld -> props.put(key, ld.toString());
+                case Version ver -> props.put(key, ver.toString());
+                default -> props.put(key, value);
+            }
+        }
+        return props;
     }
 
     /**
@@ -635,7 +650,7 @@ public final class License {
      */
     public static byte[] prepareSigningData(Map<?, ?> data) {
         // create deterministic representation independent of map iteration order
-        Map<String, Object> sorted = new java.util.TreeMap<>();
+        Map<String, @Nullable Object> sorted = new java.util.TreeMap<>();
         for (Map.Entry<?, ?> e : data.entrySet()) {
             String key = String.valueOf(e.getKey());
             Object value = e.getValue();
@@ -758,18 +773,7 @@ public final class License {
      * @return the validation result
      */
     public ValidationResult validate(Certificate[] trustedRoots, Version currentVersion) {
-        Map<String, Object> licenseData = new LinkedHashMap<>();
-
-        // Convert internal data to a map of strings with JSON-friendly values
-        for (Map.Entry<Object, Object> entry : data.entrySet()) {
-            String key = entry.getKey().toString();
-            Object value = entry.getValue();
-            switch (value) {
-                case LocalDate ld -> licenseData.put(key, ld.toString());
-                case Version ver -> licenseData.put(key, ver.toString());
-                default -> licenseData.put(key, value);
-            }
-        }
+        Map<String, Object> licenseData = getPropertyMap();
 
         // add signature field from internal state
         licenseData.put(SIGNATURE_LICENSE_FIELD, getSignature());
