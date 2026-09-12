@@ -276,13 +276,13 @@ public final class License {
                         throw new IllegalArgumentException("not an enum class");
                     }
                     keys = Collections.unmodifiableSequencedSet(new LinkedHashSet<>(
-                            Arrays.asList((Object[]) (cls.getMethod("values").invoke(null)))
+                            LangUtil.asUnmodifiableList((Object[]) (cls.getMethod("values").invoke(null)))
                     ));
                     enumName = v -> ((Enum<?>) v).name();
                 }
                 case DynamicEnum de -> {
                     keys = Collections.unmodifiableSequencedSet(new LinkedHashSet<>(
-                            Arrays.asList(de.values())
+                            LangUtil.asUnmodifiableList(de.values())
                     ));
                     enumName = v -> ((DynamicEnum.EnumValue) v).name();
                 }
