@@ -8,7 +8,7 @@ sonar-plugin = "7.4.0.8496"
 spotbugs-plugin = "6.5.11"
 test-logger-plugin = "4.0.0"
 
-dua3-utility = "24.7.1-SNAPSHOT"
+dua3-utility = "24.8.0"
 
 jspecify = "1.0.1"
 junit-bom = "6.1.3"
