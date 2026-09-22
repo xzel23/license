@@ -8,13 +8,13 @@ sonar-plugin = "7.5.0.8588"
 spotbugs-plugin = "6.5.11"
 test-logger-plugin = "4.0.0"
 
-dua3-utility = "24.8.2-SNAPSHOT"
+dua3-utility = "24.8.2"
 
 jspecify = "1.0.1"
 junit-bom = "6.1.3"
 log4j-bom = "2.26.1"
 bouncycastle = "1.86.1"
-jackson = "3.2.2"
+jackson = "3.2.3"
 slb4j = "0.14.1"
 
 [libraries]
